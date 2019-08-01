@@ -4,7 +4,10 @@
 	"main": "./dist/es5/index.js",
 	"types": "./dist/es5/index.d.ts",
 	"license": "MIT",
-	"files": ["dist", "cfg.png"],
+	"files": [
+		"dist",
+		"cfg.png"
+	],
 	"version": "0.1.4",
 	"repository": "http://www.github.com/microsoft/python-program-analysis",
 	"scripts": {
@@ -45,6 +48,7 @@
 		"@jupyterlab/cells": "^0.19.1",
 		"@jupyterlab/coreutils": "^2.2.1",
 		"@jupyterlab/rendermime": "^0.19.1",
+		"chai": "^4.2.0",
 		"js-yaml": "^3.13.1"
 	}
 }
