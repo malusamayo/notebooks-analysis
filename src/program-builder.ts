@@ -1,14 +1,18 @@
 import { Cell } from './cell';
 import * as ast from './python-parser';
-import { DataflowAnalyzer, Ref } from './data-flow';
+import { DataflowAnalyzer, Ref, RefSet } from './data-flow';
 import { MagicsRewriter } from './rewrite-magics';
-import { NumberSet } from './set';
+import { Set, NumberSet, StringSet } from './set';
+import { Graph } from './graph';
 
 /**
  * Maps to find out what line numbers over a program correspond to what cells.
  */
 export type CellToLineMap = { [cellExecutionEventId: string]: NumberSet };
 export type LineToCellMap = { [line: number]: Cell };
+
+
+const magicsRewriter: MagicsRewriter = new MagicsRewriter();
 
 /**
  * A program built from cells.
@@ -17,23 +21,71 @@ export class Program {
   /**
    * Construct a program.
    */
-  constructor(
-    text: string,
-    tree: ast.Module,
-    cellToLineMap: CellToLineMap,
-    lineToCellMap: LineToCellMap
-  ) {
-    this.text = text;
-    this.tree = tree;
-    this.cellToLineMap = cellToLineMap;
-    this.lineToCellMap = lineToCellMap;
+  constructor(cellPrograms: CellProgram[]) {
+    let currentLine = 1;
+    this.tree = { code: [], type: ast.MODULE };
+
+    cellPrograms.forEach(cp => {
+      let cell = cp.cell;
+
+      // Build a mapping from the cells to their lines.
+      let cellLength = cell.text.split('\n').length;
+      let cellLines: number[] = [];
+      for (let l = 0; l < cellLength; l++) {
+        cellLines.push(currentLine + l);
+      }
+      cellLines.forEach(l => {
+        this.lineToCellMap[l] = cell;
+        if (!this.cellToLineMap[cell.executionEventId]) {
+          this.cellToLineMap[cell.executionEventId] = new NumberSet();
+        }
+        this.cellToLineMap[cell.executionEventId].add(l);
+      });
+
+      // Accumulate the code text.
+      currentLine += cellLength;
+
+      // Accumulate the code statements.
+      // This includes resetting the locations of all of the nodes in the tree,
+      // relative to the cells that come before this one.
+      // This can be sped up by saving this computation.
+      this.tree.code.push(...shiftStatementLines(cp.statements, Math.min(...cellLines) - 1));
+    });
+
+    this.text = cellPrograms.map(cp => magicsRewriter.rewrite(cp.cell.text + '\n')).join('');
   }
 
   readonly text: string;
   readonly tree: ast.Module;
-  readonly cellToLineMap: CellToLineMap;
-  readonly lineToCellMap: LineToCellMap;
+  readonly cellToLineMap: CellToLineMap = {};
+  readonly lineToCellMap: LineToCellMap = {};
 }
+
+function shiftStatementLines(stmts: ast.SyntaxNode[], delta: number): ast.SyntaxNode[] {
+  return stmts.map(statement => {
+    let statementCopy: ast.SyntaxNode = JSON.parse(JSON.stringify(statement));
+    for (let node of ast.walk(statementCopy)) {
+      if (node.location) {
+        node.location = shiftLines(node.location, delta);
+      }
+      if (node.type == ast.FOR) {
+        node.decl_location = shiftLines(node.decl_location, delta);
+      }
+    }
+    return statementCopy;
+  });
+}
+
+function shiftLines(loc: ast.Location, delta: number): ast.Location {
+  return Object.assign({}, loc, {
+    first_line: loc.first_line + delta,
+    first_column: loc.first_column,
+    last_line: loc.last_line + delta,
+    last_column: loc.last_column
+  });
+}
+
+
 
 /**
  * Program fragment for a cell. Used to cache parsing results.
@@ -61,6 +113,10 @@ export class CellProgram {
   readonly defs: Ref[];
   readonly uses: Ref[];
   readonly hasError: boolean;
+
+  public usesSomethingFrom(that: CellProgram) {
+    return this.uses.some(use => that.defs.some(def => use.name === def.name));
+  }
 }
 
 /**
@@ -78,7 +134,7 @@ export class ProgramBuilder {
   /**
    * Add cells to the program builder.
    */
-  add(...cells: Cell[]) {
+  public add(...cells: Cell[]) {
     for (let cell of cells) {
       // Proactively try to parse and find defs and uses in each block.
       // If there is a failure, discard that cell.
@@ -88,7 +144,7 @@ export class ProgramBuilder {
       let hasError = cell.hasError;
       try {
         // Parse the cell's code.
-        let tree = ast.parse(this._magicsRewriter.rewrite(cell.text) + '\n');
+        let tree = ast.parse(magicsRewriter.rewrite(cell.text) + '\n');
         statements = tree.code;
         // Annotate each node with cell ID info, for dataflow caching.
         for (let node of ast.walk(tree)) {
@@ -103,9 +159,9 @@ export class ProgramBuilder {
           defs = [];
           uses = [];
           for (let stmt of tree.code) {
-            let defsUses = this._dataflowAnalyzer.getDefsUses(stmt);
-            defs.push(...defsUses.defs.items);
-            uses.push(...defsUses.uses.items);
+            let defsUses = this._dataflowAnalyzer.getDefUseForStatement(stmt, new RefSet());
+            defs.push(...defsUses.DEFINITION.union(defsUses.UPDATE).items);
+            uses.push(...defsUses.USE.items);
           }
         } else {
           defs = [];
@@ -130,7 +186,7 @@ export class ProgramBuilder {
   /**
    * Reset (removing all cells).
    */
-  reset() {
+  public reset() {
     this._cellPrograms = [];
   }
 
@@ -139,100 +195,45 @@ export class ProgramBuilder {
    * the order they were added to the log. It will omit cells that raised errors (syntax or
    * runtime, except for the last cell).
    */
-  buildTo(cellExecutionEventId: string): Program {
-    let addingPrograms = false;
-    let lastExecutionCountSeen;
+  public buildTo(cellExecutionEventId: string): Program {
     let cellPrograms: CellProgram[] = [];
-
-    for (let i = this._cellPrograms.length - 1; i >= 0; i--) {
+    let i: number;
+    for (i = this._cellPrograms.length - 1; i >= 0 && this._cellPrograms[i].cell.executionEventId !== cellExecutionEventId; i--);
+    cellPrograms.unshift(this._cellPrograms[i]);
+    let lastExecutionCountSeen = this._cellPrograms[i].cell.executionCount;
+    for (i--; i >= 0; i--) {
       let cellProgram = this._cellPrograms[i];
       let cell = cellProgram.cell;
-      if (!addingPrograms && cell.executionEventId === cellExecutionEventId) {
-        addingPrograms = true;
-        lastExecutionCountSeen = cell.executionCount;
+      if (cell.executionCount >= lastExecutionCountSeen) {
+        break;
+      }
+      if (!cellProgram.hasError) {
         cellPrograms.unshift(cellProgram);
-        continue;
       }
-      if (addingPrograms) {
-        if (cell.executionCount >= lastExecutionCountSeen) {
-          break;
-        }
-        if (!cellProgram.hasError) {
-          cellPrograms.unshift(cellProgram);
-        }
-        lastExecutionCountSeen = cell.executionCount;
-      }
+      lastExecutionCountSeen = cell.executionCount;
     }
-
-    let code = '';
-    let currentLine = 1;
-    let lineToCellMap: LineToCellMap = {};
-    let cellToLineMap: CellToLineMap = {};
-
-    // Synthetic parse tree built from the cell parse trees.
-    let tree: ast.Module = {
-      code: [],
-      type: ast.MODULE,
-      location: undefined,
-    };
-
-    cellPrograms.forEach(cp => {
-      let cell = cp.cell;
-      let cellCode = cell.text;
-      let statements = [];
-
-      // Build a mapping from the cells to their lines.
-      let cellLength = cellCode.split('\n').length;
-      let cellLines = [];
-      for (let l = 0; l < cellLength; l++) {
-        cellLines.push(currentLine + l);
-      }
-      cellLines.forEach(l => {
-        lineToCellMap[l] = cell;
-        if (!cellToLineMap[cell.executionEventId])
-          cellToLineMap[cell.executionEventId] = new NumberSet();
-        cellToLineMap[cell.executionEventId].add(l);
-      });
-
-      // Accumulate the code text.
-      let cellText = this._magicsRewriter.rewrite(cell.text);
-      code += cellText + '\n';
-      currentLine += cellLength;
-
-      // Accumulate the code statements.
-      // This includes resetting the locations of all of the nodes in the tree,
-      // relative to the cells that come before this one.
-      // This can be sped up by saving this computation.
-      let cellStart = Math.min(...cellLines);
-      for (let statement of cp.statements) {
-        let statementCopy = JSON.parse(JSON.stringify(statement));
-        for (let node of ast.walk(statementCopy)) {
-          if (node.location) {
-            node.location.first_line += cellStart - 1;
-            node.location.last_line += cellStart - 1;
-          }
-          if (node.type == ast.FOR) {
-            node.decl_location.first_line += cellStart - 1;
-            node.decl_location.last_line += cellStart - 1;
-          }
-        }
-        statements.push(statementCopy);
-      }
-      tree.code.push(...statements);
-    });
-
-    return new Program(code, tree, cellToLineMap, lineToCellMap);
+    return new Program(cellPrograms);
   }
 
-  getCellProgram(cell: Cell): CellProgram {
-    let matchingPrograms = this._cellPrograms.filter(
-      cp => cp.cell.executionEventId == cell.executionEventId
-    );
-    if (matchingPrograms.length >= 1) return matchingPrograms.pop();
+  public buildFrom(executionEventId: string): Program {
+    const cellProgram = this.getCellProgram(executionEventId);
+    if (!cellProgram) { return null; }
+    const i = this._cellPrograms.findIndex(cp => cp.cell.persistentId === cellProgram.cell.persistentId);
+    return new Program(this._cellPrograms.slice(i));
+  }
+
+
+  public getCellProgram(executionEventId: string): CellProgram {
+    let matchingPrograms = this._cellPrograms.filter(cp => cp.cell.executionEventId == executionEventId);
+    if (matchingPrograms.length >= 1) { return matchingPrograms.pop(); }
     return null;
   }
 
-  public _cellPrograms: CellProgram[];
+  public getCellProgramsWithSameId(executionEventId: string): CellProgram[] {
+    const cellProgram = this.getCellProgram(executionEventId);
+    return this._cellPrograms.filter(cp => cp.cell.persistentId === cellProgram.cell.persistentId);
+  }
+
+  private _cellPrograms: CellProgram[];
   private _dataflowAnalyzer: DataflowAnalyzer;
-  private _magicsRewriter: MagicsRewriter = new MagicsRewriter();
 }

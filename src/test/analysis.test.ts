@@ -1,28 +1,22 @@
 import { expect } from 'chai';
 import { SyntaxNode, parse } from '../python-parser';
 import { ControlFlowGraph } from '../control-flow';
-import {
-  DataflowAnalyzer,
-  Dataflow,
-  Ref,
-  ReferenceType,
-  RefSet,
-  SymbolType,
-} from '../data-flow';
-import { Set, StringSet } from '../set';
-import { SliceConfiguration } from '../slice-config';
+import { DataflowAnalyzer, Dataflow, Ref, ReferenceType, RefSet, SymbolType } from '../data-flow';
+import { Set } from '../set';
+import { JsonSpecs, DefaultSpecs } from '../specs';
 import { printNode } from '../printNode';
+import { SymbolTable } from '../symbol-table';
 
 describe('detects dataflow dependencies', () => {
   function analyze(...codeLines: string[]): Set<Dataflow> {
     let code = codeLines.concat('').join('\n'); // add newlines to end of every line.
     let analyzer = new DataflowAnalyzer();
     printNode;
-    return analyzer.analyze(new ControlFlowGraph(parse(code))).flows;
+    return analyzer.analyze(new ControlFlowGraph(parse(code))).dataflows;
   }
 
   function analyzeLineDeps(...codeLines: string[]): [number, number][] {
-    return analyze(...codeLines).items.map(dep=> [dep.toNode.location.first_line, dep.fromNode.location.first_line]);
+    return analyze(...codeLines).items.map(dep => [dep.toNode.location.first_line, dep.fromNode.location.first_line]);
   }
 
   it('from variable uses to names', () => {
@@ -95,10 +89,13 @@ describe('detects dataflow dependencies', () => {
 });
 
 describe('detects control dependencies', () => {
+
   function analyze(...codeLines: string[]): [number, number][] {
     let code = codeLines.concat('').join('\n'); // add newlines to end of every line.
-    let deps = new ControlFlowGraph(parse(code)).getControlDependencies();
-    return deps.map(dep => [dep.toNode.location.first_line, dep.fromNode.location.first_line]);
+    const deps: [number, number][] = [];
+    new ControlFlowGraph(parse(code)).visitControlDependencies((control, stmt) =>
+      deps.push([stmt.location.first_line, control.location.first_line]));
+    return deps;
   }
 
   it('to an if-statement', () => {
@@ -146,34 +143,34 @@ describe('detects control dependencies', () => {
 });
 
 describe('getDefs', () => {
-  function getDefsFromStatements(...codeLines: string[]): Ref[] {
+
+  function getDefsFromStatements(specs?: JsonSpecs, ...codeLines: string[]): Ref[] {
     let code = codeLines.concat('').join('\n');
     let module = parse(code);
-    let analyzer = new DataflowAnalyzer();
-    return new RefSet().union(
-      ...module.code.map((stmt: SyntaxNode) => {
-        return analyzer.getDefs(stmt, { moduleNames: new StringSet() });
-      })
-    ).items;
+    let analyzer = new DataflowAnalyzer(specs || DefaultSpecs);
+    return module.code.reduce((refSet, stmt) => {
+      const refs = analyzer.getDefs(stmt, refSet);
+      return refSet.union(refs);
+    }, new RefSet()).items;
   }
 
   function getDefsFromStatement(
     code: string,
-    sliceConfiguration?: SliceConfiguration
+    mmap?: JsonSpecs
   ): Ref[] {
-    sliceConfiguration = sliceConfiguration || [];
+    mmap = mmap || DefaultSpecs;
     code = code + '\n'; // programs need to end with newline
     let mod = parse(code);
-    let analyzer = new DataflowAnalyzer(sliceConfiguration);
-    return analyzer.getDefs(mod.code[0], { moduleNames: new StringSet() })
+    let analyzer = new DataflowAnalyzer(mmap);
+    return analyzer.getDefs(mod.code[0], new RefSet())
       .items;
   }
 
   function getDefNamesFromStatement(
     code: string,
-    sliceConfiguration?: SliceConfiguration
+    mmap?: JsonSpecs
   ) {
-    return getDefsFromStatement(code, sliceConfiguration).map(def => def.name);
+    return getDefsFromStatement(code, mmap).map(def => def.name);
   }
 
   describe('detects definitions', () => {
@@ -273,11 +270,9 @@ describe('getDefs', () => {
       });
 
       it('computing the def location relative to the line it appears on', () => {
-        let defs = getDefsFromStatements(
-          [
-            '# this is an empty line',
-            '"""defs: [{ "name": "a", "pos": [[0, 0], [0, 11]] }]"""%some_magic',
-          ].join('\n')
+        let defs = getDefsFromStatements(undefined,
+          '# this is an empty line',
+          '"""defs: [{ "name": "a", "pos": [[0, 0], [0, 11]] }]"""%some_magic',
         );
         expect(defs[0]).to.deep.include({
           location: {
@@ -302,52 +297,53 @@ describe('getDefs', () => {
       });
     });
 
-    describe('; given a slice config', () => {
+    describe('; given a spec,', () => {
       it('can ignore all arguments', () => {
-        let defs = getDefsFromStatement('func(a, b, c)', [
-          {
-            functionName: 'func',
-            doesNotModify: ['ARGUMENTS'],
-          },
-        ]);
+        let defs = getDefsFromStatement('func(a, b, c)',
+          { __builtins__: { functions: ['func'] } });
         expect(defs).to.deep.equal([]);
       });
 
-      it('can ignore the object functions are called on', () => {
-        let defs = getDefsFromStatement('obj.func()', [
-          {
-            functionName: 'func',
-            doesNotModify: ['OBJECT'],
-          },
-        ]);
-        expect(defs).to.deep.equal([]);
+      it('assumes arguments have side-effects, without a spec', () => {
+        let defs = getDefsFromStatement('func(a, b, c)',
+          { __builtins__: { functions: [] } });
+        expect(defs).to.exist;
+        expect(defs.length).to.equal(3);
+        const names = defs.map(d => d.name);
+        expect(names).to.include('a');
+        expect(names).to.include('b');
+        expect(names).to.include('c');
       });
 
-      it('can ignore positional arguments a function is called with', () => {
-        let defs = getDefNamesFromStatement('func(a)', [
-          {
-            functionName: 'func',
-            doesNotModify: [0],
-          },
-        ]);
-        expect(defs).to.not.include('a');
+      it('can ignore the method receiver', () => {
+        const specs = { __builtins__: { types: { C: { methods: ['m'] } } } };
+        let defs = getDefsFromStatements(specs, 'x=C()', 'x.m()');
+        expect(defs).to.exist;
+        expect(defs.length).to.equal(1);
+        expect(defs[0].name).to.equal('x');
+        expect(defs[0].level).to.equal(ReferenceType.DEFINITION);
       });
 
-      it('can ignore keyword arguments a function is called with', () => {
-        let defs = getDefNamesFromStatement('func(a=var)', [
-          {
-            functionName: 'func',
-            doesNotModify: ['a'],
-          },
-        ]);
-        expect(defs).to.deep.equal([]);
+      it('assumes method call affects the receiver, without a spec', () => {
+        const specs = { __builtins__: {} };
+        let defs = getDefsFromStatements(specs, 'x=C()', 'x.m()');
+        expect(defs).to.exist;
+        expect(defs.length).to.equal(2);
+        expect(defs[1].name).to.equal('x');
+        expect(defs[1].level).to.equal(ReferenceType.UPDATE);
       });
+
     });
   });
 
   describe("doesn't detect definitions", () => {
     it('for names used outside a function call', () => {
       let defs = getDefNamesFromStatement('a + func()');
+      expect(defs).to.deep.equal([]);
+    });
+
+    it('for functions called early in a call chain', () => {
+      let defs = getDefNamesFromStatement('func().func()');
       expect(defs).to.deep.equal([]);
     });
   });
@@ -359,7 +355,7 @@ describe('getUses', () => {
     let mod = parse(code);
     let analyzer = new DataflowAnalyzer();
     return analyzer
-      .getUses(mod.code[0], { moduleNames: new StringSet() })
+      .getUses(mod.code[0])
       .items.map(use => use.name);
   }
 

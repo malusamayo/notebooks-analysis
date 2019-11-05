@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { ProgramBuilder } from '../program-builder';
-import { Cell, LogCell } from '../cell';
+import { Cell } from '../cell';
+import { TestCell } from './testcell';
 
 describe('program builder', () => {
   function createCell(
@@ -8,7 +9,7 @@ describe('program builder', () => {
     text: string,
     executionCount?: number
   ): Cell {
-    return new LogCell({ executionEventId, text, executionCount });
+    return new TestCell(text, executionCount, executionEventId);
   }
 
   let programBuilder: ProgramBuilder;
@@ -100,6 +101,15 @@ describe('program builder', () => {
 
     let code = programBuilder.buildTo('id3').text;
     expect(code).to.equal(['print(1)', 'print(3)', ''].join('\n'));
+  });
+
+  it('doesn\'t skip cells with array slices', () => {
+    programBuilder.add(
+      createCell('id1', 'array[0:1]'),
+      createCell('id2', 'print(x)')
+    );
+    let code = programBuilder.buildTo('id2').text;
+    expect(code).to.equal("array[0:1]\nprint(x)\n");
   });
 
   it('skips cells that were executed in prior kernels', () => {

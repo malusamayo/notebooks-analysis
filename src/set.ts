@@ -17,10 +17,20 @@ export class Set<T> {
   }
 
   public remove(item: T): void {
-    delete this._items[this.getIdentifier(item)];
+    if (this.has(item)) {
+      delete this._items[this.getIdentifier(item)];
+    }
   }
 
-  public contains(item: T): boolean {
+  public pop(): T {
+    if (this.empty) { throw 'empty'; }
+    const someKey = Object.keys(this._items)[0];
+    const result = this._items[someKey];
+    this.remove(result);
+    return result;
+  }
+
+  public has(item: T): boolean {
     return this._items[this.getIdentifier(item)] != undefined;
   }
 
@@ -30,7 +40,7 @@ export class Set<T> {
 
   public equals(that: Set<T>): boolean {
     return (
-      this.size == that.size && this.items.every(item => that.contains(item))
+      this.size == that.size && this.items.every(item => that.has(item))
     );
   }
 
@@ -48,7 +58,7 @@ export class Set<T> {
   public intersect(that: Set<T>): Set<T> {
     return new Set(
       this.getIdentifier,
-      ...this.items.filter(item => that.contains(item))
+      ...this.items.filter(item => that.has(item))
     );
   }
 
@@ -63,10 +73,18 @@ export class Set<T> {
     return new Set(getIdentifier, ...this.items.map(transform));
   }
 
+  public mapSame(transform: (item: T) => T) {
+    return new Set(this.getIdentifier, ...this.items.map(transform));
+  }
+
+  public some(predicate: (item: T) => boolean): boolean {
+    return this.items.some(predicate);
+  }
+
   public minus(that: Set<T>): Set<T> {
     return new Set(
       this.getIdentifier,
-      ...this.items.filter(x => !that.contains(x))
+      ...this.items.filter(x => !that.has(x))
     );
   }
 
@@ -78,6 +96,13 @@ export class Set<T> {
     const result = this._items[first];
     this.remove(result);
     return result;
+  }
+
+  public product(that: Set<T>): Set<[T, T]> {
+    return new Set(
+      ([x, y]) => this.getIdentifier(x) + that.getIdentifier(y),
+      ...flatten(...this.items.map(x =>
+        flatten(that.items.map<[T, T]>(y => [x, y])))));
   }
 }
 
@@ -99,4 +124,9 @@ export function range(min: number, max: number): Set<number> {
     numbers.push(i);
   }
   return new NumberSet(...numbers);
+}
+
+
+function flatten<T>(...items: T[][]): T[] {
+  return [].concat(...items);
 }

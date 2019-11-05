@@ -37,8 +37,10 @@ export type SyntaxNode =
   | Decorator
   | Decorate
   | Def
+  | Parameter
   | Assignment
   | Assert
+  | Pass
   | Return
   | Yield
   | Raise
@@ -82,6 +84,11 @@ interface JisonLocation {
 export interface Location extends JisonLocation {
   path?: string; // useful for error messages and other tracking
 }
+
+export function locationString(loc: Location) {
+  return `${loc.path}${loc.last_line}:${loc.first_column}-${loc.last_line}:${loc.last_column}`;
+}
+
 
 // loc2 is inside loc1
 export function locationContains(loc1: Location, loc2: Location) {
@@ -154,7 +161,10 @@ export interface Def extends Locatable {
   code: SyntaxNode[];
 }
 
-export interface Parameter {
+export const PARAMETER = 'parameter';
+
+export interface Parameter extends Locatable {
+  type: typeof PARAMETER;
   name: string;
   anno: SyntaxNode;
   default_value: SyntaxNode;
@@ -177,6 +187,12 @@ export interface Assert extends Locatable {
   type: typeof ASSERT;
   cond: SyntaxNode;
   err: SyntaxNode;
+}
+
+export const PASS = 'pass';
+
+export interface Pass extends Locatable {
+  type: typeof PASS;
 }
 
 export const RETURN = 'return';
@@ -338,7 +354,7 @@ export const DOT = 'dot';
 export interface Dot extends Locatable {
   type: typeof DOT;
   value: SyntaxNode;
-  name: SyntaxNode;
+  name: string;
 }
 
 export const IFEXPR = 'ifexpr';
@@ -460,12 +476,12 @@ export interface WalkListener {
   /**
    * Called whenever a node is entered.
    */
-  onEnterNode?(node: SyntaxNode, type: string, ancestors: SyntaxNode[]): void;
+  onEnterNode?(node: SyntaxNode, ancestors: SyntaxNode[]): void;
 
   /**
    * Called whenever a node is exited.
    */
-  onExitNode?(node: SyntaxNode, type: string, ancestors: SyntaxNode[]): void;
+  onExitNode?(node: SyntaxNode, ancestors: SyntaxNode[]): void;
 }
 
 /**
@@ -495,7 +511,7 @@ function walkRecursive(
   ancestors.push(node);
 
   if (walkListener && walkListener.onEnterNode) {
-    walkListener.onEnterNode(node, node.type, ancestors);
+    walkListener.onEnterNode(node, ancestors);
   }
 
   let children: SyntaxNode[] = [];
@@ -583,7 +599,7 @@ function walkRecursive(
       children = [node.cond].concat(node.err ? [node.err] : []);
       break;
     case DOT:
-      children = [node.value, node.name];
+      children = [node.value];
       break;
     case INDEX:
       children = [node.value].concat(node.args);
@@ -623,7 +639,7 @@ function walkRecursive(
   nodes = nodes.concat(subtreeNodes);
 
   if (walkListener && walkListener.onExitNode) {
-    walkListener.onExitNode(node, node.type, ancestors);
+    walkListener.onExitNode(node, ancestors);
   }
 
   ancestors.pop();
