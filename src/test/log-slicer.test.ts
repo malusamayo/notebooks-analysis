@@ -65,6 +65,27 @@ describe("log-slicer", () => {
     [3, 4].forEach(c => expect(cellCounts).not.toContainEqual(c));
   });
 
+  it("works with a selected cell that has been executed twice", () => {
+    const logSlicer = new ExecutionLogSlicer(new DataflowAnalyzer());
+    const lines = [
+      ["0", "a = 1"],
+      ["1", "b = 2"],
+      ["2", "b"],
+      ["1", "b = a + 1"],
+      ["2", "b"]
+    ];
+    const cells = lines.map(
+      ([pid, text], i) => new TestCell(text, i + 1, undefined, pid)
+    );
+    cells.forEach(cell => logSlicer.logExecution(cell));
+    const slice = logSlicer.sliceLatestExecution("2");
+    expect(slice.cellSlices).toHaveLength(3);
+    const sliceText = slice.cellSlices.map(c => c.textSlice);
+    expect(sliceText).toContain(lines[0][1]);
+    expect(sliceText).toContain(lines[3][1]);
+    expect(sliceText).toContain(lines[4][1]);
+  });
+
   describe("getDependentCells", () => {
     it("handles simple in-order", () => {
       const lines = ["x = 3", "y = x+1"];
