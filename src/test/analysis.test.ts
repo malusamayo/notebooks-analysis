@@ -1,5 +1,12 @@
 import { ControlFlowGraph } from "../control-flow";
-import { Dataflow, DataflowAnalyzer, Ref, ReferenceType, RefSet, SymbolType } from "../data-flow";
+import {
+  Dataflow,
+  DataflowAnalyzer,
+  Ref,
+  ReferenceType,
+  RefSet,
+  SymbolType
+} from "../data-flow";
 import { printNode } from "../printNode";
 import { parse } from "../python-parser";
 import { Set } from "../set";
@@ -93,8 +100,9 @@ describe("detects control dependencies", () => {
   function analyze(...codeLines: string[]): [number, number][] {
     let code = codeLines.concat("").join("\n"); // add newlines to end of every line.
     const deps: [number, number][] = [];
-    new ControlFlowGraph(parse(code)).visitControlDependencies((control, stmt) =>
-      deps.push([stmt.location.first_line, control.location.first_line])
+    new ControlFlowGraph(parse(code)).visitControlDependencies(
+      (control, stmt) =>
+        deps.push([stmt.location.first_line, control.location.first_line])
     );
     return deps;
   }
@@ -144,7 +152,10 @@ describe("detects control dependencies", () => {
 });
 
 describe("getDefs", () => {
-  function getDefsFromStatements(specs?: JsonSpecs, ...codeLines: string[]): Ref[] {
+  function getDefsFromStatements(
+    specs?: JsonSpecs,
+    ...codeLines: string[]
+  ): Ref[] {
     let code = codeLines.concat("").join("\n");
     let module = parse(code);
     let analyzer = new DataflowAnalyzer(specs || DefaultSpecs);
@@ -196,7 +207,9 @@ describe("getDefs", () => {
     });
 
     it("for function declarations", () => {
-      let defs = getDefsFromStatement(["def func():", "    return 0"].join("\n"));
+      let defs = getDefsFromStatement(
+        ["def func():", "    return 0"].join("\n")
+      );
       expect(defs[0]).toMatchObject({
         type: SymbolType.FUNCTION,
         name: "func",
@@ -211,7 +224,9 @@ describe("getDefs", () => {
 
     it("for class declarations", () => {
       let defs = getDefsFromStatement(
-        ["class C(object):", "    def __init__(self):", "        pass"].join("\n")
+        ["class C(object):", "    def __init__(self):", "        pass"].join(
+          "\n"
+        )
       );
       expect(defs[0]).toMatchObject({
         type: SymbolType.CLASS,
@@ -289,12 +304,16 @@ describe("getDefs", () => {
 
     describe("; given a spec,", () => {
       it("can ignore all arguments", () => {
-        let defs = getDefsFromStatement("func(a, b, c)", { __builtins__: { functions: ["func"] } });
+        let defs = getDefsFromStatement("func(a, b, c)", {
+          __builtins__: { functions: ["func"] }
+        });
         expect(defs).toEqual([]);
       });
 
       it("assumes arguments have side-effects, without a spec", () => {
-        let defs = getDefsFromStatement("func(a, b, c)", { __builtins__: { functions: [] } });
+        let defs = getDefsFromStatement("func(a, b, c)", {
+          __builtins__: { functions: [] }
+        });
         expect(defs).not.toBeUndefined();
         expect(defs.length).toBe(3);
         const names = defs.map(d => d.name);
@@ -319,6 +338,21 @@ describe("getDefs", () => {
         expect(defs.length).toBe(2);
         expect(defs[1].name).toBe("x");
         expect(defs[1].level).toBe(ReferenceType.UPDATE);
+      });
+
+      it("can process a class name as both a type and function", () => {
+        const CType = { methods: [{ name: "m", updates: [0] }] };
+        const specs = {
+          __builtins__: {
+            types: { C: CType },
+            functions: [{ name: "C", returns: "C" }]
+          }
+        };
+        let defs = getDefsFromStatements(specs, "x=C()");
+        expect(defs).not.toBeUndefined();
+        expect(defs.length).toBe(1);
+        expect(defs[0].name).toBe("x");
+        expect(defs[0].inferredType).toEqual(CType);
       });
     });
   });
@@ -366,7 +400,11 @@ describe("getUses", () => {
     });
 
     it("of variables inside classes", () => {
-      let uses = getUseNames("class Baz():", "  def quux(self):", "    self.data = a");
+      let uses = getUseNames(
+        "class Baz():",
+        "  def quux(self):",
+        "    self.data = a"
+      );
       expect(uses).toContain("a");
     });
 
@@ -386,13 +424,22 @@ describe("getUses", () => {
 
   describe("ignores uses", () => {
     it("for symbols defined within functions", () => {
-      let uses = getUseNames("def func(arg):", "    print(arg)", "    var = 1", "    print(var)");
+      let uses = getUseNames(
+        "def func(arg):",
+        "    print(arg)",
+        "    var = 1",
+        "    print(var)"
+      );
       expect(uses).not.toContain("arg");
       expect(uses).not.toContain("var");
     });
 
     it("for params used in an instance function body", () => {
-      let uses = getUseNames("class Foo():", "    def func(arg1):", "        print(arg1)");
+      let uses = getUseNames(
+        "class Foo():",
+        "    def func(arg1):",
+        "        print(arg1)"
+      );
       expect(uses).not.toContain("arg1");
     });
   });

@@ -1,20 +1,6 @@
-import { DataflowAnalyzer, Location } from "..";
+import { DataflowAnalyzer } from "..";
 import { ExecutionLogSlicer } from "../log-slicer";
 import { TestCell } from "./testcell";
-
-function loc(
-  line0: number,
-  col0: number,
-  line1 = line0 + 1,
-  col1 = 0
-): Location {
-  return {
-    first_line: line0,
-    first_column: col0,
-    last_line: line1,
-    last_column: col1
-  };
-}
 
 function makeLog(lines: string[]) {
   const cells = lines.map((text, i) => new TestCell(text, i + 1));

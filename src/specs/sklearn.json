@@ -2,6 +2,7 @@
   "sklearn": {
     "modules": {
       "cluster": {
+        "functions": [{ "name": "KMeans", "returns": "KMeans" }],
         "types": {
           "KMeans": {
             "methods": [
