@@ -2,6 +2,7 @@ import { ControlFlowGraph } from "../control-flow";
 import {
   Dataflow,
   DataflowAnalyzer,
+  DataflowAnalyzerOptions,
   Ref,
   ReferenceType,
   RefSet,
@@ -153,12 +154,13 @@ describe("detects control dependencies", () => {
 
 describe("getDefs", () => {
   function getDefsFromStatements(
-    specs?: JsonSpecs,
+    moduleMap?: JsonSpecs,
     ...codeLines: string[]
   ): Ref[] {
     let code = codeLines.concat("").join("\n");
     let module = parse(code);
-    let analyzer = new DataflowAnalyzer(specs || DefaultSpecs);
+    const options = createDataflowOptionsForModuleMap(moduleMap);
+    let analyzer = new DataflowAnalyzer(options);
     return module.code.reduce((refSet, stmt) => {
       const refs = analyzer.getDefs(stmt, refSet);
       return refSet.union(refs);
@@ -169,12 +171,26 @@ describe("getDefs", () => {
     mmap = mmap || DefaultSpecs;
     code = code + "\n"; // programs need to end with newline
     let mod = parse(code);
-    let analyzer = new DataflowAnalyzer(mmap);
+    const options = createDataflowOptionsForModuleMap(mmap);
+    let analyzer = new DataflowAnalyzer(options);
     return analyzer.getDefs(mod.code[0], new RefSet()).items;
   }
 
   function getDefNamesFromStatement(code: string, mmap?: JsonSpecs) {
     return getDefsFromStatement(code, mmap).map(def => def.name);
+  }
+
+  function createDataflowOptionsForModuleMap(moduleMap?: JsonSpecs) {
+    let options: DataflowAnalyzerOptions | undefined;
+    if (moduleMap) {
+      options = {
+        symbolTable: {
+          loadDefaultModuleMap: false,
+          moduleMap
+        }
+      };
+    }
+    return options;
   }
 
   describe("detects definitions", () => {
@@ -197,13 +213,19 @@ describe("getDefs", () => {
     });
 
     it("for imports", () => {
-      let defs = getDefsFromStatement("import lib");
-      expect(defs[0]).toMatchObject({ type: SymbolType.IMPORT, name: "lib" });
+      let defs = getDefsFromStatement("import pandas");
+      expect(defs[0]).toMatchObject({
+        type: SymbolType.IMPORT,
+        name: "pandas"
+      });
     });
 
     it("for from-imports", () => {
-      let defs = getDefsFromStatement("from mod import func");
-      expect(defs[0]).toMatchObject({ type: SymbolType.IMPORT, name: "func" });
+      let defs = getDefsFromStatement("from pandas import load_csv");
+      expect(defs[0]).toMatchObject({
+        type: SymbolType.IMPORT,
+        name: "load_csv"
+      });
     });
 
     it("for function declarations", () => {
@@ -341,7 +363,7 @@ describe("getDefs", () => {
       });
 
       it("can process a class name as both a type and function", () => {
-        const CType = { methods: [{ name: "m", updates: [0] }] };
+        const CType = { methods: [{ name: "m", reads: [], updates: [0] }] };
         const specs = {
           __builtins__: {
             types: { C: CType },
