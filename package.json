@@ -11,7 +11,7 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
-  "version": "0.4.6",
+  "version": "0.4.8",
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/andrewhead/python-program-analysis.git"
@@ -21,11 +21,8 @@
     "build:parser": "node ./node_modules/jison/lib/cli.js --outfile src/python3.js src/python3.jison && cpx src/python3.js dist/es5 && cpx src/python3.js dist/es6",
     "format:all": "prettier --single-quote --trailing-comma=es5 --write \"{src,style}/**/*.{css,js,ts}\"",
     "clean": "rimraf dist",
-    "compile": "tsc -p ./",
-    "compile:esm": "tsc -m es6 --outDir dist/es6 -p ./",
     "test": "jest --watch",
-    "watch": "tsc -watch -p ./",
-    "webpack": "webpack"
+    "prepare": "npm run build"
   },
   "devDependencies": {
     "@types/jest": "^24.0.22",
