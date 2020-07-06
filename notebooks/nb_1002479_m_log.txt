@@ -1,0 +1,40 @@
+This is a log file of input/output vars of each cell.
+cell[1];OUT;plt;<module 'matplotlib.pylab' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\matplotlib\\pylab.py'>;<class 'module'>
+cell[1];OUT;np;<module 'numpy' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\numpy\\__init__.py'>;<class 'module'>
+cell[1];OUT;points_gen;<function points_gen at 0x0000025BC27AE400>;<class 'function'>
+cell[1];OUT;signal;<module 'scipy.signal' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\scipy\\signal\\__init__.py'>;<class 'module'>
+cell[2];IN;plt;<module 'matplotlib.pylab' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\matplotlib\\pylab.py'>;<class 'module'>
+cell[2];IN;np;<module 'numpy' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\numpy\\__init__.py'>;<class 'module'>
+cell[2];OUT;points_plot;<function points_plot at 0x0000025BC27AE510>;<class 'function'>
+cell[2];OUT;plt;<module 'matplotlib.pylab' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\matplotlib\\pylab.py'>;<class 'module'>
+cell[3];IN;points_gen;<function points_gen at 0x0000025BC27AE400>;<class 'function'>
+cell[3];IN;points_plot;<function points_plot at 0x0000025BC27AE510>;<class 'function'>
+cell[3];IN;plt;<module 'matplotlib.pylab' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\matplotlib\\pylab.py'>;<class 'module'>
+cell[3];OUT;events;shape(12, 4);<U32
+cell[3];OUT;plt;<module 'matplotlib.pylab' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\matplotlib\\pylab.py'>;<class 'module'>
+cell[4];IN;np;<module 'numpy' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\numpy\\__init__.py'>;<class 'module'>
+cell[4];OUT;points_to_data;<function points_to_data at 0x0000025BC26CB488>;<class 'function'>
+cell[5];IN;events;shape(12, 4);<U32
+cell[5];IN;points_to_data;<function points_to_data at 0x0000025BC26CB488>;<class 'function'>
+cell[5];IN;np;<module 'numpy' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\numpy\\__init__.py'>;<class 'module'>
+cell[5];OUT;dataround;shape(12, 401);float64
+cell[6];IN;np;<module 'numpy' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\numpy\\__init__.py'>;<class 'module'>
+cell[6];OUT;t;shape(401,);float64
+cell[6];OUT;x;shape(401,);float64
+cell[7];IN;np;<module 'numpy' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\numpy\\__init__.py'>;<class 'module'>
+cell[7];IN;t;shape(401,);float64
+cell[7];IN;x;shape(401,);float64
+cell[7];IN;dataround;shape(12, 401);float64
+cell[7];OUT;datamatrix;shape(401, 401);float64
+cell[8];IN;signal;<module 'scipy.signal' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\scipy\\signal\\__init__.py'>;<class 'module'>
+cell[8];IN;np;<module 'numpy' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\numpy\\__init__.py'>;<class 'module'>
+cell[8];IN;datamatrix;shape(401, 401);float64
+cell[8];IN;plt;<module 'matplotlib.pylab' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\matplotlib\\pylab.py'>;<class 'module'>
+cell[9];OUT;makeEventsDict;<function makeEventsDict at 0x0000025BC70E3400>;<class 'function'>
+cell[10];IN;events;shape(12, 4);<U32
+cell[10];IN;makeEventsDict;<function makeEventsDict at 0x0000025BC70E3400>;<class 'function'>
+cell[10];OUT;comboFunctionA;<function comboFunctionA at 0x0000025BC241F378>;<class 'function'>
+cell[11];IN;points_gen;<function points_gen at 0x0000025BC27AE400>;<class 'function'>
+cell[11];IN;comboFunctionA;<function comboFunctionA at 0x0000025BC241F378>;<class 'function'>
+cell[11];OUT;tempAnswer;SVC(C=1.0, cache_size=200, class_weight=None, coef0=0.0,  decision_function_shape='ovr', degree=3, gamma='auto_deprecated',  kernel='rbf', max_iter=-1, probability=False, random_state=None,  shrinking=True, tol=0.001, verbose=False);<class 'sklearn.svm.classes.SVC'>
+cell[12];IN;tempAnswer;SVC(C=1.0, cache_size=200, class_weight=None, coef0=0.0,  decision_function_shape='ovr', degree=3, gamma='auto_deprecated',  kernel='rbf', max_iter=-1, probability=False, random_state=None,  shrinking=True, tol=0.001, verbose=False);<class 'sklearn.svm.classes.SVC'>

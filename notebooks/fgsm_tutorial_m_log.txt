@@ -1,0 +1,40 @@
+This is a log file of input/output vars of each cell.
+cell[2];OUT;nn;<module 'torch.nn' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\torch\\nn\\__init__.py'>;<class 'module'>
+cell[2];OUT;F;<module 'torch.nn.functional' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\torch\\nn\\functional.py'>;<class 'module'>
+cell[2];OUT;transforms;<module 'torchvision.transforms' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\torchvision\\transforms\\__init__.py'>;<class 'module'>
+cell[2];OUT;torch;<module 'torch' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\torch\\__init__.py'>;<class 'module'>
+cell[2];OUT;plt;<module 'matplotlib.pyplot' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\matplotlib\\pyplot.py'>;<class 'module'>
+cell[2];OUT;np;<module 'numpy' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\numpy\\__init__.py'>;<class 'module'>
+cell[3];OUT;use_cuda;False;<class 'bool'>
+cell[3];OUT;pretrained_model;data/lenet_mnist_model.pth;<class 'str'>
+cell[3];OUT;epsilons;shape(7,);float64
+cell[4];IN;nn;<module 'torch.nn' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\torch\\nn\\__init__.py'>;<class 'module'>
+cell[4];IN;F;<module 'torch.nn.functional' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\torch\\nn\\functional.py'>;<class 'module'>
+cell[4];IN;transforms;<module 'torchvision.transforms' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\torchvision\\transforms\\__init__.py'>;<class 'module'>
+cell[4];IN;torch;<module 'torch' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\torch\\__init__.py'>;<class 'module'>
+cell[4];IN;use_cuda;False;<class 'bool'>
+cell[4];IN;pretrained_model;data/lenet_mnist_model.pth;<class 'str'>
+cell[4];OUT;torch;<module 'torch' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\torch\\__init__.py'>;<class 'module'>
+cell[4];OUT;device;cpu;<class 'torch.device'>
+cell[4];OUT;model;Net(  (conv1): Conv2d(1, 10, kernel_size=(5, 5), stride=(1, 1))  (conv2): Conv2d(10, 20, kernel_size=(5, 5), stride=(1, 1))  (conv2_drop): Dropout2d(p=0.5)  (fc1): Linear(in_features=320, out_features=50, bias=True)  (fc2): Linear(in_features=50, out_features=10, bias=True));<class '__main__.Net'>
+cell[4];OUT;test_loader;<torch.utils.data.dataloader.DataLoader object at 0x000002D302EA3828>;<class 'torch.utils.data.dataloader.DataLoader'>
+cell[5];IN;torch;<module 'torch' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\torch\\__init__.py'>;<class 'module'>
+cell[5];OUT;fgsm_attack;<function fgsm_attack at 0x000002D3059352F0>;<class 'function'>
+cell[6];IN;device;cpu;<class 'torch.device'>
+cell[6];IN;F;<module 'torch.nn.functional' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\torch\\nn\\functional.py'>;<class 'module'>
+cell[6];IN;model;Net(  (conv1): Conv2d(1, 10, kernel_size=(5, 5), stride=(1, 1))  (conv2): Conv2d(10, 20, kernel_size=(5, 5), stride=(1, 1))  (conv2_drop): Dropout2d(p=0.5)  (fc1): Linear(in_features=320, out_features=50, bias=True)  (fc2): Linear(in_features=50, out_features=10, bias=True));<class '__main__.Net'>
+cell[6];IN;fgsm_attack;<function fgsm_attack at 0x000002D3059352F0>;<class 'function'>
+cell[6];OUT;device;cpu;<class 'torch.device'>
+cell[7];IN;epsilons;shape(7,);float64
+cell[7];IN;model;Net(  (conv1): Conv2d(1, 10, kernel_size=(5, 5), stride=(1, 1))  (conv2): Conv2d(10, 20, kernel_size=(5, 5), stride=(1, 1))  (conv2_drop): Dropout2d(p=0.5)  (fc1): Linear(in_features=320, out_features=50, bias=True)  (fc2): Linear(in_features=50, out_features=10, bias=True));<class '__main__.Net'>
+cell[7];IN;device;cpu;<class 'torch.device'>
+cell[7];IN;test_loader;<torch.utils.data.dataloader.DataLoader object at 0x000002D302EA3828>;<class 'torch.utils.data.dataloader.DataLoader'>
+cell[7];OUT;accuracies;shape(7,);float64
+cell[7];OUT;examples;shape(7, 5, 3);object
+cell[8];IN;plt;<module 'matplotlib.pyplot' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\matplotlib\\pyplot.py'>;<class 'module'>
+cell[8];IN;epsilons;shape(7,);float64
+cell[8];IN;accuracies;shape(7,);float64
+cell[8];IN;np;<module 'numpy' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\numpy\\__init__.py'>;<class 'module'>
+cell[9];IN;plt;<module 'matplotlib.pyplot' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\matplotlib\\pyplot.py'>;<class 'module'>
+cell[9];IN;epsilons;shape(7,);float64
+cell[9];IN;examples;shape(7, 5, 3);object
