@@ -1,0 +1,46 @@
+This is a log file of input/output vars of each cell.
+cell[1];OUT;plt;<module 'matplotlib.pyplot' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\matplotlib\\pyplot.py'>;<class 'module'>
+cell[1];OUT;np;<module 'numpy' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\numpy\\__init__.py'>;<class 'module'>
+cell[1];OUT;gaussian_kde;<class 'scipy.stats.kde.gaussian_kde'>;<class 'type'>
+cell[2];OUT;y_test;shape(49500,);int32
+cell[2];OUT;y_train;shape(500,);int32
+cell[3];IN;y_test;shape(49500,);int32
+cell[3];IN;plt;<module 'matplotlib.pyplot' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\matplotlib\\pyplot.py'>;<class 'module'>
+cell[3];IN;np;<module 'numpy' from 'C:\\Users\\77338\\Anaconda3\\lib\\site-packages\\numpy\\__init__.py'>;<class 'module'>
+cell[3];IN;gaussian_kde;<class 'scipy.stats.kde.gaussian_kde'>;<class 'type'>
+cell[3];OUT;plot_calibration;<function plot_calibration at 0x00000201E8797400>;<class 'function'>
+cell[3];OUT;y_train;shape(500,);int32
+cell[3];OUT;X_test;shape(49500, 20);float64
+cell[3];OUT;y_test;shape(49500,);int32
+cell[4];IN;plot_calibration;<function plot_calibration at 0x00000201E8797400>;<class 'function'>
+cell[4];OUT;lr;LogisticRegression();<class 'sklearn.linear_model._logistic.LogisticRegression'>
+cell[5];IN;plot_calibration;<function plot_calibration at 0x00000201E8797400>;<class 'function'>
+cell[5];OUT;svc;LinearSVC();<class 'sklearn.svm._classes.LinearSVC'>
+cell[5];OUT;LinearSVC;<class 'sklearn.svm._classes.LinearSVC'>;<class 'type'>
+cell[6];IN;lr;LogisticRegression();<class 'sklearn.linear_model._logistic.LogisticRegression'>
+cell[6];IN;y_train;shape(500,);int32
+cell[6];IN;svc;LinearSVC();<class 'sklearn.svm._classes.LinearSVC'>
+cell[6];OUT;lr;LogisticRegression();<class 'sklearn.linear_model._logistic.LogisticRegression'>
+cell[6];OUT;svc;LinearSVC();<class 'sklearn.svm._classes.LinearSVC'>
+cell[6];OUT;y_train;shape(500,);int32
+cell[7];IN;plot_calibration;<function plot_calibration at 0x00000201E8797400>;<class 'function'>
+cell[7];OUT;rf;RandomForestClassifier();<class 'sklearn.ensemble._forest.RandomForestClassifier'>
+cell[8];IN;plot_calibration;<function plot_calibration at 0x00000201E8797400>;<class 'function'>
+cell[8];OUT;gnb;GaussianNB();<class 'sklearn.naive_bayes.GaussianNB'>
+cell[8];OUT;GaussianNB;<class 'sklearn.naive_bayes.GaussianNB'>;<class 'abc.ABCMeta'>
+cell[9];IN;lr;LogisticRegression();<class 'sklearn.linear_model._logistic.LogisticRegression'>
+cell[9];IN;gnb;GaussianNB();<class 'sklearn.naive_bayes.GaussianNB'>
+cell[9];IN;svc;LinearSVC();<class 'sklearn.svm._classes.LinearSVC'>
+cell[9];IN;rf;RandomForestClassifier();<class 'sklearn.ensemble._forest.RandomForestClassifier'>
+cell[9];IN;plot_calibration;<function plot_calibration at 0x00000201E8797400>;<class 'function'>
+cell[10];IN;LinearSVC;<class 'sklearn.svm._classes.LinearSVC'>;<class 'type'>
+cell[10];IN;plot_calibration;<function plot_calibration at 0x00000201E8797400>;<class 'function'>
+cell[10];OUT;CalibratedClassifierCV;<class 'sklearn.calibration.CalibratedClassifierCV'>;<class 'type'>
+cell[11];IN;GaussianNB;<class 'sklearn.naive_bayes.GaussianNB'>;<class 'abc.ABCMeta'>
+cell[11];IN;CalibratedClassifierCV;<class 'sklearn.calibration.CalibratedClassifierCV'>;<class 'type'>
+cell[11];IN;plot_calibration;<function plot_calibration at 0x00000201E8797400>;<class 'function'>
+cell[11];OUT;gnb_models;shape(3, 2);object
+cell[12];IN;gnb_models;shape(3, 2);object
+cell[12];IN;y_train;shape(500,);int32
+cell[12];IN;X_test;shape(49500, 20);float64
+cell[12];IN;y_test;shape(49500,);int32

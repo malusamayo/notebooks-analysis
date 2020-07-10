@@ -29,10 +29,18 @@ let FUNC_STR =
     "    else:\n" +
     "        res = str(x) + \";\" + str(type(x))\n" +
     "    return res.replace(\"\\n\", \"\")";
+let HEAD_STR =
+    "import os\n" +
+    "import pickle\n" +
+    "import copy\n" +
+    "store_vars = []\n" +
+    "my_labels = []\n" +
+    "my_dir_path = os.path.dirname(os.path.realpath(__file__))\n";
 let write_str =
+    "store_vars.append(my_labels)\n" +
     "f = open(os.path.join(my_dir_path, \"" + filename_no_suffix +
-    "_m_log.txt\"), \"w\")\n" +
-    "f.write(log)\n" +
+    "_log.dat\"), \"wb\")\n" +
+    "pickle.dump(store_vars, f)\n" +
     "f.close()\n";
 
 function init_lineToCell() {
@@ -67,7 +75,11 @@ function compute_flow_vars(code) {
         let fromLine = flow.fromNode.location.first_line;
         let toLine = flow.toNode.location.first_line;
         // add in/out vars to cells
-        if (lineToCell.get(fromLine) != lineToCell.get(toLine)) {
+        if (lineToCell.get(fromLine) < lineToCell.get(toLine)) {
+            console.log(fromLine + "->" + toLine + " " + flow.fromNode.type + " " + flow.toNode.type + " " + flow.toRef.name);
+            // ignore import and funtion def
+            if (flow.fromNode.type == "import" || flow.fromNode.type == "def")
+                continue;
             add(ins, lineToCell.get(toLine), flow.toRef.name);
             add(outs, lineToCell.get(fromLine), flow.fromRef.name);
         }
@@ -79,27 +91,30 @@ function compute_flow_vars(code) {
     console.log(outs);
 }
 
+// type 1 == OUT, type 0 == IN
 function print_info(cell, v, type) {
-    let head_info = "log = log + \"cell[" + cell + "];" + type + ";" + v + ";\" + ";
-    let tail_info = " + \"\\n\"\n";
-    if (v.includes("[") == true)
-        return "try:\n    " + head_info + "print_info(" + v + ")" + tail_info +
-            "except IndexError:\n    " + head_info + "\"IndexError!\"" + tail_info;
-    return head_info + "print_info(" + v + ")" + tail_info;
+    // let head_info = "log = log + \"cell[" + cell + "];" + type + ";" + v + ";\" + ";
+    // let tail_info = " + \"\\n\"\n";
+    // if (v.includes("[") == true)
+    //     return "try:\n    " + head_info + "print_info(" + v + ")" + tail_info +
+    //         "except IndexError:\n    " + head_info + "\"IndexError!\"" + tail_info;
+    // return head_info + "print_info(" + v + ")" + tail_info;
+    return "my_labels.append((" + cell + ", " + type + ", \"" + v + "\"))\n"
+        + "store_vars.append(copy.deepcopy(" + v + "))\n";
 }
 
 function insert_print_stmt(code) {
     let lines = code.split("\n");
     let max_line = lines.length;
     let cur_cell = 0;
-    lines[0] = lines[0] + FUNC_STR;
+    lines[0] = lines[0] + HEAD_STR;
     for (let i = 0; i < max_line; i++) {
         if (lines[i].startsWith('# In[')) {
             if (outs.get(cur_cell) !== undefined)
-                outs.get(cur_cell).forEach(x => lines[i - 1] += print_info(cur_cell, x, "OUT"));
+                outs.get(cur_cell).forEach(x => lines[i - 1] += print_info(cur_cell, x, 1));
             cur_cell++;
             if (ins.get(cur_cell) !== undefined)
-                ins.get(cur_cell).forEach(x => lines[i] += print_info(cur_cell, x, "IN"));
+                ins.get(cur_cell).forEach(x => lines[i] += print_info(cur_cell, x, 0));
         }
         if (lines[i].startsWith("#"))
             continue;
