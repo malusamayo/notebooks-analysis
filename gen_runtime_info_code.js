@@ -15,20 +15,6 @@ let text = fs.readFileSync(path).toString();
 let lineToCell = new Map();
 let ins = new Map();
 let outs = new Map();
-let FUNC_STR =
-    "import os\n" +
-    "my_dir_path = os.path.dirname(os.path.realpath(__file__))\n" +
-    "log = \"This is a log file of input/output vars of each cell.\\n\"\n" +
-    "def print_info(x):\n" +
-    "    import numpy as np\n" +
-    "    res = \"\"\n" +
-    "    if isinstance(x, list) or isinstance(x, np.ndarray):\n" +
-    "        res = \"shape\" + str(np.shape(x)) + \";\" + str(np.array(x).dtype)\n" +
-    "    elif isinstance(x, dict):\n" +
-    "        res = str(len(x)) + \";\" + str(type(x))\n" +
-    "    else:\n" +
-    "        res = str(x) + \";\" + str(type(x))\n" +
-    "    return res.replace(\"\\n\", \"\")";
 let HEAD_STR =
     "import os\n" +
     "import pickle\n" +
@@ -83,11 +69,9 @@ function compute_flow_vars(code) {
             // ignore import and funtion def
             if (flow.fromNode.type == "import" || flow.fromNode.type == "def")
                 continue;
+            // use interSec to avoid missing in/out var bugs
             let defs = analyzer.getDefs(flow.fromNode, new RefSet()).items.map(x => x.name)
-            // console.log(fromLine + " " + toLine);
-            // console.log(defs);
             let uses = analyzer.getUses(flow.toNode).items.map(x => x.name)
-            // console.log(uses);
             let interSec = defs.filter(x => uses.includes(x));
             // console.log(interSec);
             interSec.forEach(x => {
@@ -108,12 +92,6 @@ function compute_flow_vars(code) {
 
 // type 1 == OUT, type 0 == IN
 function print_info(cell, v, type) {
-    // let head_info = "log = log + \"cell[" + cell + "];" + type + ";" + v + ";\" + ";
-    // let tail_info = " + \"\\n\"\n";
-    // if (v.includes("[") == true)
-    //     return "try:\n    " + head_info + "print_info(" + v + ")" + tail_info +
-    //         "except IndexError:\n    " + head_info + "\"IndexError!\"" + tail_info;
-    // return head_info + "print_info(" + v + ")" + tail_info;
     return "my_labels.append((" + cell + ", " + type + ", \"" + v + "\"))\n"
         + "store_vars.append(copy.deepcopy(" + v + "))\n";
 }
