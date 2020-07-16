@@ -1,7 +1,7 @@
 "use strict";
 var py = require("../python-program-analysis");
 var fs = require('fs');
-const { printNode } = require("../python-program-analysis");
+const { printNode, RefSet } = require("../python-program-analysis");
 const { matchesProperty } = require("lodash");
 const { printArg } = require("./dist/es5/printNode");
 let args = process.argv.slice(2);
@@ -75,11 +75,26 @@ function compute_flow_vars(code) {
         let fromLine = flow.fromNode.location.first_line;
         let toLine = flow.toNode.location.first_line;
         // add in/out vars to cells
+        // if (flow.fromRef !== undefined)
+        //     console.log(fromLine + "->" + toLine + " " + flow.fromNode.type + " " + flow.toNode.type + " " + flow.fromRef.name);
+
         if (lineToCell.get(fromLine) < lineToCell.get(toLine)) {
-            console.log(fromLine + "->" + toLine + " " + flow.fromNode.type + " " + flow.toNode.type + " " + flow.toRef.name);
+            // console.log(fromLine + "->" + toLine + " " + flow.fromNode.type + " " + flow.toNode.type + " " + flow.toRef.name);
             // ignore import and funtion def
             if (flow.fromNode.type == "import" || flow.fromNode.type == "def")
                 continue;
+            let defs = analyzer.getDefs(flow.fromNode, new RefSet()).items.map(x => x.name)
+            // console.log(fromLine + " " + toLine);
+            // console.log(defs);
+            let uses = analyzer.getUses(flow.toNode).items.map(x => x.name)
+            // console.log(uses);
+            let interSec = defs.filter(x => uses.includes(x));
+            // console.log(interSec);
+            interSec.forEach(x => {
+                add(ins, lineToCell.get(toLine), x);
+                add(outs, lineToCell.get(fromLine), x)
+            })
+            // console.log(analyzer.getUses(flow.toNode));
             add(ins, lineToCell.get(toLine), flow.toRef.name);
             add(outs, lineToCell.get(fromLine), flow.fromRef.name);
         }

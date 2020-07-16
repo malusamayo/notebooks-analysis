@@ -2,13 +2,33 @@
   "sklearn": {
     "modules": {
       "cluster": {
-        "functions": [{ "name": "KMeans", "returns": "KMeans" }],
+        "functions": [
+          {
+            "name": "KMeans",
+            "returns": "KMeans"
+          }
+        ],
         "types": {
           "KMeans": {
             "methods": [
-              { "name": "fit", "updates": [0] },
-              { "name": "fit_predict", "updates": [0] },
-              { "name": "fit_transform", "updates": [0] },
+              {
+                "name": "fit",
+                "updates": [
+                  0
+                ]
+              },
+              {
+                "name": "fit_predict",
+                "updates": [
+                  0
+                ]
+              },
+              {
+                "name": "fit_transform",
+                "updates": [
+                  0
+                ]
+              },
               "predict",
               "score",
               "transform"
@@ -16,7 +36,76 @@
           }
         }
       },
-
+      "pipeline": {
+        "functions": [
+          {
+            "name": "Pipeline",
+            "returns": "Pipeline"
+          }
+        ],
+        "types": {
+          "Pipeline": {
+            "methods": [
+              {
+                "name": "fit",
+                "updates": [
+                  0
+                ]
+              },
+              {
+                "name": "fit_predict",
+                "updates": [
+                  0
+                ]
+              },
+              {
+                "name": "fit_transform",
+                "updates": [
+                  0
+                ]
+              },
+              "predict",
+              "score",
+              "transform"
+            ]
+          }
+        }
+      },
+      "model_selection": {
+        "functions": [
+          {
+            "name": "GridSearchCV",
+            "returns": "GridSearchCV"
+          }
+        ],
+        "types": {
+          "GridSearchCV": {
+            "methods": [
+              {
+                "name": "fit",
+                "updates": [
+                  0
+                ]
+              },
+              {
+                "name": "fit_predict",
+                "updates": [
+                  0
+                ]
+              },
+              {
+                "name": "fit_transform",
+                "updates": [
+                  0
+                ]
+              },
+              "predict",
+              "score",
+              "transform"
+            ]
+          }
+        }
+      },
       "datasets": {
         "functions": [
           "clear_data_home",
