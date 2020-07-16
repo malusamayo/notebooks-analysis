@@ -6,11 +6,36 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Debug python Script",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceRoot}/add_runtime_info.py",
+      "args": [
+        ".\\notebooks\\task1.ipynb",
+        ".\\notebooks\\task1_log.dat"
+      ],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "name": "Debug My Script",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceRoot}/gen_runtime_info_code",
+      "args": [
+        ".\\notebooks\\task1.py"
+      ],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
       "name": "Debug Tests",
       "type": "node",
       "request": "launch",
       "program": "${workspaceRoot}/node_modules/.bin/jest",
-      "args": ["--runInBand"],
+      "args": [
+        "--runInBand"
+      ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
     },
@@ -19,7 +44,9 @@
       "type": "node",
       "request": "launch",
       "program": "${workspaceRoot}/node_modules/.bin/jest",
-      "args": ["${file}"],
+      "args": [
+        "${file}"
+      ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
     }

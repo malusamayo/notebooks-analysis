@@ -29,24 +29,78 @@
       "pivot",
       "pivot_table",
       "qcut",
-      { "name": "read_clipboard", "returns": "DataFrame" },
-      { "name": "read_csv", "returns": "DataFrame" },
-      { "name": "read_excel", "returns": "DataFrame" },
-      { "name": "read_feather", "returns": "DataFrame" },
-      { "name": "read_fwf", "returns": "DataFrame" },
-      { "name": "read_gbq", "returns": "DataFrame" },
-      { "name": "read_hdf", "returns": "DataFrame" },
-      { "name": "read_html", "returns": "DataFrame" },
-      { "name": "read_json", "returns": "DataFrame" },
-      { "name": "read_msgpack", "returns": "DataFrame" },
-      { "name": "read_parquet", "returns": "DataFrame" },
-      { "name": "read_pickle", "returns": "DataFrame" },
-      { "name": "read_sas", "returns": "DataFrame" },
-      { "name": "read_sql", "returns": "DataFrame" },
-      { "name": "read_sql_query", "returns": "DataFrame" },
-      { "name": "read_sql_table", "returns": "DataFrame" },
-      { "name": "read_stata", "returns": "DataFrame" },
-      { "name": "read_table", "returns": "DataFrame" },
+      {
+        "name": "read_clipboard",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_csv",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_excel",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_feather",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_fwf",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_gbq",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_hdf",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_html",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_json",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_msgpack",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_parquet",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_pickle",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_sas",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_sql",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_sql_query",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_sql_table",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_stata",
+        "returns": "DataFrame"
+      },
+      {
+        "name": "read_table",
+        "returns": "DataFrame"
+      },
       "reset_option",
       "set_eng_float_format",
       "set_option",
@@ -166,7 +220,12 @@
           "max",
           "mean",
           "median",
-          {"name": "melt", "updates": [0] },
+          {
+            "name": "melt",
+            "updates": [
+              0
+            ]
+          },
           "memory_usage",
           "merge",
           "min",
@@ -185,7 +244,12 @@
           "pivot",
           "pivot_table",
           "plot",
-          { "name": "pop", "updates": [0] },
+          {
+            "name": "pop",
+            "updates": [
+              0
+            ]
+          },
           "pow",
           "prod",
           "product",
@@ -265,7 +329,12 @@
           "tz_convert",
           "tz_localize",
           "unstack",
-          { "name": "update", "updates": [0] },
+          {
+            "name": "update",
+            "updates": [
+              0
+            ]
+          },
           "var",
           "where",
           "xs"
