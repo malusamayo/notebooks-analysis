@@ -15,6 +15,7 @@ filename_no_suffix = filename[:filename.rfind(".")]
 suffix = filename[filename.rfind("."):]
 
 table_str = "\n------------------------------- Data Info Table -------------------------------\n"
+blanks = "\t- "
 
 ### sample
 '''
@@ -131,12 +132,6 @@ class DataFrame(Variable):
         comment_str = "\n\n" + table.to_markdown()
         self.comment += comment_str
 
-    def check_copy(self, variable):
-        if self.outflag != variable.outflag or self.outflag == 0:
-            return
-        if self.var.equals(variable.var):
-            self.comment += ", copy of " + variable.name
-
     def check_rel(self, variable):
         '''
         Score:
@@ -163,89 +158,82 @@ class DataFrame(Variable):
                 rel_score = 4
         return rel_score
 
-    def check_content(self, variable):
-        change = {}
-        var_a = self.var
-        var_b = variable.var
-        for i in range(len(var_a.dtypes)):
-            if not var_a[var_a.columns[i]].equals(var_b[
-                    var_b.columns[i]]) and var_a.dtypes[i] == var_b.dtypes[i]:
-                self.columns[i] += "*"
-                print(type(var_a[var_a.columns[i]]))
-                if var_a.dtypes[i] not in change.keys():
-                    change[var_a.dtypes[i]] = 1
-                else:
-                    change[var_a.dtypes[i]] += 1
-        for key in change:
-            self.comment += ", " + str(change[key]) + " " + str(
-                key) + " columns of " + variable.name + " changed"
-        self.change_exp = [
-            str(np.asarray(var_b)[0][i]) + " -> " +
-            str(np.asarray(var_a)[0][i]) for i in range(len(var_a.dtypes))
-        ]
-
-    def check_convert(self, variable):
-        convert = {}
-        var_a = self.var
-        var_b = variable.var
-        for i in range(len(var_a.dtypes)):
-            if var_a.dtypes[i] != var_b.dtypes[i] and var_a.columns[
-                    i] == var_b.columns[i]:
-                type_pair = (var_a.dtypes[i], var_b.dtypes[i])
-                self.columns[i] += "*"
-                if type_pair not in convert.keys():
-                    convert[type_pair] = 1
-                else:
-                    convert[type_pair] += 1
-        # blanks = " " * len("- " + self.name)
-        blanks = "\t- "
-        self.comment += "\n" + blanks
-        for key in convert:
-            self.comment += str(convert[key]) + " " + str(
-                key[1]
-            ) + " columns of " + variable.name + " converted to " + str(key[0])
-        self.change_exp = [
-            str(np.asarray(var_b)[0][i]) + " -> " +
-            str(np.asarray(var_a)[0][i]) for i in range(len(var_a.dtypes))
-        ]
-
-    def check_columns(self, variable):
-        # blanks = " " * len("- " + self.name)
-        blanks = "\t- "
-        col_a = set(self.var.columns)
-        col_b = set(variable.columns)
-        a_minus_b = col_a.difference(col_b)
-        b_minus_a = col_b.difference(col_a)
-        comment_str = "\n" + blanks
-        if a_minus_b:
-            comment_str += "add columns " + str(a_minus_b)
-        if b_minus_a:
-            comment_str += ", remove columns " + str(b_minus_a)
-        if a_minus_b or b_minus_a:
-            self.comment += comment_str + " from " + variable.name
-
-    def compare_to(self, variable):
-        var_a = self.var
-        var_b = variable.var
-
-    def add_rel_comment(self, variable):
-        # print(self.name, variable.name)
+    def check_copy(self, variable):
         if self.var.equals(variable.var):
             if self.name == variable.name:
                 self.comment += ", no change in the cell"
             else:
                 self.comment += ", copy of " + variable.name
-        elif np.shape(self.var) == np.shape(variable.var):
-            if self.var.dtypes.equals(variable.var.dtypes):
-                self.check_content(variable)
-            else:
-                self.check_convert(variable)
-                self.check_content(variable)
-        else:
-            if np.shape(self.var)[0] == np.shape(variable.var)[0]:
-                self.check_columns(variable)
-                # table = pd.DataFrame([_example], ["convert"], var_a.columns)
-                # self.comment += "\n" + str(table)
+            return True
+        return False
+
+    def add_change_comment(self, variable, convert, change):
+        if change:
+            self.comment += "\n" + blanks
+            for key in change:
+                self.comment += str(
+                    change[key]) + " " + str(key) + " columns changed"
+
+        if convert:
+            self.comment += "\n" + blanks
+            for key in convert:
+                self.comment += str(convert[key]) + " " + str(
+                    key[1]) + " columns converted to " + str(key[0])
+
+        def change_str(col):
+            if col[-1] != "*":
+                return str(self.var[col][0])
+            col = col[:-1]
+            return str(variable.var[col][0]) + " -> " + str(self.var[col][0])
+
+        if change or convert:
+            self.change_exp = [change_str(col) for col in self.columns]
+
+    def check_difference(self, variable):
+        col_a = set(self.var.columns)
+        col_b = set(variable.columns)
+        a_minus_b = col_a.difference(col_b)
+        b_minus_a = col_b.difference(col_a)
+        if a_minus_b or b_minus_a:
+            self.comment += "\n" + blanks
+            if a_minus_b:
+                self.comment += "add columns " + str(a_minus_b)
+            if b_minus_a:
+                self.comment += " remove columns " + str(b_minus_a)
+        return a_minus_b, b_minus_a
+
+    def check_change(self, variable, diffset):
+        convert = {}
+        change = {}
+        var_a = self.var
+        var_b = variable.var
+        for i in range(len(var_a.dtypes)):
+            column_name = var_a.columns[i]
+            if column_name in diffset:
+                continue
+            if var_b[column_name].dtype != var_a[column_name].dtype:
+                type_pair = (var_a[column_name].dtype,
+                             var_b[column_name].dtype)
+                self.columns[i] += "*"
+                if type_pair not in convert.keys():
+                    convert[type_pair] = 1
+                else:
+                    convert[type_pair] += 1
+            elif not var_b[column_name].equals(var_a[column_name]):
+                self.columns[i] += "*"
+                if var_a.dtypes[i] not in change.keys():
+                    change[var_a.dtypes[i]] = 1
+                else:
+                    change[var_a.dtypes[i]] += 1
+        self.add_change_comment(variable, convert, change)
+
+    def compare_to(self, variable):
+        if self.check_copy(variable):
+            return
+        # check difference first
+        a_minus_b, b_minus_a = self.check_difference(variable)
+        # check convert/change in common columns
+        self.check_change(variable, a_minus_b)
 
 
 def handlecell(num, st, ed):
@@ -275,7 +263,7 @@ def handlecell(num, st, ed):
                     score = cur_score
                     choose_idx = j
             if choose_idx != -1:
-                myvars[i].add_rel_comment(myvars[choose_idx])
+                myvars[i].compare_to(myvars[choose_idx])
 
     # if both output, we only check copy
     if first_out != -1:
