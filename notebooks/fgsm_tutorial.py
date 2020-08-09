@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[5]:
+# In[2]:
 
 
 get_ipython().run_line_magic('matplotlib', 'inline')
@@ -99,7 +99,7 @@ get_ipython().run_line_magic('matplotlib', 'inline')
 # 
 # 
 
-# In[6]:
+# In[3]:
 
 
 from __future__ import print_function
@@ -144,7 +144,7 @@ import matplotlib.pyplot as plt
 # 
 # 
 
-# In[7]:
+# In[4]:
 
 
 epsilons = [0, .05, .1, .15, .2, .25, .3]
@@ -166,7 +166,7 @@ use_cuda=False
 # 
 # 
 
-# In[8]:
+# In[16]:
 
 
 # LeNet Model definition

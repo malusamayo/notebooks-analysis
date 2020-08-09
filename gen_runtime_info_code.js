@@ -21,7 +21,20 @@ let HEAD_STR =
     "import copy\n" +
     "store_vars = []\n" +
     "my_labels = []\n" +
-    "my_dir_path = os.path.dirname(os.path.realpath(__file__))\n";
+    "my_dir_path = os.path.dirname(os.path.realpath(__file__))\n" +
+    "ignore_types = [\"<class 'module'>\"]\n" +
+    "copy_types = [\n" +
+    "    \"<class 'folium.plugins.marker_cluster.MarkerCluster'>\",\n" +
+    "    \"<class 'matplotlib.axes._subplots.AxesSubplot'>\"\n" +
+    "]\n" +
+    "def my_store_info(info, var):\n" +
+    "    if str(type(var)) in ignore_types:\n" +
+    "        return\n" +
+    "    my_labels.append(info)\n" +
+    "    if str(type(var)) in copy_types:\n" +
+    "        store_vars.append(copy.copy(var))\n" +
+    "    else:\n" +
+    "        store_vars.append(copy.deepcopy(var))\n";
 let write_str =
     "store_vars.append(my_labels)\n" +
     "f = open(os.path.join(my_dir_path, \"" + filename_no_suffix +
@@ -61,13 +74,13 @@ function compute_flow_vars(code) {
         let fromLine = flow.fromNode.location.first_line;
         let toLine = flow.toNode.location.first_line;
         // add in/out vars to cells
-        // if (flow.fromRef !== undefined)
-        //     console.log(fromLine + "->" + toLine + " " + flow.fromNode.type + " " + flow.toNode.type + " " + flow.fromRef.name);
+        if (flow.fromRef !== undefined)
+            console.log(fromLine + "->" + toLine + " " + flow.fromNode.type + " " + flow.toNode.type + " " + flow.fromRef.name);
 
         if (lineToCell.get(fromLine) < lineToCell.get(toLine)) {
             // console.log(fromLine + "->" + toLine + " " + flow.fromNode.type + " " + flow.toNode.type + " " + flow.toRef.name);
             // ignore import and funtion def
-            if (flow.fromNode.type == "import" || flow.fromNode.type == "def")
+            if (["import", "def", "from"].includes(flow.fromNode.type))
                 continue;
             // use interSec to avoid missing in/out var bugs
             let defs = analyzer.getDefs(flow.fromNode, new RefSet()).items.map(x => x.name)
@@ -92,8 +105,7 @@ function compute_flow_vars(code) {
 
 // type 1 == OUT, type 0 == IN
 function print_info(cell, v, type) {
-    return "my_labels.append((" + cell + ", " + type + ", \"" + v + "\"))\n"
-        + "store_vars.append(copy.deepcopy(" + v + "))\n";
+    return "my_store_info((" + cell + ", " + type + ", \"" + v + "\"), " + v + ")\n";
 }
 
 function insert_print_stmt(code) {

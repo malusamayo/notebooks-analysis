@@ -4,6 +4,19 @@ import copy
 store_vars = []
 my_labels = []
 my_dir_path = os.path.dirname(os.path.realpath(__file__))
+ignore_types = ["<class 'module'>"]
+copy_types = [
+    "<class 'folium.plugins.marker_cluster.MarkerCluster'>",
+    "<class 'matplotlib.axes._subplots.AxesSubplot'>"
+]
+def my_store_info(info, var):
+    if str(type(var)) in ignore_types:
+        return
+    my_labels.append(info)
+    if str(type(var)) in copy_types:
+        store_vars.append(copy.copy(var))
+    else:
+        store_vars.append(copy.deepcopy(var))
 
 # coding: utf-8
 
@@ -24,25 +37,19 @@ bank_df = pd.read_csv('bank1.csv', sep=";") # default is ",", which will fail
 
 bank_df_raw = bank_df.copy() # back up the original dataset for multiple tests
 
-my_labels.append((1, 1, "bank_df"))
-store_vars.append(copy.deepcopy(bank_df))
-my_labels.append((1, 1, "bank_df_raw"))
-store_vars.append(copy.deepcopy(bank_df_raw))
+my_store_info((1, 1, "bank_df"), bank_df)
+my_store_info((1, 1, "bank_df_raw"), bank_df_raw)
 
-# In[ ]:my_labels.append((2, 0, "bank_df"))
-store_vars.append(copy.deepcopy(bank_df))
+# In[ ]:my_store_info((2, 0, "bank_df"), bank_df)
 
 
 
 cat_cols = bank_df.select_dtypes(['object']).columns
 
-my_labels.append((2, 1, "cat_cols"))
-store_vars.append(copy.deepcopy(cat_cols))
+my_store_info((2, 1, "cat_cols"), cat_cols)
 
-# In[ ]:my_labels.append((3, 0, "bank_df_raw"))
-store_vars.append(copy.deepcopy(bank_df_raw))
-my_labels.append((3, 0, "cat_cols"))
-store_vars.append(copy.deepcopy(cat_cols))
+# In[ ]:my_store_info((3, 0, "bank_df_raw"), bank_df_raw)
+my_store_info((3, 0, "cat_cols"), cat_cols)
 
 
 
@@ -54,15 +61,11 @@ bank_df_le = bank_df_raw.copy()
 for col in cat_cols:    
     bank_df_le[col] = le.fit_transform(bank_df_le[col])
 
-my_labels.append((3, 1, "bank_df_raw"))
-store_vars.append(copy.deepcopy(bank_df_raw))
-my_labels.append((3, 1, "bank_df_le"))
-store_vars.append(copy.deepcopy(bank_df_le))
+my_store_info((3, 1, "bank_df_raw"), bank_df_raw)
+my_store_info((3, 1, "bank_df_le"), bank_df_le)
 
-# In[ ]:my_labels.append((4, 0, "bank_df_raw"))
-store_vars.append(copy.deepcopy(bank_df_raw))
-my_labels.append((4, 0, "bank_df_le"))
-store_vars.append(copy.deepcopy(bank_df_le))
+# In[ ]:my_store_info((4, 0, "bank_df_raw"), bank_df_raw)
+my_store_info((4, 0, "bank_df_le"), bank_df_le)
 
 
 
@@ -74,11 +77,9 @@ bank_df_fix = bank_df_raw.copy()
 bank_df_le["month"] = bank_df_fix["month"].map(month_dict)
 bank_df_le.loc[bank_df_le['pdays']==-1,'pdays'] = 999
 
-my_labels.append((4, 1, "bank_df_le"))
-store_vars.append(copy.deepcopy(bank_df_le))
+my_store_info((4, 1, "bank_df_le"), bank_df_le)
 
-# In[ ]:my_labels.append((5, 0, "bank_df_le"))
-store_vars.append(copy.deepcopy(bank_df_le))
+# In[ ]:my_store_info((5, 0, "bank_df_le"), bank_df_le)
 
 
 
@@ -95,23 +96,15 @@ print(X_test.shape)
 print(y_train.shape)
 print(y_test.shape)
 
-my_labels.append((5, 1, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((5, 1, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
-my_labels.append((5, 1, "X_test"))
-store_vars.append(copy.deepcopy(X_test))
-my_labels.append((5, 1, "y_test"))
-store_vars.append(copy.deepcopy(y_test))
+my_store_info((5, 1, "X_train"), X_train)
+my_store_info((5, 1, "y_train"), y_train)
+my_store_info((5, 1, "X_test"), X_test)
+my_store_info((5, 1, "y_test"), y_test)
 
-# In[ ]:my_labels.append((6, 0, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((6, 0, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
-my_labels.append((6, 0, "X_test"))
-store_vars.append(copy.deepcopy(X_test))
-my_labels.append((6, 0, "y_test"))
-store_vars.append(copy.deepcopy(y_test))
+# In[ ]:my_store_info((6, 0, "X_train"), X_train)
+my_store_info((6, 0, "y_train"), y_train)
+my_store_info((6, 0, "X_test"), X_test)
+my_store_info((6, 0, "y_test"), y_test)
 
 
 
@@ -130,15 +123,11 @@ pipe_rf.fit(X_train, y_train)
 print('RF Train Accuracy: %.3f' % pipe_rf.score(X_train, y_train))
 print('RF Test Accuracy: %.3f' % pipe_rf.score(X_test, y_test))
 
-my_labels.append((6, 1, "pipe_rf"))
-store_vars.append(copy.deepcopy(pipe_rf))
+my_store_info((6, 1, "pipe_rf"), pipe_rf)
 
-# In[ ]:my_labels.append((7, 0, "pipe_rf"))
-store_vars.append(copy.deepcopy(pipe_rf))
-my_labels.append((7, 0, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((7, 0, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
+# In[ ]:my_store_info((7, 0, "pipe_rf"), pipe_rf)
+my_store_info((7, 0, "X_train"), X_train)
+my_store_info((7, 0, "y_train"), y_train)
 
 
 
@@ -150,19 +139,13 @@ param_grid_rf = [{'clf__n_estimators': [20,40,80], 'clf__criterion': ['gini', 'e
 gs_rf = GridSearchCV(estimator=pipe_rf, param_grid=param_grid_rf, scoring='accuracy', cv=5, n_jobs=-1)
 gs_rf_fit = gs_rf.fit(X_train,y_train)
 
-my_labels.append((7, 1, "gs_rf_fit"))
-store_vars.append(copy.deepcopy(gs_rf_fit))
+my_store_info((7, 1, "gs_rf_fit"), gs_rf_fit)
 
-# In[ ]:my_labels.append((8, 0, "gs_rf_fit"))
-store_vars.append(copy.deepcopy(gs_rf_fit))
-my_labels.append((8, 0, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((8, 0, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
-my_labels.append((8, 0, "X_test"))
-store_vars.append(copy.deepcopy(X_test))
-my_labels.append((8, 0, "y_test"))
-store_vars.append(copy.deepcopy(y_test))
+# In[ ]:my_store_info((8, 0, "gs_rf_fit"), gs_rf_fit)
+my_store_info((8, 0, "X_train"), X_train)
+my_store_info((8, 0, "y_train"), y_train)
+my_store_info((8, 0, "X_test"), X_test)
+my_store_info((8, 0, "y_test"), y_test)
 
 
 
@@ -174,23 +157,15 @@ gs_rf_best = gs_rf_fit.best_estimator_
 print('RF Train accuracy: %.3f' % gs_rf_best.score(X_train, y_train))
 print('RF Test accuracy: %.3f' % gs_rf_best.score(X_test, y_test))
 
-my_labels.append((8, 1, "gs_rf_best"))
-store_vars.append(copy.deepcopy(gs_rf_best))
-my_labels.append((8, 1, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((8, 1, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
-my_labels.append((8, 1, "X_test"))
-store_vars.append(copy.deepcopy(X_test))
-my_labels.append((8, 1, "y_test"))
-store_vars.append(copy.deepcopy(y_test))
+my_store_info((8, 1, "gs_rf_best"), gs_rf_best)
+my_store_info((8, 1, "X_train"), X_train)
+my_store_info((8, 1, "y_train"), y_train)
+my_store_info((8, 1, "X_test"), X_test)
+my_store_info((8, 1, "y_test"), y_test)
 
-# In[ ]:my_labels.append((9, 0, "gs_rf_best"))
-store_vars.append(copy.deepcopy(gs_rf_best))
-my_labels.append((9, 0, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((9, 0, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
+# In[ ]:my_store_info((9, 0, "gs_rf_best"), gs_rf_best)
+my_store_info((9, 0, "X_train"), X_train)
+my_store_info((9, 0, "y_train"), y_train)
 
 
 
@@ -211,33 +186,20 @@ print('test_scores_mean: ', test_scores_mean)
 test_scores_std = np.std(test_scores, axis=1)
 print('test_scores_std: ', test_scores_std)
 
-my_labels.append((9, 1, "train_sizes"))
-store_vars.append(copy.deepcopy(train_sizes))
-my_labels.append((9, 1, "train_scores_mean"))
-store_vars.append(copy.deepcopy(train_scores_mean))
-my_labels.append((9, 1, "train_scores_std"))
-store_vars.append(copy.deepcopy(train_scores_std))
-my_labels.append((9, 1, "test_scores_mean"))
-store_vars.append(copy.deepcopy(test_scores_mean))
-my_labels.append((9, 1, "test_scores_std"))
-store_vars.append(copy.deepcopy(test_scores_std))
-my_labels.append((9, 1, "gs_rf_best"))
-store_vars.append(copy.deepcopy(gs_rf_best))
-my_labels.append((9, 1, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((9, 1, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
+my_store_info((9, 1, "train_sizes"), train_sizes)
+my_store_info((9, 1, "train_scores_mean"), train_scores_mean)
+my_store_info((9, 1, "train_scores_std"), train_scores_std)
+my_store_info((9, 1, "test_scores_mean"), test_scores_mean)
+my_store_info((9, 1, "test_scores_std"), test_scores_std)
+my_store_info((9, 1, "gs_rf_best"), gs_rf_best)
+my_store_info((9, 1, "X_train"), X_train)
+my_store_info((9, 1, "y_train"), y_train)
 
-# In[ ]:my_labels.append((10, 0, "train_sizes"))
-store_vars.append(copy.deepcopy(train_sizes))
-my_labels.append((10, 0, "train_scores_mean"))
-store_vars.append(copy.deepcopy(train_scores_mean))
-my_labels.append((10, 0, "train_scores_std"))
-store_vars.append(copy.deepcopy(train_scores_std))
-my_labels.append((10, 0, "test_scores_mean"))
-store_vars.append(copy.deepcopy(test_scores_mean))
-my_labels.append((10, 0, "test_scores_std"))
-store_vars.append(copy.deepcopy(test_scores_std))
+# In[ ]:my_store_info((10, 0, "train_sizes"), train_sizes)
+my_store_info((10, 0, "train_scores_mean"), train_scores_mean)
+my_store_info((10, 0, "train_scores_std"), train_scores_std)
+my_store_info((10, 0, "test_scores_mean"), test_scores_mean)
+my_store_info((10, 0, "test_scores_std"), test_scores_std)
 
 
 
@@ -264,16 +226,11 @@ plt.ylim([0.8, 1.0])
 plt.show()
 
 
-# In[ ]:my_labels.append((11, 0, "gs_rf_best"))
-store_vars.append(copy.deepcopy(gs_rf_best))
-my_labels.append((11, 0, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((11, 0, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
-my_labels.append((11, 0, "X_test"))
-store_vars.append(copy.deepcopy(X_test))
-my_labels.append((11, 0, "y_test"))
-store_vars.append(copy.deepcopy(y_test))
+# In[ ]:my_store_info((11, 0, "gs_rf_best"), gs_rf_best)
+my_store_info((11, 0, "X_train"), X_train)
+my_store_info((11, 0, "y_train"), y_train)
+my_store_info((11, 0, "X_test"), X_test)
+my_store_info((11, 0, "y_test"), y_test)
 
 
 
@@ -287,11 +244,9 @@ print('Test accuracy: %.3f' % clf_final.score(X_test, y_test))
 confmat = confusion_matrix(y_true=y_test, y_pred=y_pred)
 print(confmat)
 
-my_labels.append((11, 1, "confmat"))
-store_vars.append(copy.deepcopy(confmat))
+my_store_info((11, 1, "confmat"), confmat)
 
-# In[ ]:my_labels.append((12, 0, "confmat"))
-store_vars.append(copy.deepcopy(confmat))
+# In[ ]:my_store_info((12, 0, "confmat"), confmat)
 
 
 

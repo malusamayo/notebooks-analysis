@@ -4,6 +4,19 @@ import copy
 store_vars = []
 my_labels = []
 my_dir_path = os.path.dirname(os.path.realpath(__file__))
+ignore_types = ["<class 'module'>"]
+copy_types = [
+    "<class 'folium.plugins.marker_cluster.MarkerCluster'>",
+    "<class 'matplotlib.axes._subplots.AxesSubplot'>"
+]
+def my_store_info(info, var):
+    if str(type(var)) in ignore_types:
+        return
+    my_labels.append(info)
+    if str(type(var)) in copy_types:
+        store_vars.append(copy.copy(var))
+    else:
+        store_vars.append(copy.deepcopy(var))
 
 # coding: utf-8
 
@@ -22,11 +35,9 @@ import numpy as np
 
 titanic = pd.read_csv("titanic3.csv")
 
-my_labels.append((2, 1, "titanic"))
-store_vars.append(copy.deepcopy(titanic))
+my_store_info((2, 1, "titanic"), titanic)
 
-# In[6]:my_labels.append((3, 0, "titanic"))
-store_vars.append(copy.deepcopy(titanic))
+# In[6]:my_store_info((3, 0, "titanic"), titanic)
 
 
 
@@ -34,27 +45,23 @@ rng = np.random.RandomState(42)
 titanic['random_cat'] = rng.randint(3, size=titanic.shape[0])
 titanic['random_num'] = rng.randn(titanic.shape[0])
 
-my_labels.append((3, 1, "titanic"))
-store_vars.append(copy.deepcopy(titanic))
+my_store_info((3, 1, "titanic"), titanic)
 
-# In[7]:my_labels.append((4, 0, "titanic"))
-store_vars.append(copy.deepcopy(titanic))
+# In[7]:my_store_info((4, 0, "titanic"), titanic)
 
 
 
 titanic.describe()
 
 
-# In[8]:my_labels.append((5, 0, "titanic"))
-store_vars.append(copy.deepcopy(titanic))
+# In[8]:my_store_info((5, 0, "titanic"), titanic)
 
 
 
 titanic.head(10)
 
 
-# In[9]:my_labels.append((6, 0, "titanic"))
-store_vars.append(copy.deepcopy(titanic))
+# In[9]:my_store_info((6, 0, "titanic"), titanic)
 
 
 
@@ -64,19 +71,13 @@ numerical_columns = ['age', 'sibsp', 'parch', 'fare', 'random_num']
 data = titanic[categorical_columns + numerical_columns]
 labels = titanic['survived']
 
-my_labels.append((6, 1, "data"))
-store_vars.append(copy.deepcopy(data))
-my_labels.append((6, 1, "labels"))
-store_vars.append(copy.deepcopy(labels))
-my_labels.append((6, 1, "categorical_columns"))
-store_vars.append(copy.deepcopy(categorical_columns))
-my_labels.append((6, 1, "numerical_columns"))
-store_vars.append(copy.deepcopy(numerical_columns))
+my_store_info((6, 1, "data"), data)
+my_store_info((6, 1, "labels"), labels)
+my_store_info((6, 1, "categorical_columns"), categorical_columns)
+my_store_info((6, 1, "numerical_columns"), numerical_columns)
 
-# In[10]:my_labels.append((7, 0, "data"))
-store_vars.append(copy.deepcopy(data))
-my_labels.append((7, 0, "labels"))
-store_vars.append(copy.deepcopy(labels))
+# In[10]:my_store_info((7, 0, "data"), data)
+my_store_info((7, 0, "labels"), labels)
 
 
 
@@ -88,19 +89,13 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 
 # ## Building a Feature Engineering Pipeline
-my_labels.append((7, 1, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((7, 1, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
-my_labels.append((7, 1, "X_test"))
-store_vars.append(copy.deepcopy(X_test))
-my_labels.append((7, 1, "y_test"))
-store_vars.append(copy.deepcopy(y_test))
+my_store_info((7, 1, "X_train"), X_train)
+my_store_info((7, 1, "y_train"), y_train)
+my_store_info((7, 1, "X_test"), X_test)
+my_store_info((7, 1, "y_test"), y_test)
 
-# In[11]:my_labels.append((8, 0, "categorical_columns"))
-store_vars.append(copy.deepcopy(categorical_columns))
-my_labels.append((8, 0, "numerical_columns"))
-store_vars.append(copy.deepcopy(numerical_columns))
+# In[11]:my_store_info((8, 0, "categorical_columns"), categorical_columns)
+my_store_info((8, 0, "numerical_columns"), numerical_columns)
 
 
 
@@ -131,39 +126,25 @@ rf = Pipeline([
                                           random_state=42))
 ])
 
-my_labels.append((8, 1, "rf"))
-store_vars.append(copy.deepcopy(rf))
-my_labels.append((8, 1, "permutation_importance"))
-store_vars.append(copy.deepcopy(permutation_importance))
+my_store_info((8, 1, "rf"), rf)
 
-# In[12]:my_labels.append((9, 0, "rf"))
-store_vars.append(copy.deepcopy(rf))
-my_labels.append((9, 0, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((9, 0, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
+# In[12]:my_store_info((9, 0, "rf"), rf)
+my_store_info((9, 0, "X_train"), X_train)
+my_store_info((9, 0, "y_train"), y_train)
 
 
 
 rf.fit(X_train, y_train)
 
-my_labels.append((9, 1, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((9, 1, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
-my_labels.append((9, 1, "rf"))
-store_vars.append(copy.deepcopy(rf))
+my_store_info((9, 1, "X_train"), X_train)
+my_store_info((9, 1, "y_train"), y_train)
+my_store_info((9, 1, "rf"), rf)
 
-# In[13]:my_labels.append((10, 0, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((10, 0, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
-my_labels.append((10, 0, "rf"))
-store_vars.append(copy.deepcopy(rf))
-my_labels.append((10, 0, "X_test"))
-store_vars.append(copy.deepcopy(X_test))
-my_labels.append((10, 0, "y_test"))
-store_vars.append(copy.deepcopy(y_test))
+# In[13]:my_store_info((10, 0, "X_train"), X_train)
+my_store_info((10, 0, "y_train"), y_train)
+my_store_info((10, 0, "rf"), rf)
+my_store_info((10, 0, "X_test"), X_test)
+my_store_info((10, 0, "y_test"), y_test)
 
 
 
@@ -173,12 +154,9 @@ print("RF test accuracy: %0.3f" % rf.score(X_test, y_test))
 
 # ## Tree-based Feature Importances
 
-# In[14]:my_labels.append((11, 0, "rf"))
-store_vars.append(copy.deepcopy(rf))
-my_labels.append((11, 0, "categorical_columns"))
-store_vars.append(copy.deepcopy(categorical_columns))
-my_labels.append((11, 0, "numerical_columns"))
-store_vars.append(copy.deepcopy(numerical_columns))
+# In[14]:my_store_info((11, 0, "rf"), rf)
+my_store_info((11, 0, "categorical_columns"), categorical_columns)
+my_store_info((11, 0, "numerical_columns"), numerical_columns)
 
 
 
@@ -205,16 +183,10 @@ ax.set_title("Random Forest Feature Importances");
 
 # ## Permutation-based Feature Importances (training set)
 
-# In[24]:my_labels.append((12, 0, "rf"))
-store_vars.append(copy.deepcopy(rf))
-my_labels.append((12, 0, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((12, 0, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
-my_labels.append((12, 0, "permutation_importance"))
-store_vars.append(copy.deepcopy(permutation_importance))
-my_labels.append((12, 0, "X_test"))
-store_vars.append(copy.deepcopy(X_test))
+# In[24]:my_store_info((12, 0, "X_train"), X_train)
+my_store_info((12, 0, "y_train"), y_train)
+my_store_info((12, 0, "rf"), rf)
+my_store_info((12, 0, "X_test"), X_test)
 
 
 
@@ -233,21 +205,10 @@ ax.set_title("Permutation Importances (training set)");
 
 
 # ## Permutation-based Feature Importances (test set)
-my_labels.append((12, 1, "rf"))
-store_vars.append(copy.deepcopy(rf))
-my_labels.append((12, 1, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((12, 1, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
 
-# In[25]:my_labels.append((13, 0, "rf"))
-store_vars.append(copy.deepcopy(rf))
-my_labels.append((13, 0, "X_test"))
-store_vars.append(copy.deepcopy(X_test))
-my_labels.append((13, 0, "y_test"))
-store_vars.append(copy.deepcopy(y_test))
-my_labels.append((13, 0, "permutation_importance"))
-store_vars.append(copy.deepcopy(permutation_importance))
+# In[25]:my_store_info((13, 0, "rf"), rf)
+my_store_info((13, 0, "X_test"), X_test)
+my_store_info((13, 0, "y_test"), y_test)
 
 
 
@@ -265,25 +226,12 @@ ax.set_title("Permutation Importances (test set)");
 
 
 # ## Same Analysis With a Non-Overfitting Classifier
-my_labels.append((13, 1, "rf"))
-store_vars.append(copy.deepcopy(rf))
-my_labels.append((13, 1, "X_test"))
-store_vars.append(copy.deepcopy(X_test))
-my_labels.append((13, 1, "y_test"))
-store_vars.append(copy.deepcopy(y_test))
-my_labels.append((13, 1, "permute_importance"))
-store_vars.append(copy.deepcopy(permute_importance))
 
-# In[26]:my_labels.append((14, 0, "rf"))
-store_vars.append(copy.deepcopy(rf))
-my_labels.append((14, 0, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((14, 0, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
-my_labels.append((14, 0, "X_test"))
-store_vars.append(copy.deepcopy(X_test))
-my_labels.append((14, 0, "y_test"))
-store_vars.append(copy.deepcopy(y_test))
+# In[26]:my_store_info((14, 0, "rf"), rf)
+my_store_info((14, 0, "X_train"), X_train)
+my_store_info((14, 0, "y_train"), y_train)
+my_store_info((14, 0, "X_test"), X_test)
+my_store_info((14, 0, "y_test"), y_test)
 
 
 
@@ -292,19 +240,13 @@ rf.fit(X_train, y_train)
 print("RF train accuracy: %0.3f" % rf.score(X_train, y_train))
 print("RF test accuracy: %0.3f" % rf.score(X_test, y_test))
 
-my_labels.append((14, 1, "rf"))
-store_vars.append(copy.deepcopy(rf))
-my_labels.append((14, 1, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((14, 1, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
+my_store_info((14, 1, "rf"), rf)
+my_store_info((14, 1, "X_train"), X_train)
+my_store_info((14, 1, "y_train"), y_train)
 
-# In[27]:my_labels.append((15, 0, "rf"))
-store_vars.append(copy.deepcopy(rf))
-my_labels.append((15, 0, "categorical_columns"))
-store_vars.append(copy.deepcopy(categorical_columns))
-my_labels.append((15, 0, "numerical_columns"))
-store_vars.append(copy.deepcopy(numerical_columns))
+# In[27]:my_store_info((15, 0, "rf"), rf)
+my_store_info((15, 0, "categorical_columns"), categorical_columns)
+my_store_info((15, 0, "numerical_columns"), numerical_columns)
 
 
 
@@ -329,18 +271,10 @@ ax.set_yticks(y_ticks)
 ax.set_title("Random Forest Feature Importances");
 
 
-# In[28]:my_labels.append((16, 0, "rf"))
-store_vars.append(copy.deepcopy(rf))
-my_labels.append((16, 0, "X_train"))
-store_vars.append(copy.deepcopy(X_train))
-my_labels.append((16, 0, "y_train"))
-store_vars.append(copy.deepcopy(y_train))
-my_labels.append((16, 0, "permutation_importance"))
-store_vars.append(copy.deepcopy(permutation_importance))
-my_labels.append((16, 0, "X_test"))
-store_vars.append(copy.deepcopy(X_test))
-my_labels.append((16, 0, "permute_importance"))
-store_vars.append(copy.deepcopy(permute_importance))
+# In[28]:my_store_info((16, 0, "X_train"), X_train)
+my_store_info((16, 0, "y_train"), y_train)
+my_store_info((16, 0, "rf"), rf)
+my_store_info((16, 0, "X_test"), X_test)
 
 
 
@@ -356,17 +290,10 @@ ax.vlines(0, 0, X_test.shape[1] + 1, linestyles='dashed', alpha=0.5)
 ax.set_xlabel("baseline score - score on permutated variable")
 ax.set_title("Permutation Importances (training set)");
 
-my_labels.append((16, 1, "rf"))
-store_vars.append(copy.deepcopy(rf))
 
-# In[29]:my_labels.append((17, 0, "rf"))
-store_vars.append(copy.deepcopy(rf))
-my_labels.append((17, 0, "X_test"))
-store_vars.append(copy.deepcopy(X_test))
-my_labels.append((17, 0, "y_test"))
-store_vars.append(copy.deepcopy(y_test))
-my_labels.append((17, 0, "permutation_importance"))
-store_vars.append(copy.deepcopy(permutation_importance))
+# In[29]:my_store_info((17, 0, "rf"), rf)
+my_store_info((17, 0, "X_test"), X_test)
+my_store_info((17, 0, "y_test"), y_test)
 
 
 
