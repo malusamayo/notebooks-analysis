@@ -90,7 +90,7 @@ class NdArray(Variable):
 class DataFrame(Variable):
     def __init__(self, var, name, cellnum, outflag, idx):
         super().__init__(var, name, cellnum, outflag, idx)
-        self.change_exp = None
+        self.change_exp = []
         self.columns = list(var.columns)
         self.comment = "- " + name + ", " + self.initial_comment()
 
@@ -111,19 +111,23 @@ class DataFrame(Variable):
 
     def add_data_distribute(self):
         array = np.asarray(self.var)
-        _example = array[0]
-        if self.change_exp != None:
-            _example = self.change_exp
+        _examples = [array[0]]
+        _example_names = ["example"]
+        if len(self.change_exp) > 0:
+            _examples = self.change_exp
+            _example_names = [
+                "example" + str(i) for i in range(len(_examples))
+            ]
         if not np.issubdtype(array.dtype, np.number):
-            table = pd.DataFrame([_example], ["example"], self.columns)
+            table = pd.DataFrame(_examples, _example_names, self.columns)
             self.comment += "\n\n" + table.to_markdown()
             return
         _mean = np.mean(array, 0)
         _variance = np.var(array, 0)
         _max, _min = np.max(array, 0), np.min(array, 0)
         _range = [[_min[i], _max[i]] for i in range(len(_max))]
-        table = pd.DataFrame([_example, _mean, _variance, _range],
-                             ["example", "mean", "variance", "range"],
+        table = pd.DataFrame(_examples + [_mean, _variance, _range],
+                             _example_names + ["mean", "variance", "range"],
                              self.columns)
         # table = self.var.describe().drop(["count", "25%", "50%", "75%"])
         # _range = [[[table.loc["min"][i], table.loc["max"][i]]
@@ -173,21 +177,33 @@ class DataFrame(Variable):
             for key in change:
                 self.comment += str(
                     change[key]) + " " + str(key) + " columns changed"
-
         if convert:
             self.comment += "\n" + blanks
             for key in convert:
                 self.comment += str(convert[key]) + " " + str(
                     key[1]) + " columns converted to " + str(key[0])
 
-        def change_str(col):
+        indices = set()
+        for col in self.columns:
             if col[-1] != "*":
-                return str(self.var[col][0])
+                continue
             col = col[:-1]
-            return str(variable.var[col][0]) + " -> " + str(self.var[col][0])
+            for i in range(len(variable.var[col])):
+                if str(variable.var[col][i]) != str(self.var[col][i]):
+                    indices.add(i)
+                    break
+
+        def change_str(col, idx):
+            if col[-1] != "*":
+                return str(self.var[col][idx])
+            col = col[:-1]
+            return str(variable.var[col][idx]) + " -> " + str(
+                self.var[col][idx])
 
         if change or convert:
-            self.change_exp = [change_str(col) for col in self.columns]
+            for idx in indices:
+                self.change_exp.append(
+                    [change_str(col, idx) for col in self.columns])
 
     def check_difference(self, variable):
         col_a = set(self.var.columns)
