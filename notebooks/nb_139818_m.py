@@ -1,8 +1,14 @@
 #!/usr/bin/env pythonimport os
 import pickle
+import copy
 store_vars = []
 my_labels = []
 my_dir_path = os.path.dirname(os.path.realpath(__file__))
+def my_store_info(info, var):
+    if str(type(var)) == "<class 'module'>":
+        return
+    my_labels.append(info)
+    store_vars.append(copy.deepcopy(var))
 
 # coding: utf-8
 
@@ -47,13 +53,10 @@ y = iris.target
 # as to project the data onto a base of the top singular vectors.
 # If the number of retained components is 2 or 3, PCA can be used
 # to visualize the dataset.
-my_labels.append((1, 1, "X"))
-store_vars.append(X)
-my_labels.append((1, 1, "iris"))
-store_vars.append(iris)
+my_store_info((1, 1, "X"), X)
+my_store_info((1, 1, "iris"), iris)
 
-# In[ ]:my_labels.append((2, 0, "X"))
-store_vars.append(X)
+# In[ ]:my_store_info((2, 0, "X"), X)
 
 
 
@@ -63,15 +66,10 @@ pca.fit(X)
 
 
 # Once fitted, the pca model exposes the singular vectors in the components_ attribute:
-my_labels.append((2, 1, "pca"))
-store_vars.append(pca)
-my_labels.append((2, 1, "X"))
-store_vars.append(X)
-my_labels.append((2, 1, "PCA"))
-store_vars.append(PCA)
+my_store_info((2, 1, "pca"), pca)
+my_store_info((2, 1, "X"), X)
 
-# In[ ]:my_labels.append((3, 0, "pca"))
-store_vars.append(pca)
+# In[ ]:my_store_info((3, 0, "pca"), pca)
 
 
 
@@ -80,16 +78,14 @@ pca.components_
 
 # Other attributes are available as well:
 
-# In[ ]:my_labels.append((4, 0, "pca"))
-store_vars.append(pca)
+# In[ ]:my_store_info((4, 0, "pca"), pca)
 
 
 
 pca.explained_variance_ratio_
 
 
-# In[ ]:my_labels.append((5, 0, "pca"))
-store_vars.append(pca)
+# In[ ]:my_store_info((5, 0, "pca"), pca)
 
 
 
@@ -98,10 +94,8 @@ pca.explained_variance_ratio_.sum()
 
 # Let us project the iris dataset along those first two dimensions:
 
-# In[ ]:my_labels.append((6, 0, "X"))
-store_vars.append(X)
-my_labels.append((6, 0, "pca"))
-store_vars.append(pca)
+# In[ ]:my_store_info((6, 0, "X"), X)
+my_store_info((6, 0, "pca"), pca)
 
 
 
@@ -110,22 +104,18 @@ X_pca = pca.transform(X)
 
 # PCA `normalizes` and `whitens` the data, which means that the data
 # is now centered on both components with unit variance:
-my_labels.append((6, 1, "X_pca"))
-store_vars.append(X_pca)
+my_store_info((6, 1, "X_pca"), X_pca)
 
-# In[ ]:my_labels.append((7, 0, "X_pca"))
-store_vars.append(X_pca)
+# In[ ]:my_store_info((7, 0, "X_pca"), X_pca)
 
 
 
 import numpy as np
 np.round(X_pca.mean(axis=0), decimals=5)
 
-my_labels.append((7, 1, "X_pca"))
-store_vars.append(X_pca)
+my_store_info((7, 1, "X_pca"), X_pca)
 
-# In[ ]:my_labels.append((8, 0, "X_pca"))
-store_vars.append(X_pca)
+# In[ ]:my_store_info((8, 0, "X_pca"), X_pca)
 
 
 
@@ -133,11 +123,9 @@ np.round(X_pca.std(axis=0), decimals=5)
 
 
 # Furthermore, the samples components do no longer carry any linear correlation:
-my_labels.append((8, 1, "X_pca"))
-store_vars.append(X_pca)
+my_store_info((8, 1, "X_pca"), X_pca)
 
-# In[ ]:my_labels.append((9, 0, "X_pca"))
-store_vars.append(X_pca)
+# In[ ]:my_store_info((9, 0, "X_pca"), X_pca)
 
 
 
@@ -173,10 +161,8 @@ def plot_PCA_2D(data, target, target_names):
 
 # Now calling this function for our data, we see the plot:
 
-# In[ ]:my_labels.append((12, 0, "X_pca"))
-store_vars.append(X_pca)
-my_labels.append((12, 0, "iris"))
-store_vars.append(iris)
+# In[ ]:my_store_info((12, 0, "X_pca"), X_pca)
+my_store_info((12, 0, "iris"), iris)
 
 
 
@@ -236,17 +222,11 @@ from mpl_toolkits.mplot3d import Axes3D
 
 # This is a 2-dimensional dataset embedded in three dimensions, but it is embedded
 # in such a way that PCA cannot discover the underlying data orientation:
-my_labels.append((13, 1, "X"))
-store_vars.append(X)
-my_labels.append((13, 1, "y"))
-store_vars.append(y)
+my_store_info((13, 1, "X"), X)
+my_store_info((13, 1, "y"), y)
 
-# In[19]:my_labels.append((14, 0, "X"))
-store_vars.append(X)
-my_labels.append((14, 0, "PCA"))
-store_vars.append(PCA)
-my_labels.append((14, 0, "y"))
-store_vars.append(y)
+# In[19]:my_store_info((14, 0, "X"), X)
+my_store_info((14, 0, "y"), y)
 
 
 
@@ -256,13 +236,10 @@ plt.scatter(X_pca[:, 0], X_pca[:, 1], c=y)
 
 # Manifold learning algorithms, however, available in the ``sklearn.manifold``
 # submodule, are able to recover the underlying 2-dimensional manifold:
-my_labels.append((14, 1, "X"))
-store_vars.append(X)
+my_store_info((14, 1, "X"), X)
 
-# In[ ]:my_labels.append((15, 0, "X"))
-store_vars.append(X)
-my_labels.append((15, 0, "y"))
-store_vars.append(y)
+# In[ ]:my_store_info((15, 0, "X"), X)
+my_store_info((15, 0, "y"), y)
 
 
 
@@ -271,17 +248,10 @@ lle = LocallyLinearEmbedding(n_neighbors=15, n_components=2, method='modified')
 X_lle = lle.fit_transform(X)
 plt.scatter(X_lle[:, 0], X_lle[:, 1], c=y)
 
-my_labels.append((15, 1, "Isomap"))
-store_vars.append(Isomap)
-my_labels.append((15, 1, "X"))
-store_vars.append(X)
+my_store_info((15, 1, "X"), X)
 
-# In[ ]:my_labels.append((16, 0, "Isomap"))
-store_vars.append(Isomap)
-my_labels.append((16, 0, "X"))
-store_vars.append(X)
-my_labels.append((16, 0, "y"))
-store_vars.append(y)
+# In[ ]:my_store_info((16, 0, "X"), X)
+my_store_info((16, 0, "y"), y)
 
 
 

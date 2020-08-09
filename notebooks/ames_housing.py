@@ -15,7 +15,7 @@ import pandas as pd
 # In[3]:
 
 
-AMES_HOUSING_CSV = "https://www.openml.org/data/get_csv/20649135/file2ed11cebe25.arff"
+AMES_HOUSING_CSV = "file2ed11cebe25.csv"
 df = pd.read_csv(AMES_HOUSING_CSV)
 df
 
@@ -374,43 +374,13 @@ ax.boxplot(pi.importances[sorted_idx].T,
 ax.set_title("Permutation Importances (test set)");
 
 
-# In[35]:
+# In[37]:
 
 
 # %pip install -q git+https://github.com/slundberg/shap
 
 
 # In[36]:
-
-
-import shap
-shap.initjs()
-
-explainer = shap.TreeExplainer(reduced_model[-1])
-X_test_encoded = reduced_model[0].transform(X_test[feature_subset])
-shap_values = explainer.shap_values(X_test_encoded)
-feature_names = caterogical_columns(X_test[feature_subset]).tolist()
-feature_names += numeric_columns(X_test[feature_subset]).tolist()
-X_test_encoded = pd.DataFrame(X_test_encoded, columns=feature_names)
-shap.summary_plot(shap_values, X_test_encoded, plot_type="bar")
-
-
-# In[37]:
-
-
-shap.summary_plot(shap_values, X_test_encoded, plot_size=(14, 7))
-
-
-# In[38]:
-
-
-sample_idx = 0
-print("True sale price:", y_test.iloc[sample_idx])
-shap.force_plot(explainer.expected_value, shap_values[sample_idx, :],
-                X_test_encoded.iloc[sample_idx, :])
-
-
-# In[39]:
 
 
 from sklearn.inspection import plot_partial_dependence
@@ -421,7 +391,7 @@ plot_partial_dependence(reduced_model, X_test[feature_subset],
                         ["Year_Built"], grid_resolution=20, ax=ax);
 
 
-# In[40]:
+# In[37]:
 
 
 fig, ax = plt.subplots(figsize=(10, 5))
@@ -429,7 +399,7 @@ plot_partial_dependence(reduced_model, X_test[feature_subset], ["Gr_Liv_Area"],
                         grid_resolution=20, ax=ax);
 
 
-# In[41]:
+# In[38]:
 
 
 fig, ax = plt.subplots(figsize=(8, 8))
@@ -438,7 +408,7 @@ plot_partial_dependence(reduced_model, X[feature_subset], [["Gr_Liv_Area", "Year
                         grid_resolution=20, contour_kw={"alpha": 0.8}, ax=ax);
 
 
-# In[42]:
+# In[39]:
 
 
 fig, ax = plt.subplots(figsize=(12, 12))
@@ -456,13 +426,13 @@ ax.scatter(X["Longitude"], X["Latitude"]);
 
 # ## Model selection: hyperparameter tuning
 
-# In[43]:
+# In[40]:
 
 
 HistGradientBoostingRegressor()
 
 
-# In[44]:
+# In[41]:
 
 
 from sklearn.model_selection import RandomizedSearchCV
@@ -497,13 +467,13 @@ search = RandomizedSearchCV(model, params, n_iter=200, cv=3,
                             n_jobs=4, verbose=1)
 
 
-# In[45]:
+# In[44]:
 
 
 # _ = search.fit(X_train, y_train)
 
 
-# In[46]:
+# In[45]:
 
 
 # cv_results = pd.DataFrame(search.cv_results_)
@@ -511,13 +481,13 @@ search = RandomizedSearchCV(model, params, n_iter=200, cv=3,
 # cv_results.to_json("ames_gbrt_search_results.json")
 
 
-# In[47]:
+# In[46]:
 
 
 cv_results = pd.read_json("ames_gbrt_search_results.json")
 
 
-# In[48]:
+# In[47]:
 
 
 def rename_param(column_name):
@@ -526,7 +496,7 @@ def rename_param(column_name):
     return column_name
 
 
-# In[49]:
+# In[48]:
 
 
 cv_results.rename(rename_param, axis=1).head(5)
@@ -534,7 +504,7 @@ cv_results.rename(rename_param, axis=1).head(5)
 
 # ### Interactions between hyperparameters and generalization
 
-# In[73]:
+# In[50]:
 
 
 import plotly.express as px
@@ -555,7 +525,7 @@ fig.show()
 
 # Let's zoom on the top performing models by using the `query` methods of the dataframe. Note that the axis have a narrower range now:
 
-# In[74]:
+# In[51]:
 
 
 fig = px.parallel_coordinates(
@@ -573,7 +543,7 @@ fig.show()
 
 # Let's check that the inner CV scores still approximately reflect the true generatlization score measured on held out data even when we select the best model from hundred of possible candidates via random search:
 
-# In[96]:
+# In[52]:
 
 
 best_search_result = cv_results.nlargest(n=1, columns=["mean_test_score"]).iloc[0]
@@ -581,7 +551,7 @@ print(f'R2 score of best candidate (inner CV): {best_search_result["mean_test_sc
       f' (+/-{3 * best_search_result["std_test_score"]:.3f})')
 
 
-# In[97]:
+# In[53]:
 
 
 model.set_params(**best_search_result["params"])
@@ -592,13 +562,13 @@ print(f'R2 score of best candidate on held-out data: {held_out_score:.3f}')
 
 # ### Exploration of the accuracy / prediction latency trade-off
 
-# In[52]:
+# In[54]:
 
 
 cv_results["safe_test_score"] = cv_results["mean_test_score"] - cv_results["std_test_score"]
 
 
-# In[53]:
+# In[55]:
 
 
 import plotly.express as px

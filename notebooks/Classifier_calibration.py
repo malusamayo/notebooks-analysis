@@ -97,7 +97,7 @@ print("Linear SVC: %0.3f" %
       cross_val_score(svc, X_train, y_train, cv=5).mean())
 
 
-# In[12]:
+# In[7]:
 
 
 from sklearn.ensemble import RandomForestClassifier
@@ -107,7 +107,7 @@ rf = RandomForestClassifier(n_estimators=100)
 plot_calibration([('Random Forest', rf)])
 
 
-# In[13]:
+# In[8]:
 
 
 from sklearn.naive_bayes import GaussianNB
@@ -116,7 +116,7 @@ gnb = GaussianNB()
 plot_calibration([('Naive Bayes', gnb)])
 
 
-# In[14]:
+# In[9]:
 
 
 classifiers =  [
@@ -131,7 +131,7 @@ plot_calibration(classifiers)
 
 # ## Calibration
 
-# In[15]:
+# In[10]:
 
 
 from sklearn.calibration import CalibratedClassifierCV
@@ -147,7 +147,7 @@ svc_models = [
 plot_calibration(svc_models)
 
 
-# In[16]:
+# In[11]:
 
 
 gnb = GaussianNB()
@@ -161,7 +161,7 @@ gnb_models = [
 plot_calibration(gnb_models)
 
 
-# In[17]:
+# In[12]:
 
 
 from sklearn.metrics import log_loss, brier_score_loss
@@ -173,10 +173,4 @@ for name, model in gnb_models:
     ll = log_loss(y_test, prob_pos)
     print("%s:\tBrier score = %0.3f, log loss = %0.3f"
           % (name, bs, ll))
-
-
-# In[ ]:
-
-
-
 

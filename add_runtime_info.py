@@ -4,6 +4,7 @@ import os
 import pickle
 import numpy as np
 import pandas as pd
+import torch
 pd.set_option('display.max_columns', None)
 pd.set_option('precision', 4)
 np.set_printoptions(precision=4)
@@ -38,6 +39,8 @@ class Variable(object):
         var = self.var
         # if str(type(var)) == "<class 'sklearn.pipeline.Pipeline'>":
         #     return "transforms: " + str(var.steps)
+        if str(type(var)) == "<class 'sklearn.utils.Bunch'>":
+            return str(type(var))
         if self.outflag:
             return str(type(var)) + ", " + str(var)
         else:
@@ -66,7 +69,8 @@ class NdArray(Variable):
             np.array(self.var).dtype)
 
     def add_data_distribute(self):
-        blanks = " " * len("- " + self.name + ", ")
+        # blanks = " " * len("- " + self.name + ", ")
+        blanks = "\t- "
         array = np.asarray(self.var)
         # only support all numerical values
         if not np.issubdtype(array.dtype, np.number):
@@ -74,15 +78,18 @@ class NdArray(Variable):
         _mean = np.mean(array)
         _variance = np.var(array)
         _max, _min = np.max(array), np.min(array)
-        comment_str = "\n" + blanks + "mean: " + "%.4f" % _mean + ", variance: " + "%.4f" % _variance + ", range: [" + str(
-            _min) + ", " + str(_max) + "]"
+        comment_str = "\n" + blanks + "mean: " + "%.4f" % _mean + ", variance: " + "%.4f" % _variance + ", range: ["
+        if int(_min) == float(_min):
+            comment_str += str(_min) + ", " + str(_max) + "]"
+        else:
+            comment_str += "%.4f, %.4f]" % (_min, _max)
         self.comment += comment_str
 
 
 class DataFrame(Variable):
     def __init__(self, var, name, cellnum, outflag, idx):
         super().__init__(var, name, cellnum, outflag, idx)
-        self.convert = None
+        self.change_exp = None
         self.columns = list(var.columns)
         self.comment = "- " + name + ", " + self.initial_comment()
 
@@ -95,19 +102,20 @@ class DataFrame(Variable):
                 type_cnt[t] = 1
             else:
                 type_cnt[t] += 1
-        for key in type_cnt:
-            ret = ret + ", " + str(type_cnt[key]) + " " + str(key) + " columns"
+        ret += ", column types: {"
+        type_ls = [str(key) + ": " + str(type_cnt[key]) for key in type_cnt]
+        ret += ", ".join(type_ls) + "}"
         # ret += ", sample:\n" + str(var.head(1))
         return ret
 
     def add_data_distribute(self):
         array = np.asarray(self.var)
         _example = array[0]
-        if self.convert != None:
-            _example = self.convert
+        if self.change_exp != None:
+            _example = self.change_exp
         if not np.issubdtype(array.dtype, np.number):
             table = pd.DataFrame([_example], ["example"], self.columns)
-            self.comment += table_str + str(table) + table_str
+            self.comment += "\n\n" + table.to_markdown()
             return
         _mean = np.mean(array, 0)
         _variance = np.var(array, 0)
@@ -120,7 +128,7 @@ class DataFrame(Variable):
         # _range = [[[table.loc["min"][i], table.loc["max"][i]]
         #            for i in range(len(table.columns))], ["range"],
         #           table.columns]
-        comment_str = table_str + str(table) + table_str
+        comment_str = "\n\n" + table.to_markdown()
         self.comment += comment_str
 
     def check_copy(self, variable):
@@ -136,7 +144,7 @@ class DataFrame(Variable):
             1 - identical content
             2 - identical shape and type
             3 - identical shape and different type
-            4 - different shape but subcontent
+            4 - different shape but relevant
         '''
         if type(variable.var) != pd.core.frame.DataFrame:
             return 5
@@ -150,7 +158,9 @@ class DataFrame(Variable):
                 rel_score = 2
             else:
                 rel_score = 3
-
+        else:
+            if np.shape(self.var)[0] == np.shape(variable.var)[0]:
+                rel_score = 4
         return rel_score
 
     def check_content(self, variable):
@@ -161,6 +171,7 @@ class DataFrame(Variable):
             if not var_a[var_a.columns[i]].equals(var_b[
                     var_b.columns[i]]) and var_a.dtypes[i] == var_b.dtypes[i]:
                 self.columns[i] += "*"
+                print(type(var_a[var_a.columns[i]]))
                 if var_a.dtypes[i] not in change.keys():
                     change[var_a.dtypes[i]] = 1
                 else:
@@ -168,12 +179,15 @@ class DataFrame(Variable):
         for key in change:
             self.comment += ", " + str(change[key]) + " " + str(
                 key) + " columns of " + variable.name + " changed"
+        self.change_exp = [
+            str(np.asarray(var_b)[0][i]) + " -> " +
+            str(np.asarray(var_a)[0][i]) for i in range(len(var_a.dtypes))
+        ]
 
     def check_convert(self, variable):
         convert = {}
         var_a = self.var
         var_b = variable.var
-        assert (type(var_a) == pd.core.frame.DataFrame)
         for i in range(len(var_a.dtypes)):
             if var_a.dtypes[i] != var_b.dtypes[i] and var_a.columns[
                     i] == var_b.columns[i]:
@@ -183,16 +197,36 @@ class DataFrame(Variable):
                     convert[type_pair] = 1
                 else:
                     convert[type_pair] += 1
-        blanks = " " * len("- " + self.name)
+        # blanks = " " * len("- " + self.name)
+        blanks = "\t- "
         self.comment += "\n" + blanks
         for key in convert:
-            self.comment += ", " + str(convert[key]) + " " + str(
+            self.comment += str(convert[key]) + " " + str(
                 key[1]
             ) + " columns of " + variable.name + " converted to " + str(key[0])
-        self.convert = [
+        self.change_exp = [
             str(np.asarray(var_b)[0][i]) + " -> " +
             str(np.asarray(var_a)[0][i]) for i in range(len(var_a.dtypes))
         ]
+
+    def check_columns(self, variable):
+        # blanks = " " * len("- " + self.name)
+        blanks = "\t- "
+        col_a = set(self.var.columns)
+        col_b = set(variable.columns)
+        a_minus_b = col_a.difference(col_b)
+        b_minus_a = col_b.difference(col_a)
+        comment_str = "\n" + blanks
+        if a_minus_b:
+            comment_str += "add columns " + str(a_minus_b)
+        if b_minus_a:
+            comment_str += ", remove columns " + str(b_minus_a)
+        if a_minus_b or b_minus_a:
+            self.comment += comment_str + " from " + variable.name
+
+    def compare_to(self, variable):
+        var_a = self.var
+        var_b = variable.var
 
     def add_rel_comment(self, variable):
         # print(self.name, variable.name)
@@ -207,21 +241,25 @@ class DataFrame(Variable):
             else:
                 self.check_convert(variable)
                 self.check_content(variable)
+        else:
+            if np.shape(self.var)[0] == np.shape(variable.var)[0]:
+                self.check_columns(variable)
                 # table = pd.DataFrame([_example], ["convert"], var_a.columns)
                 # self.comment += "\n" + str(table)
 
 
 def handlecell(num, st, ed):
-    comments = ["\'\'\'"]
+    # comments = ["\'\'\'"]
+    comments = []
     first_in = -1
     first_out = -1
     for i in range(st, ed + 1):
         if myvars[i].outflag == 0 and first_in == -1:
             first_in = i
-            myvars[i].comment = "input\n" + myvars[i].comment
+            myvars[i].comment = "**input**\n" + myvars[i].comment
         elif myvars[i].outflag == 1 and first_out == -1:
             first_out = i
-            myvars[i].comment = "output\n" + myvars[i].comment
+            myvars[i].comment = "\n**output**\n" + myvars[i].comment
     '''
     for each output variable, find the input that is closest to it
     find rel within in/out group
@@ -249,7 +287,7 @@ def handlecell(num, st, ed):
 
     for i in range(st, ed + 1):
         comments.append(myvars[i].comment)
-    comments.append("\'\'\'\n")
+    # comments.append("\'\'\'\n")
     return "\n".join(comments)
 
 
@@ -301,11 +339,23 @@ if __name__ == "__main__":
 
     # write comments to new notebooks
     cur_cell = 0
+    cur_idx = 0
+    insert_list = []
     for cell in notebook.cells:
+        # print(cur_idx, cell)
         if cell["cell_type"] == "code":
             cur_cell += 1
             if cur_cell in comment_str.keys():
-                cell["source"] = comment_str[cur_cell] + cell["source"]
+                comment_cell = nbformat.v4.new_markdown_cell(
+                    comment_str[cur_cell])
+                # notebook.cells.append(comment_cell)
+                insert_list.append((cur_idx, comment_cell))
+                cur_idx += 1
+        cur_idx += 1
+        # cell["source"] = comment_str[cur_cell] + cell["source"]
+
+    for item in insert_list:
+        notebook.cells.insert(item[0], item[1])
 
     nbformat.write(notebook,
                    os.path.join(dir_path, filename_no_suffix + "_m" + suffix))

@@ -1,38 +1,36 @@
-from __future__ import print_function
-#!/usr/bin/env python
-import os
+from __future__ import print_function#!/usr/bin/env pythonimport os
+import pickle
+import copy
+store_vars = []
+my_labels = []
 my_dir_path = os.path.dirname(os.path.realpath(__file__))
-log = "This is a log file of input/output vars of each cell.\n"
-
-
-def print_info(x):
-    import numpy as np
-    res = ""
-    if isinstance(x, list) or isinstance(x, np.ndarray):
-        res = "shape" + str(np.shape(x)) + ";" + str(np.array(x).dtype)
-    elif isinstance(x, dict):
-        res = str(len(x)) + ";" + str(type(x))
-    else:
-        res = str(x) + ";" + str(type(x))
-    return res.replace("\n", "")
-
+def my_store_info(info, var):
+    if str(type(var)) == "<class 'module'>":
+        return
+    my_labels.append(info)
+    store_vars.append(copy.deepcopy(var))
 
 # coding: utf-8
-# In[5]:
 
-#
+# In[2]:
+
+
+
+
+
+# 
 # Adversarial Example Generation
 # ==============================
-#
+# 
 # **Author:** `Nathan Inkawhich <https://github.com/inkawhich>`__
-#
+# 
 # If you are reading this, hopefully you can appreciate how effective some
 # machine learning models are. Research is constantly pushing ML models to
 # be faster, more accurate, and more efficient. However, an often
 # overlooked aspect of designing and training models is security and
 # robustness, especially in the face of an adversary who wishes to fool
 # the model.
-#
+# 
 # This tutorial will raise your awareness to the security vulnerabilities
 # of ML models, and will give insight into the hot topic of adversarial
 # machine learning. You may be surprised to find that adding imperceptible
@@ -41,13 +39,13 @@ def print_info(x):
 # via example on an image classifier. Specifically we will use one of the
 # first and most popular attack methods, the Fast Gradient Sign Attack
 # (FGSM), to fool an MNIST classifier.
-#
-#
-#
+# 
+# 
+# 
 
 # Threat Model
 # ------------
-#
+# 
 # For context, there are many categories of adversarial attacks, each with
 # a different goal and assumption of the attacker’s knowledge. However, in
 # general the overarching goal is to add the least amount of perturbation
@@ -65,14 +63,14 @@ def print_info(x):
 # misclassification* means the adversary wants to alter an image that is
 # originally of a specific source class so that it is classified as a
 # specific target class.
-#
+# 
 # In this case, the FGSM attack is a *white-box* attack with the goal of
 # *misclassification*. With this background information, we can now
 # discuss the attack in detail.
-#
+# 
 # Fast Gradient Sign Attack
 # -------------------------
-#
+# 
 # One of the first and most popular adversarial attacks to date is
 # referred to as the *Fast Gradient Sign Attack (FGSM)* and is described
 # by Goodfellow et. al. in `Explaining and Harnessing Adversarial
@@ -84,14 +82,14 @@ def print_info(x):
 # the loss* based on the same backpropagated gradients. In other words,
 # the attack uses the gradient of the loss w.r.t the input data, then
 # adjusts the input data to maximize the loss.
-#
+# 
 # Before we jump into the code, let’s look at the famous
 # `FGSM <https://arxiv.org/abs/1412.6572>`__ panda example and extract
 # some notation.
-#
+# 
 # .. figure:: /_static/img/fgsm_panda_image.png
 #    :alt: fgsm_panda_image
-#
+# 
 # From the figure, $\mathbf{x}$ is the original input image
 # correctly classified as a “panda”, $y$ is the ground truth label
 # for $\mathbf{x}$, $\mathbf{\theta}$ represents the model
@@ -105,14 +103,16 @@ def print_info(x):
 # maximize the loss. The resulting perturbed image, $x'$, is then
 # *misclassified* by the target network as a “gibbon” when it is still
 # clearly a “panda”.
-#
+# 
 # Hopefully now the motivation for this tutorial is clear, so lets jump
 # into the implementation.
-#
-#
-#
+# 
+# 
+# 
 
-# In[6]:
+# In[3]:
+
+
 
 import torch
 import torch.nn as nn
@@ -122,18 +122,19 @@ from torchvision import datasets, transforms
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 # Implementation
 # --------------
-#
+# 
 # In this section, we will discuss the input parameters for the tutorial,
 # define the model under attack, then code the attack and run some tests.
-#
+# 
 # Inputs
 # ~~~~~~
-#
+# 
 # There are only three inputs for this tutorial, and are defined as
 # follows:
-#
+# 
 # -  **epsilons** - List of epsilon values to use for the run. It is
 #    important to keep 0 in the list because it represents the model
 #    performance on the original test set. Also, intuitively we would
@@ -141,35 +142,30 @@ import matplotlib.pyplot as plt
 #    but the more effective the attack in terms of degrading model
 #    accuracy. Since the data range here is $[0,1]$, no epsilon
 #    value should exceed 1.
-#
+# 
 # -  **pretrained_model** - path to the pretrained MNIST model which was
 #    trained with
 #    `pytorch/examples/mnist <https://github.com/pytorch/examples/tree/master/mnist>`__.
 #    For simplicity, download the pretrained model `here <https://drive.google.com/drive/folders/1fn83DF14tWmit0RTKWRhPq5uVXt73e0h?usp=sharing>`__.
-#
+# 
 # -  **use_cuda** - boolean flag to use CUDA if desired and available.
 #    Note, a GPU with CUDA is not critical for this tutorial as a CPU will
 #    not take much time.
-#
-#
-#
+# 
+# 
+# 
 
-log = log + "cell[2];OUT;nn;" + print_info(nn) + "\n"
-log = log + "cell[2];OUT;F;" + print_info(F) + "\n"
-log = log + "cell[2];OUT;transforms;" + print_info(transforms) + "\n"
-log = log + "cell[2];OUT;torch;" + print_info(torch) + "\n"
-log = log + "cell[2];OUT;plt;" + print_info(plt) + "\n"
-log = log + "cell[2];OUT;np;" + print_info(np) + "\n"
+# In[4]:
 
-# In[7]:
 
 epsilons = [0, .05, .1, .15, .2, .25, .3]
 pretrained_model = "data/lenet_mnist_model.pth"
-use_cuda = False
+use_cuda=False
+
 
 # Model Under Attack
 # ~~~~~~~~~~~~~~~~~~
-#
+# 
 # As mentioned, the model under attack is the same MNIST model from
 # `pytorch/examples/mnist <https://github.com/pytorch/examples/tree/master/mnist>`__.
 # You may train and save your own MNIST model or you can download and use
@@ -177,23 +173,16 @@ use_cuda = False
 # been copied from the MNIST example. The purpose of this section is to
 # define the model and dataloader, then initialize the model and load the
 # pretrained weights.
-#
-#
-#
+# 
+# 
+# 
+my_store_info((3, 1, "use_cuda"), use_cuda)
+my_store_info((3, 1, "pretrained_model"), pretrained_model)
+my_store_info((3, 1, "epsilons"), epsilons)
 
-log = log + "cell[3];OUT;use_cuda;" + print_info(use_cuda) + "\n"
-log = log + "cell[3];OUT;pretrained_model;" + print_info(
-    pretrained_model) + "\n"
-log = log + "cell[3];OUT;epsilons;" + print_info(epsilons) + "\n"
+# In[16]:my_store_info((4, 0, "use_cuda"), use_cuda)
+my_store_info((4, 0, "pretrained_model"), pretrained_model)
 
-# In[8]:
-log = log + "cell[4];IN;nn;" + print_info(nn) + "\n"
-log = log + "cell[4];IN;F;" + print_info(F) + "\n"
-log = log + "cell[4];IN;transforms;" + print_info(transforms) + "\n"
-log = log + "cell[4];IN;torch;" + print_info(torch) + "\n"
-log = log + "cell[4];IN;use_cuda;" + print_info(use_cuda) + "\n"
-log = log + "cell[4];IN;pretrained_model;" + print_info(
-    pretrained_model) + "\n"
 
 
 # LeNet Model definition
@@ -215,22 +204,16 @@ class Net(nn.Module):
         x = self.fc2(x)
         return F.log_softmax(x, dim=1)
 
-
 # MNIST Test dataset and dataloader declaration
-test_loader = torch.utils.data.DataLoader(datasets.MNIST(
-    '../data',
-    train=False,
-    download=True,
-    transform=transforms.Compose([
-        transforms.ToTensor(),
-    ])),
-                                          batch_size=1,
-                                          shuffle=True)
+test_loader = torch.utils.data.DataLoader(
+    datasets.MNIST('../data', train=False, download=True, transform=transforms.Compose([
+            transforms.ToTensor(),
+            ])), 
+        batch_size=1, shuffle=True)
 
 # Define what device we are using
-print("CUDA Available: ", torch.cuda.is_available())
-device = torch.device("cuda" if (
-    use_cuda and torch.cuda.is_available()) else "cpu")
+print("CUDA Available: ",torch.cuda.is_available())
+device = torch.device("cuda" if (use_cuda and torch.cuda.is_available()) else "cpu")
 
 # Initialize the network
 model = Net().to(device)
@@ -241,9 +224,10 @@ model.load_state_dict(torch.load(pretrained_model, map_location='cpu'))
 # Set the model in evaluation mode. In this case this is for the Dropout layers
 model.eval()
 
+
 # FGSM Attack
 # ~~~~~~~~~~~
-#
+# 
 # Now, we can define the function that creates the adversarial examples by
 # perturbing the original inputs. The ``fgsm_attack`` function takes three
 # inputs, *image* is the original clean image ($x$), *epsilon* is
@@ -251,22 +235,21 @@ model.eval()
 # is gradient of the loss w.r.t the input image
 # ($\nabla_{x} J(\mathbf{\theta}, \mathbf{x}, y)$). The function
 # then creates perturbed image as
-#
+# 
 # \begin{align}perturbed\_image = image + epsilon*sign(data\_grad) = x + \epsilon * sign(\nabla_{x} J(\mathbf{\theta}, \mathbf{x}, y))\end{align}
-#
+# 
 # Finally, in order to maintain the original range of the data, the
 # perturbed image is clipped to range $[0,1]$.
-#
-#
-#
+# 
+# 
+# 
+my_store_info((4, 1, "torch"), torch)
+my_store_info((4, 1, "device"), device)
+my_store_info((4, 1, "model"), model)
+my_store_info((4, 1, "test_loader"), test_loader)
 
-log = log + "cell[4];OUT;torch;" + print_info(torch) + "\n"
-log = log + "cell[4];OUT;device;" + print_info(device) + "\n"
-log = log + "cell[4];OUT;model;" + print_info(model) + "\n"
-log = log + "cell[4];OUT;test_loader;" + print_info(test_loader) + "\n"
+# In[ ]:my_store_info((5, 0, "torch"), torch)
 
-# In[ ]:
-log = log + "cell[5];IN;torch;" + print_info(torch) + "\n"
 
 
 # FGSM attack code
@@ -274,7 +257,7 @@ def fgsm_attack(image, epsilon, data_grad):
     # Collect the element-wise sign of the data gradient
     sign_data_grad = data_grad.sign()
     # Create the perturbed image by adjusting each pixel of the input image
-    perturbed_image = image + epsilon * sign_data_grad
+    perturbed_image = image + epsilon*sign_data_grad
     # Adding clipping to maintain [0,1] range
     perturbed_image = torch.clamp(perturbed_image, 0, 1)
     # Return the perturbed image
@@ -283,7 +266,7 @@ def fgsm_attack(image, epsilon, data_grad):
 
 # Testing Function
 # ~~~~~~~~~~~~~~~~
-#
+# 
 # Finally, the central result of this tutorial comes from the ``test``
 # function. Each call to this test function performs a full test step on
 # the MNIST test set and reports a final accuracy. However, notice that
@@ -296,20 +279,16 @@ def fgsm_attack(image, epsilon, data_grad):
 # if the perturbed example is adversarial. In addition to testing the
 # accuracy of the model, the function also saves and returns some
 # successful adversarial examples to be visualized later.
-#
-#
-#
+# 
+# 
+# 
 
-log = log + "cell[5];OUT;fgsm_attack;" + print_info(fgsm_attack) + "\n"
-
-# In[ ]:
-log = log + "cell[6];IN;device;" + print_info(device) + "\n"
-log = log + "cell[6];IN;F;" + print_info(F) + "\n"
-log = log + "cell[6];IN;model;" + print_info(model) + "\n"
-log = log + "cell[6];IN;fgsm_attack;" + print_info(fgsm_attack) + "\n"
+# In[ ]:my_store_info((6, 0, "device"), device)
+my_store_info((6, 0, "model"), model)
 
 
-def test(model, device, test_loader, epsilon):
+
+def test( model, device, test_loader, epsilon ):
 
     # Accuracy counter
     correct = 0
@@ -326,8 +305,7 @@ def test(model, device, test_loader, epsilon):
 
         # Forward pass the data through the model
         output = model(data)
-        init_pred = output.max(
-            1, keepdim=True)[1]  # get the index of the max log-probability
+        init_pred = output.max(1, keepdim=True)[1] # get the index of the max log-probability
 
         # If the initial prediction is wrong, dont bother attacking, just move on
         if init_pred.item() != target.item():
@@ -352,26 +330,22 @@ def test(model, device, test_loader, epsilon):
         output = model(perturbed_data)
 
         # Check for success
-        final_pred = output.max(
-            1, keepdim=True)[1]  # get the index of the max log-probability
+        final_pred = output.max(1, keepdim=True)[1] # get the index of the max log-probability
         if final_pred.item() == target.item():
             correct += 1
             # Special case for saving 0 epsilon examples
             if (epsilon == 0) and (len(adv_examples) < 5):
                 adv_ex = perturbed_data.squeeze().detach().cpu().numpy()
-                adv_examples.append(
-                    (init_pred.item(), final_pred.item(), adv_ex))
+                adv_examples.append( (init_pred.item(), final_pred.item(), adv_ex) )
         else:
             # Save some adv examples for visualization later
             if len(adv_examples) < 5:
                 adv_ex = perturbed_data.squeeze().detach().cpu().numpy()
-                adv_examples.append(
-                    (init_pred.item(), final_pred.item(), adv_ex))
+                adv_examples.append( (init_pred.item(), final_pred.item(), adv_ex) )
 
     # Calculate final accuracy for this epsilon
-    final_acc = correct / float(len(test_loader))
-    print("Epsilon: {}\tTest Accuracy = {} / {} = {}".format(
-        epsilon, correct, len(test_loader), final_acc))
+    final_acc = correct/float(len(test_loader))
+    print("Epsilon: {}\tTest Accuracy = {} / {} = {}".format(epsilon, correct, len(test_loader), final_acc))
 
     # Return the accuracy and an adversarial example
     return final_acc, adv_examples
@@ -379,7 +353,7 @@ def test(model, device, test_loader, epsilon):
 
 # Run Attack
 # ~~~~~~~~~~
-#
+# 
 # The last part of the implementation is to actually run the attack. Here,
 # we run a full test step for each epsilon value in the *epsilons* input.
 # For each epsilon we also save the final accuracy and some successful
@@ -387,17 +361,16 @@ def test(model, device, test_loader, epsilon):
 # the printed accuracies decrease as the epsilon value increases. Also,
 # note the $\epsilon=0$ case represents the original test accuracy,
 # with no attack.
-#
-#
-#
+# 
+# 
+# 
 
-log = log + "cell[6];OUT;device;" + print_info(device) + "\n"
+# In[ ]:my_store_info((7, 0, "epsilons"), epsilons)
+my_store_info((7, 0, "device"), device)
+my_store_info((7, 0, "model"), model)
+my_store_info((7, 0, "test_loader"), test_loader)
 
-# In[ ]:
-log = log + "cell[7];IN;epsilons;" + print_info(epsilons) + "\n"
-log = log + "cell[7];IN;model;" + print_info(model) + "\n"
-log = log + "cell[7];IN;device;" + print_info(device) + "\n"
-log = log + "cell[7];IN;test_loader;" + print_info(test_loader) + "\n"
+
 
 accuracies = []
 examples = []
@@ -408,12 +381,13 @@ for eps in epsilons:
     accuracies.append(acc)
     examples.append(ex)
 
+
 # Results
 # -------
-#
+# 
 # Accuracy vs Epsilon
 # ~~~~~~~~~~~~~~~~~~~
-#
+# 
 # The first result is the accuracy versus epsilon plot. As alluded to
 # earlier, as epsilon increases we expect the test accuracy to decrease.
 # This is because larger epsilons mean we take a larger step in the
@@ -424,20 +398,18 @@ for eps in epsilons:
 # lower than $\epsilon=0.15$. Also, notice the accuracy of the model
 # hits random accuracy for a 10-class classifier between
 # $\epsilon=0.25$ and $\epsilon=0.3$.
-#
-#
-#
+# 
+# 
+# 
+my_store_info((7, 1, "accuracies"), accuracies)
+my_store_info((7, 1, "examples"), examples)
 
-log = log + "cell[7];OUT;accuracies;" + print_info(accuracies) + "\n"
-log = log + "cell[7];OUT;examples;" + print_info(examples) + "\n"
+# In[ ]:my_store_info((8, 0, "epsilons"), epsilons)
+my_store_info((8, 0, "accuracies"), accuracies)
 
-# In[ ]:
-log = log + "cell[8];IN;plt;" + print_info(plt) + "\n"
-log = log + "cell[8];IN;epsilons;" + print_info(epsilons) + "\n"
-log = log + "cell[8];IN;accuracies;" + print_info(accuracies) + "\n"
-log = log + "cell[8];IN;np;" + print_info(np) + "\n"
 
-plt.figure(figsize=(5, 5))
+
+plt.figure(figsize=(5,5))
 plt.plot(epsilons, accuracies, "*-")
 plt.yticks(np.arange(0, 1.1, step=0.1))
 plt.xticks(np.arange(0, .35, step=0.05))
@@ -446,9 +418,10 @@ plt.xlabel("Epsilon")
 plt.ylabel("Accuracy")
 plt.show()
 
+
 # Sample Adversarial Examples
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#
+# 
 # Remember the idea of no free lunch? In this case, as epsilon increases
 # the test accuracy decreases **BUT** the perturbations become more easily
 # perceptible. In reality, there is a tradeoff between accuracy
@@ -461,35 +434,36 @@ plt.show()
 # perturbations start to become evident at $\epsilon=0.15$ and are
 # quite evident at $\epsilon=0.3$. However, in all cases humans are
 # still capable of identifying the correct class despite the added noise.
-#
-#
-#
+# 
+# 
+# 
 
-# In[ ]:
-log = log + "cell[9];IN;plt;" + print_info(plt) + "\n"
-log = log + "cell[9];IN;epsilons;" + print_info(epsilons) + "\n"
-log = log + "cell[9];IN;examples;" + print_info(examples) + "\n"
+# In[ ]:my_store_info((9, 0, "epsilons"), epsilons)
+my_store_info((9, 0, "examples"), examples)
+
+
 
 # Plot several examples of adversarial samples at each epsilon
 cnt = 0
-plt.figure(figsize=(8, 10))
+plt.figure(figsize=(8,10))
 for i in range(len(epsilons)):
     for j in range(len(examples[i])):
         cnt += 1
-        plt.subplot(len(epsilons), len(examples[0]), cnt)
+        plt.subplot(len(epsilons),len(examples[0]),cnt)
         plt.xticks([], [])
         plt.yticks([], [])
         if j == 0:
             plt.ylabel("Eps: {}".format(epsilons[i]), fontsize=14)
-        orig, adv, ex = examples[i][j]
+        orig,adv,ex = examples[i][j]
         plt.title("{} -> {}".format(orig, adv))
         plt.imshow(ex, cmap="gray")
 plt.tight_layout()
 plt.show()
 
+
 # Where to go next?
 # -----------------
-#
+# 
 # Hopefully this tutorial gives some insight into the topic of adversarial
 # machine learning. There are many potential directions to go from here.
 # This attack represents the very beginning of adversarial attack research
@@ -501,7 +475,7 @@ plt.show()
 # on defense also leads into the idea of making machine learning models
 # more *robust* in general, to both naturally perturbed and adversarially
 # crafted inputs.
-#
+# 
 # Another direction to go is adversarial attacks and defense in different
 # domains. Adversarial research is not limited to the image domain, check
 # out `this <https://arxiv.org/pdf/1801.01944.pdf>`__ attack on
@@ -510,9 +484,10 @@ plt.show()
 # implement a different attack from the NIPS 2017 competition, and see how
 # it differs from FGSM. Then, try to defend the model from your own
 # attacks.
-#
-#
-#
-f = open(os.path.join(my_dir_path, "fgsm_tutorial_m_log.txt"), "w")
-f.write(log)
+# 
+# 
+# 
+store_vars.append(my_labels)
+f = open(os.path.join(my_dir_path, "fgsm_tutorial_log.dat"), "wb")
+pickle.dump(store_vars, f)
 f.close()

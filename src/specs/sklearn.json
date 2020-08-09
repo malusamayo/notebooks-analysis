@@ -1,6 +1,11 @@
 {
   "sklearn": {
     "modules": {
+      "inspection": {
+        "functions": [
+          "permutation_importance"
+        ]
+      },
       "cluster": {
         "functions": [
           {
@@ -76,7 +81,8 @@
           {
             "name": "GridSearchCV",
             "returns": "GridSearchCV"
-          }
+          },
+          "train_test_split"
         ],
         "types": {
           "GridSearchCV": {

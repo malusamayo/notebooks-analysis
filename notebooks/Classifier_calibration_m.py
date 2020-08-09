@@ -1,16 +1,15 @@
 #!/usr/bin/env pythonimport os
+import pickle
+import copy
+store_vars = []
+my_labels = []
 my_dir_path = os.path.dirname(os.path.realpath(__file__))
-log = "This is a log file of input/output vars of each cell.\n"
-def print_info(x):
-    import numpy as np
-    res = ""
-    if isinstance(x, list) or isinstance(x, np.ndarray):
-        res = "shape" + str(np.shape(x)) + ";" + str(np.array(x).dtype)
-    elif isinstance(x, dict):
-        res = str(len(x)) + ";" + str(type(x))
-    else:
-        res = str(x) + ";" + str(type(x))
-    return res.replace("\n", "")
+def my_store_info(info, var):
+    if str(type(var)) == "<class 'module'>":
+        return
+    my_labels.append(info)
+    store_vars.append(copy.deepcopy(var))
+
 # coding: utf-8
 
 # In[1]:
@@ -21,9 +20,6 @@ import numpy as np
 from scipy.stats import gaussian_kde
 import matplotlib.pyplot as plt
 
-log = log + "cell[1];OUT;plt;" + print_info(plt) + "\n"
-log = log + "cell[1];OUT;np;" + print_info(np) + "\n"
-log = log + "cell[1];OUT;gaussian_kde;" + print_info(gaussian_kde) + "\n"
 
 # In[2]:
 
@@ -40,13 +36,12 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 
 # ## Probability reliability plots
-log = log + "cell[2];OUT;y_test;" + print_info(y_test) + "\n"
-log = log + "cell[2];OUT;y_train;" + print_info(y_train) + "\n"
+my_store_info((2, 1, "y_test"), y_test)
+my_store_info((2, 1, "X_train"), X_train)
+my_store_info((2, 1, "y_train"), y_train)
+my_store_info((2, 1, "X_test"), X_test)
 
-# In[3]:log = log + "cell[3];IN;y_test;" + print_info(y_test) + "\n"
-log = log + "cell[3];IN;plt;" + print_info(plt) + "\n"
-log = log + "cell[3];IN;np;" + print_info(np) + "\n"
-log = log + "cell[3];IN;gaussian_kde;" + print_info(gaussian_kde) + "\n"
+# In[3]:my_store_info((3, 0, "y_test"), y_test)
 
 
 
@@ -88,13 +83,8 @@ def plot_calibration(classifiers, figsize=(10, 8)):
 
     plt.tight_layout()
 
-log = log + "cell[3];OUT;plot_calibration;" + print_info(plot_calibration) + "\n"
-log = log + "cell[3];OUT;y_train;" + print_info(y_train) + "\n"
-log = log + "cell[3];OUT;X_test;" + print_info(X_test) + "\n"
-log = log + "cell[3];OUT;y_test;" + print_info(y_test) + "\n"
 
-# In[4]:log = log + "cell[4];IN;plot_calibration;" + print_info(plot_calibration) + "\n"
-
+# In[4]:
 
 
 from sklearn.linear_model import LogisticRegression
@@ -102,10 +92,9 @@ from sklearn.linear_model import LogisticRegression
 lr = LogisticRegression()
 plot_calibration([('Logistic Regression', lr)])
 
-log = log + "cell[4];OUT;lr;" + print_info(lr) + "\n"
+my_store_info((4, 1, "lr"), lr)
 
-# In[5]:log = log + "cell[5];IN;plot_calibration;" + print_info(plot_calibration) + "\n"
-
+# In[5]:
 
 
 from sklearn.svm import LinearSVC
@@ -113,12 +102,12 @@ from sklearn.svm import LinearSVC
 svc = LinearSVC(C=1.0)
 plot_calibration([('Support Vector Machine', svc)])
 
-log = log + "cell[5];OUT;svc;" + print_info(svc) + "\n"
-log = log + "cell[5];OUT;LinearSVC;" + print_info(LinearSVC) + "\n"
+my_store_info((5, 1, "svc"), svc)
 
-# In[6]:log = log + "cell[6];IN;lr;" + print_info(lr) + "\n"
-log = log + "cell[6];IN;y_train;" + print_info(y_train) + "\n"
-log = log + "cell[6];IN;svc;" + print_info(svc) + "\n"
+# In[6]:my_store_info((6, 0, "lr"), lr)
+my_store_info((6, 0, "X_train"), X_train)
+my_store_info((6, 0, "y_train"), y_train)
+my_store_info((6, 0, "svc"), svc)
 
 
 
@@ -129,12 +118,12 @@ print("Logistic Regression: %0.3f" %
 print("Linear SVC: %0.3f" %
       cross_val_score(svc, X_train, y_train, cv=5).mean())
 
-log = log + "cell[6];OUT;lr;" + print_info(lr) + "\n"
-log = log + "cell[6];OUT;svc;" + print_info(svc) + "\n"
-log = log + "cell[6];OUT;y_train;" + print_info(y_train) + "\n"
+my_store_info((6, 1, "lr"), lr)
+my_store_info((6, 1, "svc"), svc)
+my_store_info((6, 1, "X_train"), X_train)
+my_store_info((6, 1, "y_train"), y_train)
 
-# In[12]:log = log + "cell[7];IN;plot_calibration;" + print_info(plot_calibration) + "\n"
-
+# In[7]:
 
 
 from sklearn.ensemble import RandomForestClassifier
@@ -143,10 +132,9 @@ from sklearn.ensemble import RandomForestClassifier
 rf = RandomForestClassifier(n_estimators=100)
 plot_calibration([('Random Forest', rf)])
 
-log = log + "cell[7];OUT;rf;" + print_info(rf) + "\n"
+my_store_info((7, 1, "rf"), rf)
 
-# In[13]:log = log + "cell[8];IN;plot_calibration;" + print_info(plot_calibration) + "\n"
-
+# In[8]:
 
 
 from sklearn.naive_bayes import GaussianNB
@@ -154,14 +142,12 @@ from sklearn.naive_bayes import GaussianNB
 gnb = GaussianNB()
 plot_calibration([('Naive Bayes', gnb)])
 
-log = log + "cell[8];OUT;gnb;" + print_info(gnb) + "\n"
-log = log + "cell[8];OUT;GaussianNB;" + print_info(GaussianNB) + "\n"
+my_store_info((8, 1, "gnb"), gnb)
 
-# In[14]:log = log + "cell[9];IN;lr;" + print_info(lr) + "\n"
-log = log + "cell[9];IN;gnb;" + print_info(gnb) + "\n"
-log = log + "cell[9];IN;svc;" + print_info(svc) + "\n"
-log = log + "cell[9];IN;rf;" + print_info(rf) + "\n"
-log = log + "cell[9];IN;plot_calibration;" + print_info(plot_calibration) + "\n"
+# In[9]:my_store_info((9, 0, "lr"), lr)
+my_store_info((9, 0, "gnb"), gnb)
+my_store_info((9, 0, "svc"), svc)
+my_store_info((9, 0, "rf"), rf)
 
 
 
@@ -177,9 +163,7 @@ plot_calibration(classifiers)
 
 # ## Calibration
 
-# In[15]:log = log + "cell[10];IN;LinearSVC;" + print_info(LinearSVC) + "\n"
-log = log + "cell[10];IN;plot_calibration;" + print_info(plot_calibration) + "\n"
-
+# In[10]:
 
 
 from sklearn.calibration import CalibratedClassifierCV
@@ -194,12 +178,8 @@ svc_models = [
 ]
 plot_calibration(svc_models)
 
-log = log + "cell[10];OUT;CalibratedClassifierCV;" + print_info(CalibratedClassifierCV) + "\n"
 
-# In[16]:log = log + "cell[11];IN;GaussianNB;" + print_info(GaussianNB) + "\n"
-log = log + "cell[11];IN;CalibratedClassifierCV;" + print_info(CalibratedClassifierCV) + "\n"
-log = log + "cell[11];IN;plot_calibration;" + print_info(plot_calibration) + "\n"
-
+# In[11]:
 
 
 gnb = GaussianNB()
@@ -212,12 +192,13 @@ gnb_models = [
 ]
 plot_calibration(gnb_models)
 
-log = log + "cell[11];OUT;gnb_models;" + print_info(gnb_models) + "\n"
+my_store_info((11, 1, "gnb_models"), gnb_models)
 
-# In[17]:log = log + "cell[12];IN;gnb_models;" + print_info(gnb_models) + "\n"
-log = log + "cell[12];IN;y_train;" + print_info(y_train) + "\n"
-log = log + "cell[12];IN;X_test;" + print_info(X_test) + "\n"
-log = log + "cell[12];IN;y_test;" + print_info(y_test) + "\n"
+# In[12]:my_store_info((12, 0, "gnb_models"), gnb_models)
+my_store_info((12, 0, "X_train"), X_train)
+my_store_info((12, 0, "X_test"), X_test)
+my_store_info((12, 0, "y_train"), y_train)
+my_store_info((12, 0, "y_test"), y_test)
 
 
 
@@ -231,12 +212,7 @@ for name, model in gnb_models:
     print("%s:\tBrier score = %0.3f, log loss = %0.3f"
           % (name, bs, ll))
 
-
-# In[ ]:
-
-
-
-
-f = open(os.path.join(my_dir_path, "Classifier_calibration_m_log.txt"), "w")
-f.write(log)
+store_vars.append(my_labels)
+f = open(os.path.join(my_dir_path, "Classifier_calibration_log.dat"), "wb")
+pickle.dump(store_vars, f)
 f.close()
