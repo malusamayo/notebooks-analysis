@@ -1,5 +1,5 @@
 node_modules
 dist
 src/python3.js
-notebooks/data
+notebooks
 data
