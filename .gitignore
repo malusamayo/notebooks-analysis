@@ -3,3 +3,4 @@ dist
 src/python3.js
 notebooks
 data
+.vscode
