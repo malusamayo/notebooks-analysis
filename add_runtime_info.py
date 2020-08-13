@@ -5,6 +5,7 @@ import pickle
 import numpy as np
 import pandas as pd
 import torch
+import random
 pd.set_option('display.max_columns', None)
 pd.set_option('precision', 4)
 np.set_printoptions(precision=4)
@@ -25,6 +26,16 @@ input:
 output:
 - z, class MyClass
 '''
+
+
+def highlight_text(text):
+    return "<p style='color:Tomato;'>" + text + "</p>"
+
+
+def add_emphasis(table):
+    for col in table:
+        if col[-1] == "*":
+            table[col] = table[col].map('**{}**'.format)
 
 
 class Variable(object):
@@ -56,7 +67,7 @@ class Variable(object):
     def check_copy(self, variable):
         pass
 
-    def add_rel_comment(self, variable):
+    def compare_to(self, variable):
         pass
 
 
@@ -86,6 +97,29 @@ class NdArray(Variable):
             comment_str += "%.4f, %.4f]" % (_min, _max)
         self.comment += comment_str
 
+    def check_rel(self, variable):
+        rel_score = 5
+        if not type(variable.var) in [np.ndarray, pd.DataFrame]:
+            return rel_score
+        if np.shape(self.var)[0] == np.shape(variable.var)[0]:
+            rel_score = 4
+        return rel_score
+
+    def compare_to(self, variable):
+        ## check submatrix
+        var_a = np.asarray(self.var)
+        var_b = np.asarray(variable.var)
+        if len(np.shape(var_a)) != 2 or len(np.shape(var_a)) != 2:
+            return
+        if np.shape(var_a)[0] == np.shape(var_b)[0]:
+            if np.shape(var_a)[1] < np.shape(var_b)[1]:
+                ls1 = var_a.T.tolist()
+                ls2 = var_b.T.tolist()
+                r1 = [element for element in ls1 if element in ls2]
+                r2 = [element for element in ls2 if element in ls1]
+                if r1 == r2:
+                    self.comment += ", truncated from " + variable.name
+
 
 class DataFrame(Variable):
     def __init__(self, var, name, cellnum, outflag, idx):
@@ -111,28 +145,35 @@ class DataFrame(Variable):
 
     def add_data_distribute(self):
         array = np.asarray(self.var)
-        _examples = [array[0]]
-        _example_names = ["example"]
         if len(self.change_exp) > 0:
             _examples = self.change_exp
             _example_names = [
-                "example" + str(i) for i in range(len(_examples))
+                "example_" + str(i) for i in range(len(_examples))
             ]
-        if not np.issubdtype(array.dtype, np.number):
-            table = pd.DataFrame(_examples, _example_names, self.columns)
-            self.comment += "\n\n" + table.to_markdown()
-            return
-        _mean = np.mean(array, 0)
-        _variance = np.var(array, 0)
-        _max, _min = np.max(array, 0), np.min(array, 0)
-        _range = [[_min[i], _max[i]] for i in range(len(_max))]
-        table = pd.DataFrame(_examples + [_mean, _variance, _range],
-                             _example_names + ["mean", "variance", "range"],
+        else:
+            _examples = [self.var.iloc[i] for i in range(5)]
+            _example_names = ["example_" + str(i) for i in range(5)]
+
+        def get_range(col):
+            if np.issubdtype(col.dtype, np.number):
+                return [np.min(col), np.max(col)]
+            else:
+                return len(col.unique())
+
+        _type = [self.var[col].dtype for col in self.var]
+        _range = [get_range(self.var[col]) for col in self.var]
+
+        table = pd.DataFrame([_type] + _examples + [_range],
+                             ["type"] + _example_names + ["range"],
                              self.columns)
-        # table = self.var.describe().drop(["count", "25%", "50%", "75%"])
-        # _range = [[[table.loc["min"][i], table.loc["max"][i]]
-        #            for i in range(len(table.columns))], ["range"],
-        #           table.columns]
+        add_emphasis(table)
+
+        def reindex_column(columns):
+            ls1 = list(filter(lambda col: col[-1] == "*", columns))
+            ls2 = list(filter(lambda col: col[-1] != "*", columns))
+            return ls1 + ls2
+
+        table = table.reindex(columns=reindex_column(table.columns))
         comment_str = "\n\n" + table.to_markdown()
         self.comment += comment_str
 
@@ -174,14 +215,18 @@ class DataFrame(Variable):
     def add_change_comment(self, variable, convert, change):
         if change:
             self.comment += "\n" + blanks
+            comment_str = ""
             for key in change:
-                self.comment += str(
+                comment_str += str(
                     change[key]) + " " + str(key) + " columns changed"
+            self.comment += highlight_text(comment_str)
         if convert:
             self.comment += "\n" + blanks
+            comment_str = ""
             for key in convert:
-                self.comment += str(convert[key]) + " " + str(
+                comment_str += str(convert[key]) + " " + str(
                     key[1]) + " columns converted to " + str(key[0])
+            self.comment += highlight_text(comment_str)
 
         indices = set()
         for col in self.columns:
@@ -192,6 +237,11 @@ class DataFrame(Variable):
                 if str(variable.var[col][i]) != str(self.var[col][i]):
                     indices.add(i)
                     break
+        row_num = self.var.shape[0]
+        if row_num >= 5:
+            while len(indices) < 5:
+                i = random.randint(0, row_num - 1)
+                indices.add(i)
 
         def change_str(col, idx):
             if col[-1] != "*":
@@ -210,12 +260,20 @@ class DataFrame(Variable):
         col_b = set(variable.columns)
         a_minus_b = col_a.difference(col_b)
         b_minus_a = col_b.difference(col_a)
+        # if a_minus_b and b_minus_a:
+        #     self.comment += "\n" + blanks
+        #     comment_str = ""
+        #     if len(b_minus_a) == 1:
+        #         item = list(b_minus_a)[0]
+        #         filter(lambda x: )
         if a_minus_b or b_minus_a:
             self.comment += "\n" + blanks
+            comment_str = ""
             if a_minus_b:
-                self.comment += "add columns " + str(a_minus_b)
+                comment_str += "add columns " + str(a_minus_b)
             if b_minus_a:
-                self.comment += " remove columns " + str(b_minus_a)
+                comment_str += " remove columns " + str(b_minus_a)
+            self.comment += highlight_text(comment_str)
         return a_minus_b, b_minus_a
 
     def check_change(self, variable, diffset):
@@ -250,6 +308,9 @@ class DataFrame(Variable):
         a_minus_b, b_minus_a = self.check_difference(variable)
         # check convert/change in common columns
         self.check_change(variable, a_minus_b)
+        for i in range(len(self.var.dtypes)):
+            if self.var.columns[i] in a_minus_b:
+                self.columns[i] += "*"
 
 
 def handlecell(num, st, ed):
@@ -257,13 +318,15 @@ def handlecell(num, st, ed):
     comments = []
     first_in = -1
     first_out = -1
+    header = "---\n"
     for i in range(st, ed + 1):
         if myvars[i].outflag == 0 and first_in == -1:
             first_in = i
-            myvars[i].comment = "**input**\n" + myvars[i].comment
+            myvars[i].comment = header + "**input**\n" + myvars[i].comment
         elif myvars[i].outflag == 1 and first_out == -1:
             first_out = i
-            myvars[i].comment = "\n**output**\n" + myvars[i].comment
+            tmp = "**output**\n" + myvars[i].comment
+            myvars[i].comment = header + tmp if first_in == -1 else "\n" + tmp
     '''
     for each output variable, find the input that is closest to it
     find rel within in/out group

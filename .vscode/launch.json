@@ -11,8 +11,8 @@
       "request": "launch",
       "program": "${workspaceRoot}/add_runtime_info.py",
       "args": [
-        ".\\notebooks\\task1.ipynb",
-        ".\\notebooks\\task1_log.dat"
+        ".\\notebooks\\debug_example.ipynb",
+        ".\\notebooks\\debug_example_log.dat"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
