@@ -15,7 +15,9 @@ filename = sys.argv[1].split('\\')[-1].split('/')[-1]
 filename_no_suffix = filename[:filename.rfind(".")]
 suffix = filename[filename.rfind("."):]
 
-table_str = "\n------------------------------- Data Info Table -------------------------------\n"
+data_path = os.path.join(dir_path, filename_no_suffix + "_log.dat")
+output_path = os.path.join(dir_path, filename_no_suffix + "_m" + suffix)
+
 blanks = "\t- "
 
 ### sample
@@ -39,12 +41,11 @@ def add_emphasis(table):
 
 
 class Variable(object):
-    def __init__(self, var, name, cellnum, outflag, idx):
+    def __init__(self, var, name, cellnum, outflag):
         self.var = var
         self.name = name
         self.cellnum = cellnum
         self.outflag = outflag
-        self.idx = idx
         self.comment = "- " + name + ", " + self.initial_comment()
 
     def initial_comment(self):
@@ -72,8 +73,8 @@ class Variable(object):
 
 
 class NdArray(Variable):
-    def __init__(self, var, name, cellnum, outflag, idx):
-        super().__init__(var, name, cellnum, outflag, idx)
+    def __init__(self, var, name, cellnum, outflag):
+        super().__init__(var, name, cellnum, outflag)
         self.comment = "- " + name + ", " + self.initial_comment()
 
     def initial_comment(self):
@@ -105,7 +106,19 @@ class NdArray(Variable):
             rel_score = 4
         return rel_score
 
+    def check_copy(self, variable):
+        if np.array_equal(self.var, variable.var):
+            self.comment += "\n" + blanks
+            if self.name == variable.name:
+                self.comment += highlight_text("no change in the cell")
+            else:
+                self.comment += highlight_text("copy of " + variable.name)
+            return True
+        return False
+
     def compare_to(self, variable):
+        if self.check_copy(variable):
+            return
         ## check submatrix
         var_a = np.asarray(self.var)
         var_b = np.asarray(variable.var)
@@ -118,14 +131,15 @@ class NdArray(Variable):
                 r1 = [element for element in ls1 if element in ls2]
                 r2 = [element for element in ls2 if element in ls1]
                 if r1 == r2:
-                    self.comment += ", truncated from " + variable.name
+                    self.comment += "\n" + blanks + highlight_text(
+                        "truncated from " + variable.name)
 
 
 class DataFrame(Variable):
-    def __init__(self, var, name, cellnum, outflag, idx):
-        super().__init__(var, name, cellnum, outflag, idx)
+    def __init__(self, var, name, cellnum, outflag):
+        super().__init__(var, name, cellnum, outflag)
         self.change_exp = []
-        self.columns = list(var.columns)
+        self.columns = list(map(lambda x: str(x), var.columns))
         self.comment = "- " + name + ", " + self.initial_comment()
 
     def initial_comment(self):
@@ -151,8 +165,9 @@ class DataFrame(Variable):
                 "example_" + str(i) for i in range(len(_examples))
             ]
         else:
-            _examples = [self.var.iloc[i] for i in range(5)]
-            _example_names = ["example_" + str(i) for i in range(5)]
+            max_len = min(self.var.shape[0], 5)
+            _examples = [self.var.iloc[i] for i in range(max_len)]
+            _example_names = ["example_" + str(i) for i in range(max_len)]
 
         def get_range(col):
             if np.issubdtype(col.dtype, np.number):
@@ -166,6 +181,7 @@ class DataFrame(Variable):
         table = pd.DataFrame([_type] + _examples + [_range],
                              ["type"] + _example_names + ["range"],
                              self.columns)
+
         add_emphasis(table)
 
         def reindex_column(columns):
@@ -199,16 +215,18 @@ class DataFrame(Variable):
             else:
                 rel_score = 3
         else:
-            if np.shape(self.var)[0] == np.shape(variable.var)[0]:
+            if np.shape(self.var)[0] == np.shape(variable.var)[0] or np.shape(
+                    self.var)[1] == np.shape(variable.var)[1]:
                 rel_score = 4
         return rel_score
 
     def check_copy(self, variable):
         if self.var.equals(variable.var):
+            self.comment += "\n" + blanks
             if self.name == variable.name:
-                self.comment += ", no change in the cell"
+                self.comment += highlight_text("no change in the cell")
             else:
-                self.comment += ", copy of " + variable.name
+                self.comment += highlight_text("copy of " + variable.name)
             return True
         return False
 
@@ -304,13 +322,23 @@ class DataFrame(Variable):
     def compare_to(self, variable):
         if self.check_copy(variable):
             return
-        # check difference first
-        a_minus_b, b_minus_a = self.check_difference(variable)
-        # check convert/change in common columns
-        self.check_change(variable, a_minus_b)
-        for i in range(len(self.var.dtypes)):
-            if self.var.columns[i] in a_minus_b:
-                self.columns[i] += "*"
+        # only column changed
+        if np.shape(self.var)[0] == np.shape(variable.var)[0]:
+            # check difference first
+            a_minus_b, b_minus_a = self.check_difference(variable)
+            # check convert/change in common columns
+            self.check_change(variable, a_minus_b)
+            for i in range(len(self.var.dtypes)):
+                if self.var.columns[i] in a_minus_b:
+                    self.columns[i] += "*"
+        elif np.shape(self.var)[1] == np.shape(variable.var)[1]:
+            if np.shape(self.var)[0] < np.shape(variable.var)[0]:
+                l = len(self.var)
+                if self.var.equals(variable.var.iloc[:l]) or self.var.equals(
+                        variable.var.iloc[-l:]):
+                    self.comment += "\n" + blanks
+                    self.comment += highlight_text("truncated from " +
+                                                   variable.name)
 
 
 def handlecell(num, st, ed):
@@ -374,6 +402,15 @@ def gen_comments(labels, tmpvars):
     return comment_str
 
 
+def dispatch_gen(var, name, cellnum, outflag):
+    if type(var) in [np.ndarray, pd.Index, pd.Series]:
+        return NdArray(var, name, cellnum, outflag)
+    elif type(var) == pd.DataFrame:
+        return DataFrame(var, name, cellnum, outflag)
+    else:
+        return Variable(var, name, cellnum, outflag)
+
+
 if __name__ == "__main__":
     f = open(sys.argv[1], encoding="UTF-8")
     file_content = f.read()
@@ -382,47 +419,58 @@ if __name__ == "__main__":
 
     tmpvars = []
     myvars = []
-    with open(sys.argv[2], "rb") as f:
+    with open(data_path, "rb") as f:
         tmpvars = pickle.load(f)
-    labels = tmpvars[-1]
-    tmpvars = tmpvars[:-1]
+    funcs = tmpvars[-1]
+    labels = tmpvars[-2]
+    tmpvars = tmpvars[:-2]
 
     for i in range(len(tmpvars)):
-        if type(tmpvars[i]) == np.ndarray or type(
-                tmpvars[i]) == pd.Index or type(tmpvars[i]) == pd.Series:
-            myvars.append(
-                NdArray(tmpvars[i], labels[i][2], labels[i][0], labels[i][1],
-                        i))
-        elif type(tmpvars[i]) == pd.DataFrame:
-            myvars.append(
-                DataFrame(tmpvars[i], labels[i][2], labels[i][0], labels[i][1],
-                          i))
-        else:
-            myvars.append(
-                Variable(tmpvars[i], labels[i][2], labels[i][0], labels[i][1],
-                         i))
+        myvars.append(
+            dispatch_gen(tmpvars[i], labels[i][2], labels[i][0], labels[i][1]))
 
     comment_str = gen_comments(labels, tmpvars)
+
+    # add function info
+    for fun_name, fun_map in funcs.items():
+        cell_num = fun_map["cell"]
+        if cell_num not in comment_str.keys():
+            comment_str[cell_num] = ""
+        comment_str[cell_num] += "\n\n**{}**".format(fun_name)
+        comment_str[cell_num] += "\n- args"
+        if "args" in fun_map.keys():
+            for key, val in fun_map["args"].items():
+                var = dispatch_gen(val, key, cell_num, -1)
+                # var.add_data_distribute()
+                comment_str[cell_num] += "\n\t" + var.comment
+        comment_str[cell_num] += "\n- rets"
+        if "rets" in fun_map.keys():
+            for val in fun_map["rets"]:
+                var = dispatch_gen(val, key, cell_num, -1)
+                # var.add_data_distribute()
+                comment_str[cell_num] += "\n\t" + var.comment
+
+    code_cells = list(
+        filter(lambda cell: cell["cell_type"] == "code", notebook.cells))
+    code_indices = list(
+        filter(lambda i: notebook.cells[i] in code_cells,
+               range(len(notebook.cells))))
 
     # write comments to new notebooks
     cur_cell = 0
     cur_idx = 0
     insert_list = []
     for cell in notebook.cells:
-        # print(cur_idx, cell)
         if cell["cell_type"] == "code":
             cur_cell += 1
             if cur_cell in comment_str.keys():
                 comment_cell = nbformat.v4.new_markdown_cell(
                     comment_str[cur_cell])
-                # notebook.cells.append(comment_cell)
                 insert_list.append((cur_idx, comment_cell))
                 cur_idx += 1
         cur_idx += 1
-        # cell["source"] = comment_str[cur_cell] + cell["source"]
 
     for item in insert_list:
         notebook.cells.insert(item[0], item[1])
 
-    nbformat.write(notebook,
-                   os.path.join(dir_path, filename_no_suffix + "_m" + suffix))
+    nbformat.write(notebook, output_path)

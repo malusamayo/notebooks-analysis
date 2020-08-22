@@ -4,6 +4,7 @@ var fs = require('fs');
 const { printNode, RefSet } = require("../python-program-analysis");
 const { matchesProperty } = require("lodash");
 const { printArg } = require("./dist/es5/printNode");
+const { ADDRCONFIG } = require("dns");
 let args = process.argv.slice(2);
 let path = args[0];
 //const path = './python-examples/python/';
@@ -21,8 +22,9 @@ let HEAD_STR =
     "import copy\n" +
     "store_vars = []\n" +
     "my_labels = []\n" +
+    "funcs = {}\n" +
     "my_dir_path = os.path.dirname(os.path.realpath(__file__))\n" +
-    "ignore_types = [\"<class 'module'>\"]\n" +
+    "ignore_types = [\"<class 'module'>\", \"<class 'type'>\"]\n" +
     "copy_types = [\n" +
     "    \"<class 'folium.plugins.marker_cluster.MarkerCluster'>\",\n" +
     "    \"<class 'matplotlib.axes._subplots.AxesSubplot'>\"\n" +
@@ -37,6 +39,7 @@ let HEAD_STR =
     "        store_vars.append(copy.deepcopy(var))\n";
 let write_str =
     "store_vars.append(my_labels)\n" +
+    "store_vars.append(funcs)\n" +
     "f = open(os.path.join(my_dir_path, \"" + filename_no_suffix +
     "_log.dat\"), \"wb\")\n" +
     "pickle.dump(store_vars, f)\n" +
@@ -61,6 +64,41 @@ function add(map, key, value) {
         map.set(key, []);
     if (map.get(key).find(x => x == value) == undefined)
         map.get(key).push(value);
+}
+
+// add vars from external input or used for plotting 
+function add_extra_vars(tree) {
+    for (let stmt of tree.code) {
+        // if (stmt.type == "assign") {
+        //     // external input: x = pd.read_csv()
+        //     for (let [i, src] of stmt.sources.entries()) {
+        //         if (src.type == "call" && src.func.name == "read_csv") {
+        //             add(ins, lineToCell.get(stmt.location.first_line), stmt.targets[i].id)
+        //         }
+        //     }
+        // }
+
+        // add plotting vars
+        if (stmt.type == "call") {
+            if (stmt.func.name == "plot") {
+                let cell = lineToCell.get(stmt.location.first_line);
+                if (stmt.func.value.type == "index")
+                    add(outs, cell, stmt.func.value.value.id);
+                else if (stmt.func.value.id == "plt") {
+                    add(outs, cell, stmt.args[0].actual.id);
+                    add(outs, cell, stmt.args[1].actual.id);
+                } else
+                    add(outs, cell, stmt.func.value.id);
+            }
+            if (["factorplot", "countplot", "barplot"].includes(stmt.func.name)) {
+                for (let arg of stmt.args) {
+                    if ("keyword" in arg && arg.keyword.id == "data") {
+                        add(outs, lineToCell.get(stmt.location.first_line), arg.actual.id);
+                    }
+                }
+            }
+        }
+    }
 }
 
 function compute_flow_vars(code) {
@@ -99,6 +137,7 @@ function compute_flow_vars(code) {
         // console.log(py.printNode(flow.fromNode) +
         //     "\n -----------------> \n" + py.printNode(flow.toNode) + "\n");
     }
+    add_extra_vars(tree)
     console.log(ins);
     console.log(outs);
 }
@@ -112,6 +151,7 @@ function insert_print_stmt(code) {
     let lines = code.split("\n");
     let max_line = lines.length;
     let cur_cell = 0;
+    let func_name = "";
     lines[0] = lines[0] + HEAD_STR;
     for (let i = 0; i < max_line; i++) {
         if (lines[i].startsWith('# In[')) {
@@ -129,6 +169,18 @@ function insert_print_stmt(code) {
         if (lines[i].startsWith("from __future__")) {
             lines[0] = lines[i] + lines[0];
             lines[i] = "";
+        }
+        // deal with functions
+        let space = " ".repeat((lines[i].length - lines[i].trimLeft().length))
+        if (lines[i].trim().startsWith("def")) {
+            func_name = lines[i].trim().substring(4, lines[i].lastIndexOf('('));
+            lines[i] += space + "    " + "funcs[\"" + func_name + "\"] = {}\n";
+            lines[i] += space + "    " + "funcs[\"" + func_name + "\"][\"cell\"] = " + cur_cell + "\n";
+            lines[i] += space + "    " + "funcs[\"" + func_name + "\"][\"args\"] = copy.deepcopy(locals())\n";
+        }
+        if (lines[i].trim().startsWith("return")) {
+            let rets = lines[i].trim().substring(7);
+            lines[i] = space + "funcs[\"" + func_name + "\"][\"rets\"] = copy.deepcopy([" + rets + "])\n" + lines[i]
         }
     }
     lines[max_line - 1] += write_str;
