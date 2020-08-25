@@ -72,6 +72,35 @@ class Variable(object):
         pass
 
 
+class List(Variable):
+    def __init__(self, var, name, cellnum, outflag):
+        super().__init__(var, name, cellnum, outflag)
+        self.comment = "- " + name + ", " + self.initial_comment()
+
+    def initial_comment(self):
+        length = len(self.var)
+        return "list length of " + length + ", sample: " + str(
+            self.var[:min(length, 5)])
+
+    def check_rel(self, variable):
+        rel_score = 5
+        if type(variable.var) != list:
+            return rel_score
+        if self.name == variable.name:
+            rel_score = 3
+        elif len(self.var) == len(variable.var):
+            rel_score = 4
+        return rel_score
+
+    def compare_to(self, variable):
+        if len(self.var) == len(variable.var):
+            example = [
+                str(variable.var[i]) + " -> " + str(self.var[i])
+                for i in range(min(len(self.var), 5))
+            ]
+            self.comment += "\n" + blanks + "example changes: " + example
+
+
 class NdArray(Variable):
     def __init__(self, var, name, cellnum, outflag):
         super().__init__(var, name, cellnum, outflag)
@@ -403,7 +432,9 @@ def gen_comments(labels, tmpvars):
 
 
 def dispatch_gen(var, name, cellnum, outflag):
-    if type(var) in [np.ndarray, pd.Index, pd.Series]:
+    if type(var) == list:
+        return List(var, name, cellnum, outflag)
+    elif type(var) in [np.ndarray, pd.Index, pd.Series]:
         return NdArray(var, name, cellnum, outflag)
     elif type(var) == pd.DataFrame:
         return DataFrame(var, name, cellnum, outflag)
