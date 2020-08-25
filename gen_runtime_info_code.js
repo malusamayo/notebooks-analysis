@@ -2,7 +2,7 @@
 var py = require("../python-program-analysis");
 var fs = require('fs');
 const { printNode, RefSet } = require("../python-program-analysis");
-const { matchesProperty } = require("lodash");
+const { matchesProperty, map } = require("lodash");
 const { printArg } = require("./dist/es5/printNode");
 const { ADDRCONFIG } = require("dns");
 let args = process.argv.slice(2);
@@ -101,6 +101,56 @@ function add_extra_vars(tree) {
     }
 }
 
+function static_analyzer(tree) {
+    let static_comments = new Map();
+    for (let [i, stmt] of tree.code.entries()) {
+        if (stmt.type == "assign") {
+            // external input: x = pd.read_csv()
+            for (let [i, src] of stmt.sources.entries()) {
+                // x[y] = x1[y1].map(...) || x.y = x1.y1.map(...)
+                if (src.type == "call" && src.func.name == "map") {
+                    let value_type = ["index", "dot"]
+                    if (value_type.includes(stmt.targets[i].type)
+                        && value_type.includes(src.func.value.type))
+                        static_comments.set(stmt.location.first_line,
+                            "add/change columns based on existing columns");
+                    // same/different literal
+                }
+                // x = pd.get_dymmies()
+                if (src.type == "call" && src.func.name == "get_dummies") {
+                    static_comments.set(stmt.location.first_line,
+                        "encoding in dummy variables");
+                }
+                // x1, x2, y1, y2 = train_test_split()
+                if (src.type == "call" && src.func.name == "train_test_split") {
+                    static_comments.set(stmt.location.first_line,
+                        "spliting data to train set and test set");
+                }
+                // x = df.select_dtypes().columns
+                if (src.type == "dot" && src.name == "columns") {
+                    if (src.value.type == "call" && src.value.func.name == "select_dtypes")
+                        static_comments.set(stmt.location.first_line,
+                            "select columns of specific data types");
+                }
+                // x.at[] = ... || x.loc[] = ...
+                if (stmt.targets[i].type == "index"
+                    && ["at", "loc"].includes(stmt.targets[i].value.name)) {
+                    static_comments.set(stmt.location.first_line,
+                        "re-write the column");
+                }
+            }
+        } else if (stmt.type == "call") {
+            // x.fillna()
+            if (stmt.func.name == "fillna") {
+                static_comments.set(stmt.location.first_line,
+                    "fill missing values");
+            }
+        }
+    }
+    console.log(static_comments)
+    return static_comments;
+}
+
 function compute_flow_vars(code) {
     let tree = py.parse(code);
     // console.log(py.walk(tree).map(function (node) { return node.type; }));
@@ -108,26 +158,35 @@ function compute_flow_vars(code) {
     // console.log(cfg.blocks);
     const analyzer = new py.DataflowAnalyzer();
     const flows = analyzer.analyze(cfg).dataflows;
+    let line_in = new Map();
+    let line_out = new Map();
     for (let flow of flows.items) {
         let fromLine = flow.fromNode.location.first_line;
         let toLine = flow.toNode.location.first_line;
+        // use interSec to avoid missing in/out var bugs
+        let defs = analyzer.getDefs(flow.fromNode, new RefSet()).items.map(x => x.name);
+        let uses = analyzer.getUses(flow.toNode).items.map(x => x.name);
+        let interSec = defs.filter(x => uses.includes(x));
+
+        interSec.forEach(x => {
+            add(line_in, toLine, x);
+            add(line_out, fromLine, x);
+        })
         // add in/out vars to cells
-        if (flow.fromRef !== undefined)
-            console.log(fromLine + "->" + toLine + " " + flow.fromNode.type + " " + flow.toNode.type + " " + flow.fromRef.name);
+        if (flow.fromRef !== undefined) {
+            // console.log(fromLine + "->" + toLine + " " + flow.fromNode.type + " " + flow.toNode.type + " " + flow.fromRef.name);
+            add(line_in, toLine, flow.toRef.name);
+            add(line_out, fromLine, flow.fromRef.name);
+        }
 
         if (lineToCell.get(fromLine) < lineToCell.get(toLine)) {
             // console.log(fromLine + "->" + toLine + " " + flow.fromNode.type + " " + flow.toNode.type + " " + flow.toRef.name);
             // ignore import and funtion def
             if (["import", "def", "from"].includes(flow.fromNode.type))
                 continue;
-            // use interSec to avoid missing in/out var bugs
-            let defs = analyzer.getDefs(flow.fromNode, new RefSet()).items.map(x => x.name)
-            let uses = analyzer.getUses(flow.toNode).items.map(x => x.name)
-            let interSec = defs.filter(x => uses.includes(x));
-            // console.log(interSec);
             interSec.forEach(x => {
                 add(ins, lineToCell.get(toLine), x);
-                add(outs, lineToCell.get(fromLine), x)
+                add(outs, lineToCell.get(fromLine), x);
             })
             // console.log(analyzer.getUses(flow.toNode));
             add(ins, lineToCell.get(toLine), flow.toRef.name);
@@ -137,9 +196,11 @@ function compute_flow_vars(code) {
         // console.log(py.printNode(flow.fromNode) +
         //     "\n -----------------> \n" + py.printNode(flow.toNode) + "\n");
     }
-    add_extra_vars(tree)
+    add_extra_vars(tree);
+    let comments = static_analyzer(tree);
     console.log(ins);
     console.log(outs);
+    console.log(comments)
 }
 
 // type 1 == OUT, type 0 == IN
