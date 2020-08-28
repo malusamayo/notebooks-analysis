@@ -101,9 +101,19 @@ function add_extra_vars(tree) {
     }
 }
 
+function contain_type(node, type) {
+    if (node == undefined)
+        return false
+    if (node.type == type)
+        return printNode(node)
+    else if (contain_type(node.args, type))
+        return true
+}
+
 function static_analyzer(tree) {
     let static_comments = new Map();
     for (let [i, stmt] of tree.code.entries()) {
+        console.log(printNode(stmt));
         if (stmt.type == "assign") {
             // external input: x = pd.read_csv()
             for (let [i, src] of stmt.sources.entries()) {
@@ -231,18 +241,25 @@ function insert_print_stmt(code) {
             lines[0] = lines[i] + lines[0];
             lines[i] = "";
         }
-        // deal with functions
         let space = " ".repeat((lines[i].length - lines[i].trimLeft().length))
         if (lines[i].trim().startsWith("def")) {
-            func_name = lines[i].trim().substring(4, lines[i].lastIndexOf('('));
-            lines[i] += space + "    " + "funcs[\"" + func_name + "\"] = {}\n";
-            lines[i] += space + "    " + "funcs[\"" + func_name + "\"][\"cell\"] = " + cur_cell + "\n";
-            lines[i] += space + "    " + "funcs[\"" + func_name + "\"][\"args\"] = copy.deepcopy(locals())\n";
+            line[i] = space + "@func_info_saver(" + i + ")\n" + line[i]
         }
-        if (lines[i].trim().startsWith("return")) {
-            let rets = lines[i].trim().substring(7);
-            lines[i] = space + "funcs[\"" + func_name + "\"][\"rets\"] = copy.deepcopy([" + rets + "])\n" + lines[i]
+        if (lines[i].includes("lambda")) {
+
         }
+        // deal with functions
+        // let space = " ".repeat((lines[i].length - lines[i].trimLeft().length))
+        // if (lines[i].trim().startsWith("def")) {
+        //     func_name = lines[i].trim().substring(4, lines[i].lastIndexOf('('));
+        //     lines[i] += space + "    " + "funcs[\"" + func_name + "\"] = {}\n";
+        //     lines[i] += space + "    " + "funcs[\"" + func_name + "\"][\"cell\"] = " + cur_cell + "\n";
+        //     lines[i] += space + "    " + "funcs[\"" + func_name + "\"][\"args\"] = copy.deepcopy(locals())\n";
+        // }
+        // if (lines[i].trim().startsWith("return")) {
+        //     let rets = lines[i].trim().substring(7);
+        //     lines[i] = space + "funcs[\"" + func_name + "\"][\"rets\"] = copy.deepcopy([" + rets + "])\n" + lines[i]
+        // }
     }
     lines[max_line - 1] += write_str;
     return lines.join("\n");
