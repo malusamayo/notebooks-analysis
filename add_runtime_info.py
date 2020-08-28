@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import torch
 import random
+from nbconvert import PythonExporter
 pd.set_option('display.max_columns', None)
 pd.set_option('precision', 4)
 np.set_printoptions(precision=4)
@@ -447,6 +448,7 @@ if __name__ == "__main__":
     file_content = f.read()
     f.close()
     notebook = nbformat.reads(file_content, as_version=4)
+    lines = PythonExporter().from_notebook_node(notebook)[0].split("\n")
 
     tmpvars = []
     myvars = []
@@ -464,6 +466,7 @@ if __name__ == "__main__":
 
     # add function info
     for fun_name, fun_map in funcs.items():
+        lines[fun_map[loc] - 1]
         cell_num = fun_map["cell"]
         if cell_num not in comment_str.keys():
             comment_str[cell_num] = ""

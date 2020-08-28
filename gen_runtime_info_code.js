@@ -16,13 +16,15 @@ let text = fs.readFileSync(path).toString();
 let lineToCell = new Map();
 let ins = new Map();
 let outs = new Map();
+let replace_strs = [];
 let HEAD_STR =
     "import os\n" +
     "import pickle\n" +
     "import copy\n" +
+    "import inspect, collections, functools\n" +
     "store_vars = []\n" +
     "my_labels = []\n" +
-    "funcs = {}\n" +
+    "funcs = collections.defaultdict(lambda: collections.defaultdict(list))\n" +
     "my_dir_path = os.path.dirname(os.path.realpath(__file__))\n" +
     "ignore_types = [\"<class 'module'>\", \"<class 'type'>\"]\n" +
     "copy_types = [\n" +
@@ -36,10 +38,28 @@ let HEAD_STR =
     "    if str(type(var)) in copy_types:\n" +
     "        store_vars.append(copy.copy(var))\n" +
     "    else:\n" +
-    "        store_vars.append(copy.deepcopy(var))\n";
+    "        store_vars.append(copy.deepcopy(var))\n" +
+    "def func_info_saver(line):\n" +
+    "    def inner_decorator(func):\n" +
+    "        @functools.wraps(func)\n" +
+    "        def wrapper(* args, ** kwargs):\n" +
+    "            name = func.__name__ + \"_\" + str(id(func))\n" +
+    "            args_name = tuple(inspect.signature(func).parameters)\n" +
+    "            arg_dict = dict(zip(args_name, args))\n" +
+    "            arg_dict.update(kwargs)\n" +
+    "            funcs[name][\"loc\"] = line\n" +
+    "            if len(funcs[name][\"args\"]) < 5:\n" +
+    "                funcs[name][\"args\"].append(arg_dict)\n" +
+    "            rets = func(*args, **kwargs)\n" +
+    "            if len(funcs[name][\"rets\"]) < 5:\n" +
+    "                funcs[name][\"rets\"].append(rets)\n" +
+    "            return rets\n" +
+    "        return wrapper\n" +
+    "    return inner_decorator\n";
+
 let write_str =
     "store_vars.append(my_labels)\n" +
-    "store_vars.append(funcs)\n" +
+    "store_vars.append(dict(funcs))\n" +
     "f = open(os.path.join(my_dir_path, \"" + filename_no_suffix +
     "_log.dat\"), \"wb\")\n" +
     "pickle.dump(store_vars, f)\n" +
@@ -103,17 +123,44 @@ function add_extra_vars(tree) {
 
 function contain_type(node, type) {
     if (node == undefined)
-        return false
+        return undefined;
     if (node.type == type)
-        return printNode(node)
-    else if (contain_type(node.args, type))
-        return true
+        return printNode(node);
+    if (node.targets != undefined) {
+        for (let des of node.targets) {
+            let res = contain_type(des, type);
+            if (res != undefined)
+                return res;
+        }
+    }
+    if (node.sources != undefined) {
+        for (let src of node.sources) {
+            let res = contain_type(src, type);
+            if (res != undefined)
+                return res;
+        }
+    }
+    if (node.args != undefined) {
+        for (let arg of node.args) {
+            let res = contain_type(arg.actual, type);
+            if (res != undefined)
+                return res;
+        }
+    }
+    return undefined;
 }
 
 function static_analyzer(tree) {
     let static_comments = new Map();
     for (let [i, stmt] of tree.code.entries()) {
-        console.log(printNode(stmt));
+        // console.log(printNode(stmt));
+        let lambda = contain_type(stmt, "lambda");
+        if (lambda != undefined) {
+            let lambda_rep = "func_info_saver(" + stmt.location.first_line + ")(" + lambda + ")";
+            let stmt_str = printNode(stmt);
+            stmt_str = stmt_str.replace(lambda, lambda_rep);
+            replace_strs.push([stmt.location.first_line, stmt.location.last_line, stmt_str]);
+        }
         if (stmt.type == "assign") {
             // external input: x = pd.read_csv()
             for (let [i, src] of stmt.sources.entries()) {
@@ -222,8 +269,12 @@ function insert_print_stmt(code) {
     let lines = code.split("\n");
     let max_line = lines.length;
     let cur_cell = 0;
-    let func_name = "";
     lines[0] = lines[0] + HEAD_STR;
+    for (let item of replace_strs) {
+        lines[item[0] - 1] = item[2];
+        for (let i = item[0]; i < item[1]; i++)
+            lines[i] = ""
+    }
     for (let i = 0; i < max_line; i++) {
         if (lines[i].startsWith('# In[')) {
             if (outs.get(cur_cell) !== undefined)
@@ -243,10 +294,7 @@ function insert_print_stmt(code) {
         }
         let space = " ".repeat((lines[i].length - lines[i].trimLeft().length))
         if (lines[i].trim().startsWith("def")) {
-            line[i] = space + "@func_info_saver(" + i + ")\n" + line[i]
-        }
-        if (lines[i].includes("lambda")) {
-
+            lines[i] = space + "@func_info_saver(" + i + ")\n" + lines[i]
         }
         // deal with functions
         // let space = " ".repeat((lines[i].length - lines[i].trimLeft().length))
