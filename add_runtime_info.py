@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import torch
 import random
+import collections
 from nbconvert import PythonExporter
 pd.set_option('display.max_columns', None)
 pd.set_option('precision', 4)
@@ -443,12 +444,48 @@ def dispatch_gen(var, name, cellnum, outflag):
         return Variable(var, name, cellnum, outflag)
 
 
+def gen_func_comment(fun_name, fun_map):
+    # not considering multiple return types from branches
+
+    _type = [k + ": " + str(type(v)) for k, v in fun_map["args"][0].items()
+             ] + [type(x) for x in fun_map["rets"][0]]
+    _examples = [[v for k, v in fun_map["args"][i].items()] +
+                 [x for x in fun_map["rets"][i]]
+                 for i in range(len(fun_map["args"]))]
+    _example_names = ["example_" + str(i) for i in range(len(fun_map["args"]))]
+    _columns = [
+        "args[{:d}]".format(i) for i in range(len(fun_map["args"][0]))
+    ] + ["rets[{:d}]".format(i) for i in range(len(fun_map["rets"][0]))]
+
+    table = pd.DataFrame([_type] + _examples, ["type"] + _example_names,
+                         _columns)
+
+    comment = "'''\n" + str(table) + "\n'''\n"
+    return comment
+
+
 if __name__ == "__main__":
     f = open(sys.argv[1], encoding="UTF-8")
     file_content = f.read()
     f.close()
     notebook = nbformat.reads(file_content, as_version=4)
     lines = PythonExporter().from_notebook_node(notebook)[0].split("\n")
+    line_to_idx = {}
+    code_cells = list(
+        filter(lambda cell: cell["cell_type"] == "code", notebook.cells))
+    code_indices = list(
+        filter(lambda i: notebook.cells[i] in code_cells,
+               range(len(notebook.cells))))
+
+    idx = -1
+    line_num = 0
+    begin_indices = [
+        i + 3 for i in range(len(lines)) if lines[i].startswith("# In[")
+    ]
+    for i, idx in enumerate(begin_indices):
+        l = len(notebook.cells[code_indices[i]].source.split("\n"))
+        for j in range(l):
+            line_to_idx[idx + j] = (code_indices[i], j)
 
     tmpvars = []
     myvars = []
@@ -465,30 +502,18 @@ if __name__ == "__main__":
     comment_str = gen_comments(labels, tmpvars)
 
     # add function info
+    insert_map = collections.defaultdict(list)
     for fun_name, fun_map in funcs.items():
-        lines[fun_map[loc] - 1]
-        cell_num = fun_map["cell"]
-        if cell_num not in comment_str.keys():
-            comment_str[cell_num] = ""
-        comment_str[cell_num] += "\n\n**{}**".format(fun_name)
-        comment_str[cell_num] += "\n- args"
-        if "args" in fun_map.keys():
-            for key, val in fun_map["args"].items():
-                var = dispatch_gen(val, key, cell_num, -1)
-                # var.add_data_distribute()
-                comment_str[cell_num] += "\n\t" + var.comment
-        comment_str[cell_num] += "\n- rets"
-        if "rets" in fun_map.keys():
-            for val in fun_map["rets"]:
-                var = dispatch_gen(val, key, cell_num, -1)
-                # var.add_data_distribute()
-                comment_str[cell_num] += "\n\t" + var.comment
+        # print(lines[fun_map["loc"] - 1])
+        (i, j) = line_to_idx[fun_map["loc"] - 1]
+        comment = gen_func_comment(fun_name, fun_map)
+        insert_map[i].append((j, comment))
 
-    code_cells = list(
-        filter(lambda cell: cell["cell_type"] == "code", notebook.cells))
-    code_indices = list(
-        filter(lambda i: notebook.cells[i] in code_cells,
-               range(len(notebook.cells))))
+    for key, value in insert_map.items():
+        code = notebook.cells[key].source.split("\n")
+        for (j, comment) in value:
+            code[j] = comment + code[j]
+        notebook.cells[key].source = "\n".join(code)
 
     # write comments to new notebooks
     cur_cell = 0

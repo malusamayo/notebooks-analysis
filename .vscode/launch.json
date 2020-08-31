@@ -6,6 +6,15 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Debug executed client",
+      "type": "python",
+      "request": "launch",
+      "cwd": "${workspaceRoot}/notebooks",
+      "program": "${workspaceRoot}/notebooks/debug_example_m.py",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
       "name": "Debug python Script",
       "type": "python",
       "request": "launch",
