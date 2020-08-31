@@ -43,16 +43,16 @@ let HEAD_STR =
     "    def inner_decorator(func):\n" +
     "        @functools.wraps(func)\n" +
     "        def wrapper(* args, ** kwargs):\n" +
-    "            name = func.__name__ + \"_\" + str(id(func))\n" +
+    "            name = func.__name__ + \"_\" + str(line)\n" +
     "            args_name = tuple(inspect.signature(func).parameters)\n" +
     "            arg_dict = dict(zip(args_name, args))\n" +
     "            arg_dict.update(kwargs)\n" +
     "            funcs[name][\"loc\"] = line\n" +
     "            if len(funcs[name][\"args\"]) < 5:\n" +
-    "                funcs[name][\"args\"].append(arg_dict)\n" +
+    "                funcs[name][\"args\"].append(copy.deepcopy(arg_dict))\n" +
     "            rets = func(*args, **kwargs)\n" +
     "            if len(funcs[name][\"rets\"]) < 5:\n" +
-    "                funcs[name][\"rets\"].append(rets)\n" +
+    "                funcs[name][\"rets\"].append(copy.deepcopy([rets]))\n" +
     "            return rets\n" +
     "        return wrapper\n" +
     "    return inner_decorator\n";
@@ -294,7 +294,7 @@ function insert_print_stmt(code) {
         }
         let space = " ".repeat((lines[i].length - lines[i].trimLeft().length))
         if (lines[i].trim().startsWith("def")) {
-            lines[i] = space + "@func_info_saver(" + i + ")\n" + lines[i]
+            lines[i] = space + "@func_info_saver(" + (i + 1) + ")\n" + lines[i]
         }
         // deal with functions
         // let space = " ".repeat((lines[i].length - lines[i].trimLeft().length))
