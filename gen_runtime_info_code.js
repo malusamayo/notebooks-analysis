@@ -2,9 +2,11 @@
 var py = require("../python-program-analysis");
 var fs = require('fs');
 const { printNode, RefSet } = require("../python-program-analysis");
-const { matchesProperty, map } = require("lodash");
+const { matchesProperty, map, head } = require("lodash");
 const { printArg } = require("./dist/es5/printNode");
 const { ADDRCONFIG } = require("dns");
+const { assert } = require("console");
+const { collapseTextChangeRangesAcrossMultipleVersions } = require("typescript");
 let args = process.argv.slice(2);
 let path = args[0];
 //const path = './python-examples/python/';
@@ -17,45 +19,8 @@ let lineToCell = new Map();
 let ins = new Map();
 let outs = new Map();
 let replace_strs = [];
-let HEAD_STR =
-    "import os\n" +
-    "import pickle\n" +
-    "import copy\n" +
-    "import inspect, collections, functools\n" +
-    "store_vars = []\n" +
-    "my_labels = []\n" +
-    "funcs = collections.defaultdict(lambda: collections.defaultdict(list))\n" +
-    "my_dir_path = os.path.dirname(os.path.realpath(__file__))\n" +
-    "ignore_types = [\"<class 'module'>\", \"<class 'type'>\"]\n" +
-    "copy_types = [\n" +
-    "    \"<class 'folium.plugins.marker_cluster.MarkerCluster'>\",\n" +
-    "    \"<class 'matplotlib.axes._subplots.AxesSubplot'>\"\n" +
-    "]\n" +
-    "def my_store_info(info, var):\n" +
-    "    if str(type(var)) in ignore_types:\n" +
-    "        return\n" +
-    "    my_labels.append(info)\n" +
-    "    if str(type(var)) in copy_types:\n" +
-    "        store_vars.append(copy.copy(var))\n" +
-    "    else:\n" +
-    "        store_vars.append(copy.deepcopy(var))\n" +
-    "def func_info_saver(line):\n" +
-    "    def inner_decorator(func):\n" +
-    "        @functools.wraps(func)\n" +
-    "        def wrapper(* args, ** kwargs):\n" +
-    "            name = func.__name__ + \"_\" + str(line)\n" +
-    "            args_name = tuple(inspect.signature(func).parameters)\n" +
-    "            arg_dict = dict(zip(args_name, args))\n" +
-    "            arg_dict.update(kwargs)\n" +
-    "            funcs[name][\"loc\"] = line\n" +
-    "            if len(funcs[name][\"args\"]) < 5:\n" +
-    "                funcs[name][\"args\"].append(copy.deepcopy(arg_dict))\n" +
-    "            rets = func(*args, **kwargs)\n" +
-    "            if len(funcs[name][\"rets\"]) < 5:\n" +
-    "                funcs[name][\"rets\"].append(copy.deepcopy([rets]))\n" +
-    "            return rets\n" +
-    "        return wrapper\n" +
-    "    return inner_decorator\n";
+let head_str = fs.readFileSync("headstr.py").toString();
+let def_list = [];
 
 let write_str =
     "store_vars.append(my_labels)\n" +
@@ -150,12 +115,24 @@ function contain_type(node, type) {
     return undefined;
 }
 
+function value_type_handler(type, node) {
+    if (type == "index") {
+        assert(node.args.length == 1);
+        assert(node.args[0].type == "literal");
+        let col = node.args[0].value;
+        return "[" + col.replace(/['"]+/g, '') + "]";
+    } else if (type == "dot") {
+        return "[" + node.name.replace(/['"]+/g, '') + "]";
+    }
+}
+
 function static_analyzer(tree) {
     let static_comments = new Map();
     for (let [i, stmt] of tree.code.entries()) {
         // console.log(printNode(stmt));
         let lambda = contain_type(stmt, "lambda");
         if (lambda != undefined) {
+            // should also record/convert lambda function later
             let lambda_rep = "func_info_saver(" + stmt.location.first_line + ")(" + lambda + ")";
             let stmt_str = printNode(stmt);
             stmt_str = stmt_str.replace(lambda, lambda_rep);
@@ -166,12 +143,28 @@ function static_analyzer(tree) {
             for (let [i, src] of stmt.sources.entries()) {
                 // x[y] = x1[y1].map(...) || x.y = x1.y1.map(...)
                 if (src.type == "call" && src.func.name == "map") {
-                    let value_type = ["index", "dot"]
+                    let value_type = ["index", "dot"];
                     if (value_type.includes(stmt.targets[i].type)
-                        && value_type.includes(src.func.value.type))
+                        && value_type.includes(src.func.value.type)) {
+                        let src_col = value_type_handler(src.func.value.type, src.func.value);
+                        let des_col = value_type_handler(stmt.targets[i].type, stmt.targets[i]);
+                        let comment = ""
+                        // same/different literal
+                        if (src_col == des_col)
+                            comment = "modify column " + des_col + " using map"
+                        else
+                            comment = "create column " + des_col + " from " + src_col
                         static_comments.set(stmt.location.first_line,
-                            "add/change columns based on existing columns");
-                    // same/different literal
+                            comment);
+                    }
+                }
+                if (src.type == "call" && src.func.name == "apply") {
+                    let value_type = ["index", "dot"];
+                    if (value_type.includes(stmt.targets[i].type)) {
+                        let des_col = value_type_handler(stmt.targets[i].type, stmt.targets[i]);
+                        static_comments.set(stmt.location.first_line,
+                            "create column " + des_col + " from whole row");
+                    }
                 }
                 // x = pd.get_dymmies()
                 if (src.type == "call" && src.func.name == "get_dummies") {
@@ -202,6 +195,9 @@ function static_analyzer(tree) {
                 static_comments.set(stmt.location.first_line,
                     "fill missing values");
             }
+        } else if (stmt.type == "def") {
+            // record defined funcions
+            def_list.push(stmt.name);
         }
     }
     console.log(static_comments)
@@ -258,6 +254,7 @@ function compute_flow_vars(code) {
     console.log(ins);
     console.log(outs);
     console.log(comments)
+    return comments;
 }
 
 // type 1 == OUT, type 0 == IN
@@ -269,7 +266,7 @@ function insert_print_stmt(code) {
     let lines = code.split("\n");
     let max_line = lines.length;
     let cur_cell = 0;
-    lines[0] = lines[0] + HEAD_STR;
+    lines[0] = lines[0] + head_str;
     for (let item of replace_strs) {
         lines[item[0] - 1] = item[2];
         for (let i = item[0]; i < item[1]; i++)
@@ -292,28 +289,23 @@ function insert_print_stmt(code) {
             lines[0] = lines[i] + lines[0];
             lines[i] = "";
         }
+        // deal with functions
         let space = " ".repeat((lines[i].length - lines[i].trimLeft().length))
         if (lines[i].trim().startsWith("def")) {
             lines[i] = space + "@func_info_saver(" + (i + 1) + ")\n" + lines[i]
         }
-        // deal with functions
-        // let space = " ".repeat((lines[i].length - lines[i].trimLeft().length))
-        // if (lines[i].trim().startsWith("def")) {
-        //     func_name = lines[i].trim().substring(4, lines[i].lastIndexOf('('));
-        //     lines[i] += space + "    " + "funcs[\"" + func_name + "\"] = {}\n";
-        //     lines[i] += space + "    " + "funcs[\"" + func_name + "\"][\"cell\"] = " + cur_cell + "\n";
-        //     lines[i] += space + "    " + "funcs[\"" + func_name + "\"][\"args\"] = copy.deepcopy(locals())\n";
-        // }
-        // if (lines[i].trim().startsWith("return")) {
-        //     let rets = lines[i].trim().substring(7);
-        //     lines[i] = space + "funcs[\"" + func_name + "\"][\"rets\"] = copy.deepcopy([" + rets + "])\n" + lines[i]
-        // }
     }
     lines[max_line - 1] += write_str;
     return lines.join("\n");
 }
 
 init_lineToCell();
-compute_flow_vars(text);
+let comments = compute_flow_vars(text);
+let def_str = "TRACE_INTO = [" + def_list.map(x => "'" + x + "'").join(",") + "]\n";
+head_str = head_str.split("\n")
+head_str[14] = def_str
+head_str = head_str.join("\n") + "\n"
+
 let modified_text = insert_print_stmt(text);
+fs.writeFileSync(dir + filename_no_suffix + "_comment.json", JSON.stringify([...comments]));
 fs.writeFileSync(dir + filename_no_suffix + "_m" + suffix, modified_text);

@@ -8,6 +8,7 @@ import torch
 import random
 import collections
 from nbconvert import PythonExporter
+import json
 pd.set_option('display.max_columns', None)
 pd.set_option('precision', 4)
 np.set_printoptions(precision=4)
@@ -19,6 +20,7 @@ suffix = filename[filename.rfind("."):]
 
 data_path = os.path.join(dir_path, filename_no_suffix + "_log.dat")
 output_path = os.path.join(dir_path, filename_no_suffix + "_m" + suffix)
+json_path = os.path.join(dir_path, filename_no_suffix + "_comment.json")
 
 blanks = "\t- "
 
@@ -460,28 +462,26 @@ def gen_func_comment(fun_name, fun_map):
     table = pd.DataFrame([_type] + _examples, ["type"] + _example_names,
                          _columns)
 
-    comment = "'''\n" + str(table) + "\n'''\n"
+    comment = "'''\n[function table]\n" + str(table) + "\n'''\n"
     return comment
 
 
 if __name__ == "__main__":
-    f = open(sys.argv[1], encoding="UTF-8")
-    file_content = f.read()
-    f.close()
+    with open(sys.argv[1], encoding="UTF-8") as f:
+        file_content = f.read()
     notebook = nbformat.reads(file_content, as_version=4)
+
+    # estabish map from line in .py to line in .ipynb
     lines = PythonExporter().from_notebook_node(notebook)[0].split("\n")
-    line_to_idx = {}
     code_cells = list(
         filter(lambda cell: cell["cell_type"] == "code", notebook.cells))
     code_indices = list(
         filter(lambda i: notebook.cells[i] in code_cells,
                range(len(notebook.cells))))
-
-    idx = -1
-    line_num = 0
     begin_indices = [
         i + 3 for i in range(len(lines)) if lines[i].startswith("# In[")
     ]
+    line_to_idx = {}
     for i, idx in enumerate(begin_indices):
         l = len(notebook.cells[code_indices[i]].source.split("\n"))
         for j in range(l):
@@ -501,6 +501,9 @@ if __name__ == "__main__":
 
     comment_str = gen_comments(labels, tmpvars)
 
+    with open(json_path) as f:
+        static_comments = json.load(f)
+
     # add function info
     insert_map = collections.defaultdict(list)
     for fun_name, fun_map in funcs.items():
@@ -508,6 +511,10 @@ if __name__ == "__main__":
         (i, j) = line_to_idx[fun_map["loc"] - 1]
         comment = gen_func_comment(fun_name, fun_map)
         insert_map[i].append((j, comment))
+
+    for comment in static_comments:
+        (i, j) = line_to_idx[comment[0] - 1]
+        insert_map[i].append((j, "# [autodocs] " + comment[1] + "\n"))
 
     for key, value in insert_map.items():
         code = notebook.cells[key].source.split("\n")
