@@ -1,0 +1,62 @@
+>>>>>> import inspect
+>>>>>> import collections
+>>>>>> import functools
+       
+>>>>>> funcs = collections.defaultdict(lambda: collections.defaultdict(list))
+       
+>>>>>> import trace
+>>>>>> import sys
+       
+       # create a Trace object, telling it what to ignore, and whether to
+       # do tracing or line-counting or both.
+>>>>>> tracer = trace.Trace(ignoredirs=[sys.prefix, sys.exec_prefix],
+>>>>>>                      trace=0,
+>>>>>>                      count=1)
+       
+       
+       # def func_info_saver(line):
+>>>>>> def inner_decorator(func):
+>>>>>>     @functools.wraps(func)
+           def wrapper(*args, **kwargs):
+    1:         name = func.__name__ + "_" + str(id(func))
+    1:         args_name = tuple(inspect.signature(func).parameters)
+    1:         arg_dict = dict(zip(args_name, args))
+    1:         arg_dict.update(kwargs)
+               # funcs[name]["loc"] = line
+    1:         if len(funcs[name]["args"]) < 5:
+    1:             funcs[name]["args"].append(arg_dict)
+    1:         rets = func(*args, **kwargs)
+    1:         if len(funcs[name]["rets"]) < 5:
+    1:             funcs[name]["rets"].append(rets)
+               if False:
+                   x = 1
+    1:         return rets
+       
+>>>>>>     return wrapper
+       
+           # return inner_decorator
+       
+       
+>>>>>> @inner_decorator
+>>>>>> def say_whee(x, y, z=3):
+    1:     print("Whee!" + x + y * z)
+       
+       
+>>>>>> say_whee("Me", "hh", z=4)
+>>>>>> import pandas as pd
+>>>>>> df = pd.DataFrame([[1, 2], [3, 4]])
+>>>>>> f = inner_decorator(lambda x: x * 2)
+>>>>>> df[0] = df[0].map(f)
+       
+       # run the new command using the given tracer
+>>>>>> tracer.runfunc(say_whee, "Me", "hh", z=4)
+       
+       # make a report, placing output in the current directory
+>>>>>> r = tracer.results()
+>>>>>> r.write_results(show_missing=True, coverdir=".")
+       
+>>>>>> for x, y in funcs.items():
+>>>>>>     print(x)
+>>>>>>     for s, t in y.items():
+>>>>>>         print(s, t)
+>>>>>> print(dict(funcs))
