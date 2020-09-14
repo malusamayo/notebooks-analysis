@@ -449,18 +449,33 @@ def dispatch_gen(var, name, cellnum, outflag):
 def gen_func_comment(fun_name, fun_map):
     # not considering multiple return types from branches
 
-    _type = [k + ": " + str(type(v)) for k, v in fun_map["args"][0].items()
-             ] + [type(x) for x in fun_map["rets"][0]]
-    _examples = [[v for k, v in fun_map["args"][i].items()] +
-                 [x for x in fun_map["rets"][i]]
-                 for i in range(len(fun_map["args"]))]
-    _example_names = ["example_" + str(i) for i in range(len(fun_map["args"]))]
-    _columns = [
-        "args[{:d}]".format(i) for i in range(len(fun_map["args"][0]))
-    ] + ["rets[{:d}]".format(i) for i in range(len(fun_map["rets"][0]))]
+    _type = [
+        k + ": " + str(type(v)) for k, v in fun_map["saved_args"][0].items()
+    ] + [type(x) for x in fun_map["saved_rets"][0]] + [""]
 
-    table = pd.DataFrame([_type] + _examples, ["type"] + _example_names,
-                         _columns)
+    # _examples = [[v for k, v in fun_map["saved_args"][i].items()] +
+    #              [x for x in fun_map["saved_rets"][i]] + [""]
+    #              for i in range(len(fun_map["saved_args"]))]
+    # _example_names = [
+    #     "example_" + str(i) for i in range(len(fun_map["saved_args"]))
+    # ]
+    total = sum(allexe[fun_name].values())
+    coverage_examples = [
+        [v for k, v in fun_map["args"][i].items()] +
+        [x for x in fun_map["rets"][i]] +
+        ['{:.2g}'.format(allexe[fun_name][fun_map["path"][i]] / total)]
+        for i in range(len(fun_map["args"]))
+    ]
+    coverage_example_names = [
+        "coverage_example_" + str(i) for i in range(len(fun_map["args"]))
+    ]
+    _columns = [
+        "args[{:d}]".format(i) for i in range(len(fun_map["saved_args"][0]))
+    ] + ["rets[{:d}]".format(i)
+         for i in range(len(fun_map["saved_rets"][0]))] + ["percentage"]
+
+    table = pd.DataFrame([_type] + coverage_examples,
+                         ["type"] + coverage_example_names, _columns)
 
     comment = "'''\n[function table]\n" + str(table) + "\n'''\n"
     return comment
@@ -491,9 +506,10 @@ if __name__ == "__main__":
     myvars = []
     with open(data_path, "rb") as f:
         tmpvars = pickle.load(f)
-    funcs = tmpvars[-1]
-    labels = tmpvars[-2]
-    tmpvars = tmpvars[:-2]
+    allexe = tmpvars[-1]
+    funcs = tmpvars[-2]
+    labels = tmpvars[-3]
+    tmpvars = tmpvars[:-3]
 
     for i in range(len(tmpvars)):
         myvars.append(
