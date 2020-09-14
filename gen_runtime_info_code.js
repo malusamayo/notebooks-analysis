@@ -21,10 +21,19 @@ let outs = new Map();
 let replace_strs = [];
 let head_str = fs.readFileSync("headstr.py").toString();
 let def_list = [];
+let branch_insert_list = [];
+
+let TYPE_1_FUN = ["capitalize", "casefold", "lower", "replace", "title", "upper"];
+let TYPE_2_FUN = ["center", "count", "endswith", "find", "index", "isalpha",
+    "isascii", "isdecimal", "isdigital", "isidentifier", "islower", "isnumeric",
+    "isprintable", "isspace", "istitle", "isupper", "ljust", "lstrip", "partition",
+    "rfind", "rindex", "rjust", "rpartition", "rstrip", "strip", "startswith", "zfill"];
+let TYPE_3_FUN = ["rsplit", "split", "splitlines"]
 
 let write_str =
     "store_vars.append(my_labels)\n" +
     "store_vars.append(dict(funcs))\n" +
+    "store_vars.append(dict(all_exe))\n" +
     "f = open(os.path.join(my_dir_path, \"" + filename_no_suffix +
     "_log.dat\"), \"wb\")\n" +
     "pickle.dump(store_vars, f)\n" +
@@ -86,6 +95,7 @@ function add_extra_vars(tree) {
     }
 }
 
+// recursively find whether current subtree contains a node of certain type
 function contain_type(node, type) {
     if (node == undefined)
         return undefined;
@@ -126,6 +136,24 @@ function value_type_handler(type, node) {
     }
 }
 
+// function decompose_func(node, name) {
+//     if (node.type == "call" && node.func.type == "dot") {
+//         let res = decompose_func(node.func.value, name);
+//         if (res.length >= 1)
+//             node.value = name;
+//         res.push(name.id + " = " + printNode(node));
+//         return res;
+//     } else if (node.type == "index") {
+//         let res = decompose_func(node.value, name);
+//         if (res.length >= 1)
+//             node.value = name;
+//         res.push(name.id + " = " + printNode(node));
+//         return res;
+//     } else if (node.type == "name") {
+//         return [];
+//     }
+// }
+
 function static_analyzer(tree) {
     let static_comments = new Map();
     for (let [i, stmt] of tree.code.entries()) {
@@ -136,7 +164,7 @@ function static_analyzer(tree) {
             let lambda_rep = "func_info_saver(" + stmt.location.first_line + ")(" + lambda + ")";
             let stmt_str = printNode(stmt);
             stmt_str = stmt_str.replace(lambda, lambda_rep);
-            replace_strs.push([stmt.location.first_line, stmt.location.last_line, stmt_str]);
+            replace_strs.push([stmt.location.first_line, stmt.location.last_line, [stmt_str]]);
         }
         if (stmt.type == "assign") {
             // external input: x = pd.read_csv()
@@ -198,10 +226,223 @@ function static_analyzer(tree) {
         } else if (stmt.type == "def") {
             // record defined funcions
             def_list.push(stmt.name);
+            // for (let def_stmt of stmt.code) {
+            //     if (def_stmt.type == "assign") {
+            //         // only consider x = y.f()
+            //         if (def_stmt.sources.length == 1) {
+            //             let src = def_stmt.sources[0];
+            //             let des = def_stmt.targets[0];
+            //             if (des.type == "name" && src.type == "call") {
+            //                 let func_name = "";
+            //                 let src_name = "";
+            //                 if (src.func.type == "dot")
+            //                     func_name = src.func.name;
+            //                 else if (src.func.type == "name")
+            //                     func_name = src.func.id;
+            //                 if (src.func.value != undefined && src.func.value.type == "name")
+            //                     src_name = src.func.value.id;
+            //                 let res = decompose_func(src, des);
+            //                 if (res != undefined && res.length > 1) {
+            //                     replace_strs.push([def_stmt.location.first_line, def_stmt.location.last_line, res]);
+            //                 }
+            //                 console.log(func_name);
+            //                 if (TYPE_3_FUN.includes(func_name) || TYPE_1_FUN.includes(func_name))
+            //                     branch_insert_list.push([def_stmt.location.first_line, def_stmt.location.last_line,
+            //                         func_name, src_name, des.id]);
+            //             }
+            //         }
+            //     }
+            // }
         }
     }
     console.log(static_comments)
     return static_comments;
+}
+
+let flag = false;
+function traverse(node) {
+    switch (node.type) {
+        case 'assert':
+            traverse(node.cond);
+            break;
+        case 'assign': {
+            node.targets.forEach(x => traverse(x));
+            node.sources.forEach(x => traverse(x));
+            break;
+        }
+        case 'binop': {
+            traverse(node.left);
+            traverse(node.right);
+            break;
+        }
+        case 'call': {
+            let [id, ret] = traverse(node.func);
+            node.args.forEach(x => traverse(x));
+            if (ret) {
+                flag = true;
+                node.func = {
+                    id: id,
+                    type: 'name'
+                }
+                node.args.unshift({
+                    actual: ret,
+                    type: 'arg'
+                })
+            }
+            break;
+        }
+        // case 'class':
+        //     return (tabs +
+        //         'class ' +
+        //         node.name +
+        //         (node.extends ? '(' + commaSep(node.extends) + ')' : '') +
+        //         ':' +
+        //         lines(node.code, tabLevel + 1));
+        // case 'decorator':
+        //     return ('@' +
+        //         node.decorator +
+        //         (node.args ? '(' + commaSep(node.args) + ')' : ''));
+        // case 'decorate':
+        //     return (tabs +
+        //         lines(node.decorators, tabLevel) +
+        //         printTabbed(node.def, tabLevel));
+        case 'def': {
+            node.code.forEach(stmt => {
+                traverse(stmt);
+                if (flag) {
+                    console.log(printNode(stmt));
+                    replace_strs.push([stmt.location.first_line, stmt.location.last_line, [printNode(stmt)]]);
+                    flag = false;
+                }
+            });
+            break;
+        }
+        case 'dot': {
+            traverse(node.value);
+            if (TYPE_1_FUN.includes(node.name) || TYPE_3_FUN.includes(node.name)) {
+                return [`cov(str.${node.name})`, node.value];
+            }
+            if (node.name == "g") {
+                return ["cov(lib.g)", node.value];
+            }
+            break;
+            // return printNode(node.value) + '.' + node.name;
+        }
+        // case 'else':
+        //     node.code.forEach(x => traverse(x));
+        // case 'for': {
+        //     node.code.forEach(x => traverse(x));
+        //     if (node.else)
+        //         node.else.forEach(x => traverse(x));
+        // }
+        // case 'if':
+        //     return (tabs +
+        //         'if ' +
+        //         printNode(node.cond) +
+        //         ':' +
+        //         lines(node.code, tabLevel + 1) +
+        //         (node.elif
+        //             ? node.elif.map(function (elif) {
+        //                 return tabs +
+        //                     'elif ' +
+        //                     elif.cond +
+        //                     ':' +
+        //                     lines(elif.code, tabLevel + 1);
+        //             })
+        //             : '') +
+        //         (node.else ? tabs + 'else:' + lines(node.else.code, tabLevel + 1) : ''));
+        // case 'ifexpr':
+        //     return (printNode(node.then) +
+        //         ' if ' +
+        //         printNode(node.test) +
+        //         ' else ' +
+        //         printNode(node.else));
+        case 'index': {
+            traverse(node.value);
+            node.args.forEach(x => traverse(x));
+            break;
+        }
+        // case 'lambda':
+        //     return ('lambda ' +
+        //         node.args.map(printParam).join(comma) +
+        //         ': ' +
+        //         printNode(node.code));
+        // case 'list':
+        //     return '[' + node.items.map(function (item) { return printNode(item); }).join(comma) + ']';
+        // case 'literal':
+        //     return typeof node.value === 'string' && node.value.indexOf('\n') >= 0
+        //         ? '""' + node.value + '""'
+        //         : node.value.toString();
+        // case 'module':
+        //     return lines(node.code, tabLevel);
+        // case 'name':
+        //     return node.id;
+        // case 'nonlocal':
+        //     return tabs + 'nonlocal ' + node.names.join(comma);
+        // case 'raise':
+        //     return tabs + 'raise ' + printNode(node.err);
+        // case 'return':
+        //     return tabs + 'return ' + (node.values ? commaSep(node.values) : '');
+        // case 'set':
+        //     return '{' + commaSep(node.entries) + '}';
+        // case 'slice':
+        //     return ((node.start ? printNode(node.start) : '') +
+        //         ':' +
+        //         (node.stop ? printNode(node.stop) : '') +
+        //         (node.step ? ':' + printNode(node.step) : ''));
+        // case 'starred':
+        //     traverse(node.value);
+        // case 'try':
+        //     return (tabs +
+        //         'try:' +
+        //         lines(node.code, tabLevel + 1) +
+        //         (node.excepts
+        //             ? node.excepts.map(function (ex) {
+        //                 return tabs +
+        //                     'except ' +
+        //                     (ex.cond
+        //                         ? printNode(ex.cond) + (ex.name ? ' as ' + ex.name : '')
+        //                         : '') +
+        //                     ':' +
+        //                     lines(ex.code, tabLevel + 1);
+        //             })
+        //             : '') +
+        //         (node.else ? tabs + 'else:' + lines(node.else, tabLevel + 1) : '') +
+        //         (node.finally
+        //             ? tabs + 'finally:' + lines(node.finally, tabLevel + 1)
+        //             : ''));
+        // case 'tuple':
+        //     node.items.forEach(x => traverse(x));
+        // case 'unop':
+        //     traverse(node.operand);
+        // case 'while': {
+        //     traverse(node.cond);
+        //     node.code.forEach(x => traverse(x));
+        // }
+        // case 'with':
+        //     return (tabs +
+        //         'with ' +
+        //         node.items.map(function (w) { return w.with + (w.as ? ' as ' + w.as : ''); }).join(comma) +
+        //         ':' +
+        //         lines(node.code, tabLevel + 1));
+        // case 'yield':
+        //     return (tabs +
+        //         'yield ' +
+        //         (node.from ? printNode(node.from) : '') +
+        //         (node.value ? commaSep(node.value) : ''));
+    }
+    return [];
+}
+
+function wrap_methods(tree) {
+    for (let [i, stmt] of tree.code.entries()) {
+        traverse(stmt);
+        if (flag) {
+            console.log(printNode(stmt));
+            replace_strs.push([stmt.location.first_line, stmt.location.last_line, [printNode(stmt)]]);
+            flag = false;
+        }
+    }
 }
 
 function compute_flow_vars(code) {
@@ -251,6 +492,7 @@ function compute_flow_vars(code) {
     }
     add_extra_vars(tree);
     let comments = static_analyzer(tree);
+    wrap_methods(tree);
     console.log(ins);
     console.log(outs);
     console.log(comments)
@@ -268,7 +510,9 @@ function insert_print_stmt(code) {
     let cur_cell = 0;
     lines[0] = lines[0] + head_str;
     for (let item of replace_strs) {
-        lines[item[0] - 1] = item[2];
+        let idx = item[0] - 1;
+        let space = " ".repeat((lines[idx].length - lines[idx].trimLeft().length))
+        lines[item[0] - 1] = space + item[2].join("\n" + space);
         for (let i = item[0]; i < item[1]; i++)
             lines[i] = ""
     }
@@ -299,13 +543,23 @@ function insert_print_stmt(code) {
     return lines.join("\n");
 }
 
+
+// let tree = py.parse("x = ticket.split(' ')");
+// wrap_methods(tree);
+// for (let [i, stmt] of tree.code.entries()) {
+//     // console.log(stmt);
+//     console.log(printNode(stmt));
+// }
+
 init_lineToCell();
 let comments = compute_flow_vars(text);
-let def_str = "TRACE_INTO = [" + def_list.map(x => "'" + x + "'").join(",") + "]\n";
+// set up trace functions
+let def_str = "TRACE_INTO = ['cov_wrapper_1','cov_wrapper_2'," + def_list.map(x => "'" + x + "'").join(",") + "]\n";
 head_str = head_str.split("\n")
 head_str[14] = def_str
 head_str = head_str.join("\n") + "\n"
-
+// insert save stmt
 let modified_text = insert_print_stmt(text);
+// save static comment
 fs.writeFileSync(dir + filename_no_suffix + "_comment.json", JSON.stringify([...comments]));
 fs.writeFileSync(dir + filename_no_suffix + "_m" + suffix, modified_text);

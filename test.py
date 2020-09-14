@@ -36,7 +36,24 @@ def trace_calls(frame, event, arg):
     return trace_lines
 
 
-sys.settrace(trace_calls)
+# sys.settrace(trace_calls)
+
+
+def cov(f):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        print(args[0])
+        ret = f(*args, **kwargs)
+        if (ret == args[0]):
+            print("same")
+        else:
+            print("no")
+        return ret
+
+    return wrapper
+
+
+cov(str.replace)("x y", " ", " ")
 
 
 # def func_info_saver(line):
@@ -84,11 +101,12 @@ say_whee("Me", "hh")
 import pandas as pd
 df = pd.DataFrame([[1, 2], [3, 4]])
 f = inner_decorator(lambda x: x * 2)
+g = "a b".split()
 df[0] = df[0].map(f)
 
-for x, y in funcs.items():
-    print(x)
-    for s, t in y.items():
-        print(s, t)
-print(dict(funcs))
-print(func_coverage)
+# for x, y in funcs.items():
+#     print(x)
+#     for s, t in y.items():
+#         print(s, t)
+# print(dict(funcs))
+# print(func_coverage)

@@ -13,8 +13,13 @@ copy_types = [
     "<class 'matplotlib.axes._subplots.AxesSubplot'>"
 ]
 TRACE_INTO = []
+TYPE_1_FUN = ["capitalize", "casefold", "lower", "replace", "title", "upper"]
+TYPE_2_FUN = ["rsplit", "split", "splitlines"]
+
+noop = lambda *args, **kwargs: None
 func_coverage = collections.defaultdict(set)
-cur_exe = set()
+cur_exe = []
+all_exe = collections.defaultdict(lambda: collections.defaultdict(int))
 
 
 def trace_lines(frame, event, arg):
@@ -24,7 +29,7 @@ def trace_lines(frame, event, arg):
     func_name = co.co_name
     line_no = frame.f_lineno
     filename = co.co_filename
-    cur_exe.add(line_no)
+    cur_exe.append(line_no)
 
 
 def trace_calls(frame, event, arg):
@@ -61,15 +66,17 @@ def func_info_saver(line):
             arg_dict.update(kwargs)
             funcs[name]["loc"] = line
             rets = func(*args, **kwargs)
-            diff = cur_exe.difference(func_coverage[name])
-            if len(diff) > 0:
-                print('cover new line ' + str(diff))
-                func_coverage[name] |= diff
-            cur_exe.clear()
-            if len(diff) > 0:
+            # diff = cur_exe.difference(func_coverage[name])
+            # if len(diff) > 0:
+            #     print('cover new line ' + str(diff))
+            #     func_coverage[name] |= diff
+            all_exe[name][tuple(cur_exe)] += 1
+            if all_exe[name][tuple(cur_exe)] == 1:
+                funcs[name]["path"].append(copy.deepcopy(tuple(cur_exe)))
                 funcs[name]["args"].append(copy.deepcopy(arg_dict))
                 funcs[name]["rets"].append(copy.deepcopy([rets]))
-            elif len(funcs[name]["saved_args"]) < 5:
+            cur_exe.clear()
+            if len(funcs[name]["saved_args"]) < 5:
                 funcs[name]["saved_args"].append(copy.deepcopy(arg_dict))
                 funcs[name]["saved_rets"].append(copy.deepcopy([rets]))
             return rets
@@ -77,3 +84,29 @@ def func_info_saver(line):
         return wrapper
 
     return inner_decorator
+
+
+def cov(f):
+    @functools.wraps(f)
+    def cov_wrapper_1(*args, **kwargs):
+        ret = f(*args, **kwargs)
+        if (ret == args[0]):
+            noop
+        else:
+            noop
+        return ret
+
+    def cov_wrapper_2(*args, **kwargs):
+        ret = f(*args, **kwargs)
+        if (len(ret) <= 1):
+            noop
+        else:
+            noop
+        return ret
+
+    if f.__name__ in TYPE_1_FUN:
+        return cov_wrapper_1
+    elif f.__name__ in TYPE_2_FUN:
+        return cov_wrapper_2
+    else:
+        return f
