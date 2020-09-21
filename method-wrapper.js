@@ -2,7 +2,6 @@
 var py = require("../python-program-analysis");
 var fs = require('fs');
 const { printNode, RefSet } = require("../python-program-analysis");
-const { trace } = require("console");
 
 let replace_strs = [];
 
@@ -14,27 +13,25 @@ const str_fun = ["capitalize", "casefold", "lower", "replace", "title", "upper",
     "rsplit", "split", "splitlines"]
 
 let changed = false;
-let in_def = false;
 
-
-function traverse(node) {
+function traverse(node, in_def) {
     switch (node.type) {
         case 'assert':
-            traverse(node.cond);
+            traverse(node.cond, in_def);
             break;
         case 'assign': {
-            node.targets.forEach(x => traverse(x));
-            node.sources.forEach(x => traverse(x));
+            node.targets.forEach(x => traverse(x, in_def));
+            node.sources.forEach(x => traverse(x, in_def));
             break;
         }
         case 'binop': {
-            traverse(node.left);
-            traverse(node.right);
+            traverse(node.left, in_def);
+            traverse(node.right, in_def);
             break;
         }
         case 'call': {
-            let [id, ret] = traverse(node.func);
-            node.args.forEach(x => traverse(x));
+            let [id, ret] = traverse(node.func, in_def);
+            node.args.forEach(x => traverse(x, in_def));
             if (ret) {
                 changed = true;
                 node.func = {
@@ -49,7 +46,7 @@ function traverse(node) {
             break;
         }
         case 'class': {
-            node.code.forEach(stmt => traverse(stmt));
+            node.code.forEach(stmt => traverse(stmt, in_def));
             break;
         }
         // case 'decorator':
@@ -61,37 +58,36 @@ function traverse(node) {
         //         lines(node.decorators, tabLevel) +
         //         printTabbed(node.def, tabLevel));
         case 'def': {
-            in_def = true;
-            node.code.forEach(stmt => traverse_and_replace(stmt));
-            in_def = false;
+            node.code.forEach(stmt => traverse_and_replace(stmt, true));
             break;
         }
         case 'dot': {
-            traverse(node.value);
+            traverse(node.value, in_def);
+            // imperfect solutions, dynamic type checking of nested expressions could be expensive
             if (str_fun.includes(node.name)) {
-                return [`cov(str.${node.name})`, node.value];
+                return [`cov(type(${printNode(node.value).replace("cov", "")}).${node.name})`, node.value];
             }
             break;
         }
         case 'else': {
-            node.code.forEach(x => traverse_and_replace(x));
+            node.code.forEach(x => traverse_and_replace(x, in_def));
             break;
         }
         case 'for': {
-            node.code.forEach(x => traverse_and_replace(x));
+            node.code.forEach(x => traverse_and_replace(x, in_def));
             if (node.else)
-                node.else.forEach(x => traverse_and_replace(x));
+                node.else.forEach(x => traverse_and_replace(x, in_def));
             break;
         }
         case 'if': {
             // no need to replace condition?
             // traverse(node.cond);
-            node.code.forEach(x => traverse_and_replace(x));
+            node.code.forEach(x => traverse_and_replace(x, in_def));
             if (node.elif) {
-                node.elif.forEach(elif => elif.code.forEach(x => traverse_and_replace(x)))
+                node.elif.forEach(elif => elif.code.forEach(x => traverse_and_replace(x, in_def)))
             }
             if (node.else) {
-                node.else.code.forEach(x => traverse_and_replace(x));
+                node.else.code.forEach(x => traverse_and_replace(x, in_def));
             }
             break;
         }
@@ -103,7 +99,7 @@ function traverse(node) {
         //         printNode(node.else));
         case 'index': {
             traverse(node.value);
-            node.args.forEach(x => traverse(x));
+            node.args.forEach(x => traverse(x, in_def));
             break;
         }
         // case 'lambda':
@@ -148,12 +144,12 @@ function traverse(node) {
         // case 'tuple':
         //     node.items.forEach(x => traverse(x));
         case 'unop': {
-            traverse(node.operand);
+            traverse(node.operand, in_def);
             break;
         }
         case 'while': {
             // traverse(node.cond);
-            node.code.forEach(x => traverse_and_replace(x));
+            node.code.forEach(x => traverse_and_replace(x, in_def));
             break;
         }
         // case 'with':
@@ -171,8 +167,8 @@ function traverse(node) {
     return [];
 }
 
-function traverse_and_replace(stmt) {
-    traverse(stmt);
+function traverse_and_replace(stmt, in_def) {
+    traverse(stmt, in_def);
     if (changed && in_def) {
         console.log(printNode(stmt));
         replace_strs.push([stmt.location.first_line, stmt.location.last_line, [printNode(stmt)]]);
@@ -182,9 +178,24 @@ function traverse_and_replace(stmt) {
 
 function wrap_methods(tree) {
     for (let [i, stmt] of tree.code.entries()) {
-        traverse(stmt);
+        let in_def = (stmt.type == "def");
+        traverse(stmt, in_def);
     }
     return replace_strs;
 }
 
+function collect_defs(code) {
+    let def_list = []
+    for (let [i, stmt] of code.entries()) {
+        if (stmt.type == "def") {
+            def_list.push(stmt.name);
+            def_list.concat(collect_defs(stmt.code));
+        } else if (stmt.type == "class") {
+            collect_defs(stmt.code);
+        }
+    }
+    return def_list;
+}
+
+exports.collect_defs = collect_defs;
 exports.wrap_methods = wrap_methods;

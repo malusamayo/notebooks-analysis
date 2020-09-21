@@ -7,7 +7,7 @@ const { printArg } = require("./dist/es5/printNode");
 const { ADDRCONFIG } = require("dns");
 const { assert } = require("console");
 const { collapseTextChangeRangesAcrossMultipleVersions } = require("typescript");
-const { wrap_methods } = require('../python-program-analysis/method-wrapper');
+const { wrap_methods, collect_defs } = require('../python-program-analysis/method-wrapper');
 
 let args = process.argv.slice(2);
 let path = args[0];
@@ -95,7 +95,7 @@ function contain_type(node, type) {
     if (node == undefined)
         return undefined;
     if (node.type == type)
-        return printNode(node);
+        return node;
     if (node.targets != undefined) {
         for (let des of node.targets) {
             let res = contain_type(des, type);
@@ -138,6 +138,11 @@ function static_analyzer(tree) {
         let lambda = contain_type(stmt, "lambda");
         if (lambda != undefined) {
             // should also record/convert lambda function later
+            // lambda.name = "lambda_" + lambda.location.first_line;
+            // lambda.type = "def";
+            // lambda.params = lambda.args;
+            // lambda.code = [lambda.code, lambda.code];
+            // console.log(printNode(lambda));
             let lambda_rep = "func_info_saver(" + stmt.location.first_line + ")(" + lambda + ")";
             let stmt_str = printNode(stmt);
             stmt_str = stmt_str.replace(lambda, lambda_rep);
@@ -200,12 +205,8 @@ function static_analyzer(tree) {
                 static_comments.set(stmt.location.first_line,
                     "fill missing values");
             }
-        } else if (stmt.type == "def") {
-            // record defined funcions
-            def_list.push(stmt.name);
         }
     }
-    console.log(static_comments)
     return static_comments;
 }
 
@@ -256,6 +257,7 @@ function compute_flow_vars(code) {
     }
     add_extra_vars(tree);
     let comments = static_analyzer(tree);
+    def_list = collect_defs(tree.code);
     replace_strs = replace_strs.concat(wrap_methods(tree));
     console.log(ins);
     console.log(outs);
