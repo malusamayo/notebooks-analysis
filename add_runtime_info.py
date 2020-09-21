@@ -463,7 +463,8 @@ def gen_func_comment(fun_name, fun_map):
     coverage_examples = [
         [v for k, v in fun_map["args"][i].items()] +
         [x for x in fun_map["rets"][i]] +
-        ['{:.2g}'.format(allexe[fun_name][fun_map["path"][i]] / total)]
+        ['{:.2g}'.format(allexe[fun_name][fun_map["path"][i]] / total)] +
+        [allexe[fun_name][fun_map["path"][i]]]
         for i in range(len(fun_map["args"]))
     ]
     coverage_example_names = [
@@ -471,11 +472,12 @@ def gen_func_comment(fun_name, fun_map):
     ]
     _columns = [
         "args[{:d}]".format(i) for i in range(len(fun_map["saved_args"][0]))
-    ] + ["rets[{:d}]".format(i)
-         for i in range(len(fun_map["saved_rets"][0]))] + ["percentage"]
+    ] + ["rets[{:d}]".format(i) for i in range(len(fun_map["saved_rets"][0]))
+         ] + ["percentage", "counts"]
 
-    table = pd.DataFrame([_type] + coverage_examples,
-                         ["type"] + coverage_example_names, _columns)
+    table = pd.DataFrame(
+        [_type] + sorted(coverage_examples, key=lambda x: x[2], reverse=True),
+        ["type"] + coverage_example_names, _columns)
 
     comment = "'''\n[function table]\n" + str(table) + "\n'''\n"
     return comment
