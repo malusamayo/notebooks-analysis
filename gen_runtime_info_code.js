@@ -131,6 +131,22 @@ function value_type_handler(type, node) {
     }
 }
 
+function map_handler(src, des) {
+    let value_type = ["index", "dot"];
+    if (value_type.includes(des.type)
+        && value_type.includes(src.func.value.type)) {
+        let src_col = value_type_handler(src.func.value.type, src.func.value);
+        let des_col = value_type_handler(des.type, des);
+        let comment = ""
+        // same/different literal
+        if (src_col == des_col)
+            comment = "modify column " + des_col + " using map/apply"
+        else
+            comment = "create column " + des_col + " from " + src_col
+        return comment;
+    }
+}
+
 function static_analyzer(tree) {
     let static_comments = new Map();
     for (let [i, stmt] of tree.code.entries()) {
@@ -153,27 +169,37 @@ function static_analyzer(tree) {
             for (let [i, src] of stmt.sources.entries()) {
                 // x[y] = x1[y1].map(...) || x.y = x1.y1.map(...)
                 if (src.type == "call" && src.func.name == "map") {
-                    let value_type = ["index", "dot"];
-                    if (value_type.includes(stmt.targets[i].type)
-                        && value_type.includes(src.func.value.type)) {
-                        let src_col = value_type_handler(src.func.value.type, src.func.value);
-                        let des_col = value_type_handler(stmt.targets[i].type, stmt.targets[i]);
-                        let comment = ""
-                        // same/different literal
-                        if (src_col == des_col)
-                            comment = "modify column " + des_col + " using map"
-                        else
-                            comment = "create column " + des_col + " from " + src_col
+                    let res = map_handler(src, stmt.targets[i]);
+                    if (res)
                         static_comments.set(stmt.location.first_line,
-                            comment);
-                    }
+                            res);
+                    // let value_type = ["index", "dot"];
+                    // if (value_type.includes(stmt.targets[i].type)
+                    //     && value_type.includes(src.func.value.type)) {
+                    //     let src_col = value_type_handler(src.func.value.type, src.func.value);
+                    //     let des_col = value_type_handler(stmt.targets[i].type, stmt.targets[i]);
+                    //     let comment = ""
+                    //     // same/different literal
+                    //     if (src_col == des_col)
+                    //         comment = "modify column " + des_col + " using map/apply"
+                    //     else
+                    //         comment = "create column " + des_col + " from " + src_col
+                    //     static_comments.set(stmt.location.first_line,
+                    //         comment);
+                    // }
                 }
                 if (src.type == "call" && src.func.name == "apply") {
-                    let value_type = ["index", "dot"];
-                    if (value_type.includes(stmt.targets[i].type)) {
-                        let des_col = value_type_handler(stmt.targets[i].type, stmt.targets[i]);
+                    let res = map_handler(src, stmt.targets[i]);
+                    if (res)
                         static_comments.set(stmt.location.first_line,
-                            "create column " + des_col + " from whole row");
+                            res);
+                    else {
+                        let value_type = ["index", "dot"];
+                        if (value_type.includes(stmt.targets[i].type)) {
+                            let des_col = value_type_handler(stmt.targets[i].type, stmt.targets[i]);
+                            static_comments.set(stmt.location.first_line,
+                                "create column " + des_col + " from whole row");
+                        }
                     }
                 }
                 // x = pd.get_dymmies()
@@ -247,6 +273,9 @@ function compute_flow_vars(code) {
                 add(ins, lineToCell.get(toLine), x);
                 add(outs, lineToCell.get(fromLine), x);
             })
+            // console.log(interSec);
+            // console.log(flow.toRef.name);
+            // console.log(flow.fromRef.name);
             // console.log(analyzer.getUses(flow.toNode));
             add(ins, lineToCell.get(toLine), flow.toRef.name);
             add(outs, lineToCell.get(fromLine), flow.fromRef.name);
@@ -255,7 +284,7 @@ function compute_flow_vars(code) {
         // console.log(py.printNode(flow.fromNode) +
         //     "\n -----------------> \n" + py.printNode(flow.toNode) + "\n");
     }
-    add_extra_vars(tree);
+    // add_extra_vars(tree); // bugs here
     let comments = static_analyzer(tree);
     def_list = collect_defs(tree.code);
     replace_strs = replace_strs.concat(wrap_methods(tree));
