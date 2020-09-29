@@ -82,9 +82,13 @@ class List(Variable):
         self.comment = "- " + name + ", " + self.initial_comment()
 
     def initial_comment(self):
-        length = len(self.var)
-        return "list length of " + length + ", sample: " + str(
-            self.var[:min(length, 5)])
+        length = min(len(self.var), 5)
+        comments = [
+            dispatch_gen(self.var[i], self.name + "[" + str(i) + "]", -1,
+                         -1).comment for i in range(length)
+        ]
+        return "list length of " + str(length) + ", sample:\n\t" + "\n\t".join(
+            comments)
 
     def check_rel(self, variable):
         rel_score = 5
@@ -155,7 +159,7 @@ class NdArray(Variable):
         ## check submatrix
         var_a = np.asarray(self.var)
         var_b = np.asarray(variable.var)
-        if len(np.shape(var_a)) != 2 or len(np.shape(var_a)) != 2:
+        if len(np.shape(var_a)) != 2 or len(np.shape(var_b)) != 2:
             return
         if np.shape(var_a)[0] == np.shape(var_b)[0]:
             if np.shape(var_a)[1] < np.shape(var_b)[1]:
@@ -172,6 +176,7 @@ class DataFrame(Variable):
     def __init__(self, var, name, cellnum, outflag):
         super().__init__(var, name, cellnum, outflag)
         self.change_exp = []
+        self.copy = False
         self.columns = list(map(lambda x: str(x), var.columns))
         self.comment = "- " + name + ", " + self.initial_comment()
 
@@ -191,6 +196,8 @@ class DataFrame(Variable):
         return ret
 
     def add_data_distribute(self):
+        if self.copy:
+            return
         array = np.asarray(self.var)
         if len(self.change_exp) > 0:
             _examples = self.change_exp
@@ -203,6 +210,8 @@ class DataFrame(Variable):
             _example_names = ["example_" + str(i) for i in range(max_len)]
 
         def get_range(col):
+            if str(col.dtype) == "category":
+                return len(col.unique())
             if np.issubdtype(col.dtype, np.number):
                 return [np.min(col), np.max(col)]
             else:
@@ -258,12 +267,13 @@ class DataFrame(Variable):
             self.comment += "\n" + blanks
             if self.name == variable.name:
                 self.comment += highlight_text("no change in the cell")
+                self.copy = True
             else:
                 self.comment += highlight_text("copy of " + variable.name)
             return True
         return False
 
-    def add_change_comment(self, variable, convert, change):
+    def add_change_comment(self, variable, convert, change, diffset):
         if change:
             self.comment += "\n" + blanks
             comment_str = ""
@@ -280,13 +290,19 @@ class DataFrame(Variable):
             self.comment += highlight_text(comment_str)
 
         indices = set()
+        values = set()
         for col in self.columns:
             if col[-1] != "*":
                 continue
             col = col[:-1]
-            for i in range(len(variable.var[col])):
-                if str(variable.var[col][i]) != str(self.var[col][i]):
-                    indices.add(i)
+            for i in range(len(self.var[col])):
+                if self.var[col][i] not in values:
+                    if col in diffset or str(variable.var[col][i]) != str(
+                            self.var[col][i]):
+                        indices.add(i)
+                        values.add(self.var[col][i])
+                # break after enough sample points
+                if len(indices) >= 5:
                     break
         row_num = self.var.shape[0]
         if row_num >= 5:
@@ -298,13 +314,14 @@ class DataFrame(Variable):
             if col[-1] != "*":
                 return str(self.var[col][idx])
             col = col[:-1]
+            if col in diffset:
+                return str(self.var[col][idx])
             return str(variable.var[col][idx]) + " -> " + str(
                 self.var[col][idx])
 
-        if change or convert:
-            for idx in indices:
-                self.change_exp.append(
-                    [change_str(col, idx) for col in self.columns])
+        for idx in indices:
+            self.change_exp.append(
+                [change_str(col, idx) for col in self.columns])
 
     def check_difference(self, variable):
         col_a = set(self.var.columns)
@@ -324,7 +341,12 @@ class DataFrame(Variable):
                 comment_str += "add columns " + str(a_minus_b)
             if b_minus_a:
                 comment_str += " remove columns " + str(b_minus_a)
+            # add *s for such cols
             self.comment += highlight_text(comment_str)
+
+            for i in range(len(self.var.dtypes)):
+                if self.var.columns[i] in a_minus_b:
+                    self.columns[i] += "*"
         return a_minus_b, b_minus_a
 
     def check_change(self, variable, diffset):
@@ -350,7 +372,7 @@ class DataFrame(Variable):
                     change[var_a.dtypes[i]] = 1
                 else:
                     change[var_a.dtypes[i]] += 1
-        self.add_change_comment(variable, convert, change)
+        self.add_change_comment(variable, convert, change, diffset)
 
     def compare_to(self, variable):
         if self.check_copy(variable):
@@ -361,17 +383,23 @@ class DataFrame(Variable):
             a_minus_b, b_minus_a = self.check_difference(variable)
             # check convert/change in common columns
             self.check_change(variable, a_minus_b)
-            for i in range(len(self.var.dtypes)):
-                if self.var.columns[i] in a_minus_b:
-                    self.columns[i] += "*"
         elif np.shape(self.var)[1] == np.shape(variable.var)[1]:
             if np.shape(self.var)[0] < np.shape(variable.var)[0]:
                 l = len(self.var)
-                if self.var.equals(variable.var.iloc[:l]) or self.var.equals(
-                        variable.var.iloc[-l:]):
-                    self.comment += "\n" + blanks
-                    self.comment += highlight_text("truncated from " +
-                                                   variable.name)
+                # if self.var.equals(variable.var.iloc[:l]) or self.var.equals(
+                #         variable.var.iloc[-l:]):
+
+                self.comment += "\n" + blanks
+                self.comment += highlight_text(
+                    "remove " +
+                    str(np.shape(variable.var)[0] - np.shape(self.var)[0]) +
+                    " rows from " + variable.name)
+        if list(self.var.columns) != list(variable.columns):
+            set_a = set(self.var.columns)
+            set_b = set(variable.columns)
+            if set_a == set_b:
+                self.comment += "\n" + blanks
+                self.comment += highlight_text("rearrange columns")
 
 
 def handlecell(num, st, ed):
@@ -400,7 +428,7 @@ def handlecell(num, st, ed):
                 score = myvars[i].check_rel(myvars[j])
                 # print(myvars[i].name, myvars[j].name, score)
                 if cur_score > score:
-                    score = cur_score
+                    cur_score = score
                     choose_idx = j
             if choose_idx != -1:
                 myvars[i].compare_to(myvars[choose_idx])
