@@ -346,6 +346,21 @@ function insert_print_stmt(code) {
 //     console.log(printNode(stmt));
 // }
 
+// let code = "train_test_data = [train, test]\nfor dataset in train_test_data:\n" +
+//     "    train_test_data = dataset['Name'].str.extract(' ([A-Za-z]+)\\.', expand=False)\n" +
+//     "sex_mapping = {\"male\": 0, \"female\": 1}\nfor dataset in train_test_data:\n" +
+//     "    dataset['Sex'] = dataset['Sex'].map(sex_mapping)\n"
+// let tree = py.parse(code);
+// let cfg = new py.ControlFlowGraph(tree);
+// // console.log(cfg.blocks);
+// const analyzer = new py.DataflowAnalyzer();
+// const flows = analyzer.analyze(cfg).dataflows;
+// for (let flow of flows.items) {
+//     let fromLine = flow.fromNode.location.first_line;
+//     let toLine = flow.toNode.location.first_line;
+//     console.log(fromLine, toLine);
+// }
+
 init_lineToCell();
 let comments = compute_flow_vars(text);
 // set up trace functions

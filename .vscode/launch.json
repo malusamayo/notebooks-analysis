@@ -27,7 +27,7 @@
       "request": "launch",
       "program": "${workspaceRoot}/add_runtime_info.py",
       "args": [
-        ".\\notebooks\\Student_Performance.ipynb"
+        ".\\notebooks\\debug_example.ipynb"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
