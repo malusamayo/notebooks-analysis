@@ -1,25 +1,38 @@
-import os
+import os, sys
 import pickle
-import copy
+import copy as lib_copy
 import inspect, collections, functools
-import sys
+import matplotlib
 store_vars = []
 my_labels = []
-funcs = collections.defaultdict(lambda: collections.defaultdict(list))
 my_dir_path = os.path.dirname(os.path.realpath(__file__))
-ignore_types = ["<class 'module'>", "<class 'type'>"]
-copy_types = [
-    "<class 'folium.plugins.marker_cluster.MarkerCluster'>",
-    "<class 'matplotlib.axes._subplots.AxesSubplot'>"
+ignore_types = [
+    "<class 'module'>", "<class 'type'>", "<class 'function'>",
+    "<class 'matplotlib.figure.Figure'>"
 ]
 TRACE_INTO = []
 TYPE_1_FUN = ["capitalize", "casefold", "lower", "replace", "title", "upper"]
 TYPE_2_FUN = ["rsplit", "split", "splitlines"]
 
+matplotlib.use('Agg')
 noop = lambda *args, **kwargs: None
 func_coverage = collections.defaultdict(set)
 cur_exe = []
 all_exe = collections.defaultdict(lambda: collections.defaultdict(int))
+
+
+def ddict():
+    return collections.defaultdict(ddict)
+
+
+def ddict2dict(d):
+    for k, v in d.items():
+        if isinstance(v, dict):
+            d[k] = ddict2dict(v)
+    return dict(d)
+
+
+funcs = ddict()
 
 
 def trace_lines(frame, event, arg):
@@ -37,8 +50,11 @@ def trace_calls(frame, event, arg):
         return
     co = frame.f_code
     func_name = co.co_name
-    if func_name not in TRACE_INTO:
-        return
+    try:
+        if func_name not in TRACE_INTO:
+            return
+    except TypeError:
+        print(func_name, TRACE_INTO)
     line_no = frame.f_lineno
     return trace_lines
 
@@ -50,10 +66,18 @@ def my_store_info(info, var):
     if str(type(var)) in ignore_types:
         return
     my_labels.append(info)
-    if str(type(var)) in copy_types:
-        store_vars.append(copy.copy(var))
-    else:
-        store_vars.append(copy.deepcopy(var))
+    store_vars.append(wrap_copy(var))
+
+
+def wrap_copy(var):
+    try:
+        return lib_copy.deepcopy(var)
+    except NotImplementedError:
+        return "NOT COPIED"
+    except TypeError:
+        return "NOT COPIED"
+    except SystemError:
+        return "NOT COPIED"
 
 
 def func_info_saver(line):
@@ -70,15 +94,21 @@ def func_info_saver(line):
             # if len(diff) > 0:
             #     print('cover new line ' + str(diff))
             #     func_coverage[name] |= diff
-            all_exe[name][tuple(cur_exe)] += 1
-            if all_exe[name][tuple(cur_exe)] == 1:
-                funcs[name]["path"].append(copy.deepcopy(tuple(cur_exe)))
-                funcs[name]["args"].append(copy.deepcopy(arg_dict))
-                funcs[name]["rets"].append(copy.deepcopy([rets]))
+            # if all_exe[name][tuple(cur_exe)] == 1:
+            #     funcs[name]["path"][tuple(cur_exe)].append(
+            #         copy.deepcopy(tuple(cur_exe)))
+            if tuple(cur_exe) not in funcs[name].keys():
+                funcs[name][tuple(cur_exe)]["count"] = 0
+                funcs[name][tuple(cur_exe)]["args"] = []
+                funcs[name][tuple(cur_exe)]["rets"] = []
+
+            funcs[name][tuple(cur_exe)]["count"] += 1
+            funcs[name][tuple(cur_exe)]["args"].append(wrap_copy(arg_dict))
+            funcs[name][tuple(cur_exe)]["rets"].append([wrap_copy(rets)])
             cur_exe.clear()
-            if len(funcs[name]["saved_args"]) < 5:
-                funcs[name]["saved_args"].append(copy.deepcopy(arg_dict))
-                funcs[name]["saved_rets"].append(copy.deepcopy([rets]))
+            # if len(funcs[name]["saved_args"]) < 5:
+            #     funcs[name]["saved_args"].append(copy.deepcopy(arg_dict))
+            #     funcs[name]["saved_rets"].append(copy.deepcopy([rets]))
             return rets
 
         return wrapper

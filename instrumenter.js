@@ -24,11 +24,10 @@ let replace_strs = [];
 let head_str = fs.readFileSync("headstr.py").toString();
 let def_list = [];
 
-const trace_into_line = 14;
+const trace_into_line = head_str.split("\n").findIndex(x => x.startsWith("TRACE_INTO"));
 let write_str =
     "store_vars.append(my_labels)\n" +
-    "store_vars.append(dict(funcs))\n" +
-    "store_vars.append(dict(all_exe))\n" +
+    "store_vars.append(ddict2dict(funcs))\n" +
     "f = open(os.path.join(my_dir_path, \"" + filename_no_suffix +
     "_log.dat\"), \"wb\")\n" +
     "pickle.dump(store_vars, f)\n" +
@@ -123,9 +122,13 @@ function contain_type(node, type) {
 function value_type_handler(type, node) {
     if (type == "index") {
         assert(node.args.length == 1);
-        assert(node.args[0].type == "literal");
-        let col = node.args[0].value;
-        return "[" + col.replace(/['"]+/g, '') + "]";
+        if (node.args[0].type == "literal") {
+            let col = node.args[0].value;
+            console.log(node);
+            return "[" + col.replace(/['"]+/g, '') + "]";
+        } else if (node.args[0].type == "name") {
+            return "[" + node.args[0].id + "]";
+        }
     } else if (type == "dot") {
         return "[" + node.name.replace(/['"]+/g, '') + "]";
     }
@@ -269,10 +272,13 @@ function compute_flow_vars(code) {
             // ignore import and funtion def
             if (["import", "def", "from"].includes(flow.fromNode.type))
                 continue;
+
+            // contain local var with same name??
             interSec.forEach(x => {
                 add(ins, lineToCell.get(toLine), x);
                 add(outs, lineToCell.get(fromLine), x);
             })
+
             // console.log(interSec);
             // console.log(flow.toRef.name);
             // console.log(flow.fromRef.name);
@@ -287,7 +293,8 @@ function compute_flow_vars(code) {
     // add_extra_vars(tree); // bugs here
     let comments = static_analyzer(tree);
     def_list = collect_defs(tree.code);
-    replace_strs = replace_strs.concat(wrap_methods(tree));
+    // disable coverage replacement now
+    // replace_strs = replace_strs.concat(wrap_methods(tree));
     console.log(ins);
     console.log(outs);
     console.log(comments)
@@ -322,7 +329,7 @@ function insert_print_stmt(code) {
         if (lines[i].startsWith("#"))
             continue;
         // deal with corner case
-        if (lines[i].startsWith("get_ipython"))
+        if (lines[i].startsWith("get_ipython") || lines[i].startsWith("display("))
             lines[i] = "";
         if (lines[i].startsWith("from __future__")) {
             lines[0] = lines[i] + lines[0];
@@ -330,7 +337,7 @@ function insert_print_stmt(code) {
         }
         // deal with functions
         let space = " ".repeat((lines[i].length - lines[i].trimLeft().length))
-        if (lines[i].trim().startsWith("def")) {
+        if (lines[i].trim().startsWith("def ")) {
             lines[i] = space + "@func_info_saver(" + (i + 1) + ")\n" + lines[i]
         }
     }
@@ -339,8 +346,7 @@ function insert_print_stmt(code) {
 }
 
 
-// let tree = py.parse("x = ticket.split(' ')");
-// wrap_methods(tree);
+// let tree = py.parse("[x+y for x,y in debug]");
 // for (let [i, stmt] of tree.code.entries()) {
 //     // console.log(stmt);
 //     console.log(printNode(stmt));
