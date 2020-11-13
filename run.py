@@ -1,6 +1,7 @@
 import sys
 import os
 import time
+import subprocess
 
 filename = sys.argv[1].split('\\')[-1].split('/')[-1]
 path = sys.argv[1].replace(filename, "")
@@ -14,7 +15,10 @@ print("\033[96m {}\033[00m".format(
 print("\033[96m {}\033[00m".format(
     "Starting static analysis of the notebook..."))
 st = time.time()
-os.system("node gen_runtime_info_code.js " + path + filename_no_suffix + ".py")
+result = subprocess.run(
+    ["node", "instrumenter.js", path + filename_no_suffix + ".py"])
+if result.returncode:
+    exit()
 ed1 = time.time()
 print("\033[96m {}\033[00m".format(
     "Static analysis completed in {:.2f} seconds.".format(ed1 - st)))
@@ -24,7 +28,9 @@ print("\033[96m {}\033[00m".format(
     "------------------------------------------------"))
 print("\033[96m {}\033[00m".format(
     "Starting dynamic analysis of the notebook..."))
-os.system("python " + filename_no_suffix + "_m.py")
+result = subprocess.run(["python", filename_no_suffix + "_m.py"])
+if result.returncode:
+    exit()
 os.chdir(owd)
 ed2 = time.time()
 print("\033[96m {}\033[00m".format(
@@ -33,7 +39,7 @@ print("\033[96m {}\033[00m".format(
 print("\033[96m {}\033[00m".format(
     "------------------------------------------------"))
 print("\033[96m {}\033[00m".format("Starting generating documentation..."))
-os.system("python add_runtime_info.py " + sys.argv[1])
+os.system("python analyzer.py " + sys.argv[1])
 ed3 = time.time()
 print("\033[96m {}\033[00m".format(
     "Generation completed in {:.2f} seconds.".format(ed3 - ed2)))

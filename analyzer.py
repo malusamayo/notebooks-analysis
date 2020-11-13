@@ -117,8 +117,8 @@ class List(Variable):
                 str(variable.var[i]) + " -> " + str(self.var[i])
                 for i in range(min(len(self.var), 5))
             ]
-            self.json_map["value"] = example
-            self.comment += "\n" + blanks + "example changes: " + example
+            self.json_map["value"] = str(example)
+            self.comment += "\n" + blanks + "example changes: " + str(example)
 
 
 class NdArray(Variable):
@@ -163,10 +163,10 @@ class NdArray(Variable):
             self.comment += "\n" + blanks
             if self.name == variable.name:
                 self.comment += highlight_text("no change in the cell")
-                self.json_map["hint"] += "no change in the cell\n"
+                # self.json_map["hint"] += "no change in the cell; "
             else:
                 self.comment += highlight_text("copy of " + variable.name)
-                self.json_map["hint"] += "copy of " + variable.name + "\n"
+                self.json_map["hint"] += "copy of " + variable.name + "; "
             return True
         return False
 
@@ -188,7 +188,7 @@ class NdArray(Variable):
                     self.comment += "\n" + blanks + highlight_text(
                         "truncated from " + variable.name)
                     self.json_map[
-                        "hint"] += "truncated from " + variable.name + "\n"
+                        "hint"] += "truncated from " + variable.name + "； "
 
 
 class DataFrame(Variable):
@@ -239,14 +239,14 @@ class DataFrame(Variable):
                 return len(col.unique())
 
         _type = [str(self.var[col].dtype) for col in self.var]
-        _range = [get_range(self.var[col]) for col in self.var]
+        _range = [str(get_range(self.var[col])) for col in self.var]
 
         table = pd.DataFrame([_type] + _examples + [_range],
                              columns=self.columns)
 
-        table.insert(0, "col*", ["type"] + _example_names + ["range"])
+        table.insert(0, self.name + "*", ["type"] + _example_names + ["range"])
 
-        add_emphasis(table)
+        # add_emphasis(table)
 
         def reindex_column(columns):
             ls1 = list(filter(lambda col: col[-1] == "*", columns))
@@ -291,11 +291,11 @@ class DataFrame(Variable):
             self.comment += "\n" + blanks
             if self.name == variable.name:
                 self.comment += highlight_text("no change in the cell")
-                self.json_map["hint"] += "no change in the cell\n"
+                # self.json_map["hint"] += "no change in the cell; "
                 self.copy = True
             else:
                 self.comment += highlight_text("copy of " + variable.name)
-                self.json_map["hint"] += "copy of " + variable.name + "\n"
+                self.json_map["hint"] += "copy of " + variable.name + "; "
             return True
         return False
 
@@ -307,7 +307,7 @@ class DataFrame(Variable):
                 comment_str += str(
                     change[key]) + " " + str(key) + " columns changed"
             self.comment += highlight_text(comment_str)
-            self.json_map["hint"] += comment_str + "\n"
+            self.json_map["hint"] += comment_str + "; "
         if convert:
             self.comment += "\n" + blanks
             comment_str = ""
@@ -315,7 +315,7 @@ class DataFrame(Variable):
                 comment_str += str(convert[key]) + " " + str(
                     key[1]) + " columns converted to " + str(key[0])
             self.comment += highlight_text(comment_str)
-            self.json_map["hint"] += comment_str + "\n"
+            self.json_map["hint"] += comment_str + "; "
 
         indices = set()
         values = set()
@@ -323,12 +323,12 @@ class DataFrame(Variable):
             if col[-1] != "*":
                 continue
             col = col[:-1]
-            for i in range(len(self.var[col])):
-                if self.var[col][i] not in values:
+            for i in self.var.index:
+                if str(self.var[col][i]) not in values:
                     if col in diffset or str(variable.var[col][i]) != str(
                             self.var[col][i]):
                         indices.add(i)
-                        values.add(self.var[col][i])
+                        values.add(str(self.var[col][i]))
                 # break after enough sample points
                 if len(indices) >= 5:
                     break
@@ -366,13 +366,13 @@ class DataFrame(Variable):
             self.comment += "\n" + blanks
             comment_str = ""
             if a_minus_b:
-                comment_str += "add columns " + str(a_minus_b)
+                comment_str += "add {0} columns; ".format(len(a_minus_b))
             if b_minus_a:
-                comment_str += " remove columns " + str(b_minus_a)
+                comment_str += "remove {0} columns; ".format(len(b_minus_a))
 
             # add *s for such cols
             self.comment += highlight_text(comment_str)
-            self.json_map["hint"] += comment_str + "\n"
+            self.json_map["hint"] += comment_str
 
             for i in range(len(self.var.dtypes)):
                 if self.var.columns[i] in a_minus_b:
@@ -388,7 +388,7 @@ class DataFrame(Variable):
             column_name = var_a.columns[i]
             if column_name in diffset:
                 continue
-            if var_b[column_name].dtype != var_a[column_name].dtype:
+            if str(var_b[column_name].dtype) != str(var_a[column_name].dtype):
                 type_pair = (var_a[column_name].dtype,
                              var_b[column_name].dtype)
                 self.columns[i] += "*"
@@ -424,14 +424,14 @@ class DataFrame(Variable):
                     np.shape(variable.var)[0] -
                     np.shape(self.var)[0]) + " rows from " + variable.name
                 self.comment += highlight_text(comment_str)
-                self.json_map["hint"] += comment_str + "\n"
+                self.json_map["hint"] += comment_str + "; "
         if list(self.var.columns) != list(variable.columns):
             set_a = set(self.var.columns)
             set_b = set(variable.columns)
             if set_a == set_b:
                 self.comment += "\n" + blanks
                 self.comment += highlight_text("rearrange columns")
-                self.json_map["hint"] += "rearrange columns" + "\n"
+                self.json_map["hint"] += "rearrange columns" + "; "
 
 
 def handlecell(num, st, ed):
@@ -476,12 +476,16 @@ def handlecell(num, st, ed):
     for i in range(st, ed + 1):
         comments.append(myvars[i].comment)
 
-    json_map = {"input": {}, "output": {}}
+    json_map = {"input": {}, "output": {}, "summary": {}}
     for i in range(st, ed + 1):
         if myvars[i].outflag == 0:
             json_map["input"][myvars[i].name] = myvars[i].json_map
         elif myvars[i].outflag == 1:
             json_map["output"][myvars[i].name] = myvars[i].json_map
+            if myvars[i].json_map["type"].startswith(
+                    "DataFrame") and myvars[i].json_map["hint"] != "":
+                json_map["summary"][
+                    myvars[i].name] = myvars[i].json_map["hint"]
 
     # comments.append("\'\'\'\n")
     return "\n".join(comments), json_map
@@ -516,41 +520,48 @@ def dispatch_gen(var, name, cellnum, outflag):
         return Variable(var, name, cellnum, outflag)
 
 
-# TODO build function json map
 def gen_func_comment(fun_name, fun_map):
     # not considering multiple return types from branches
 
-    _type = [
-        k + ": " + str(type(v)) for k, v in fun_map["saved_args"][0].items()
-    ] + [str(type(x)) for x in fun_map["saved_rets"][0]] + [""]
+    _type = []
+    for k, path_map in fun_map.items():
+        if k == "loc":
+            continue
+        _type = [
+            k + ": " + str(type(v)) for k, v in path_map["args"][0].items()
+        ] + [str(type(x)) for x in path_map["rets"][0]]
+        break
 
-    # _examples = [[v for k, v in fun_map["saved_args"][i].items()] +
-    #              [x for x in fun_map["saved_rets"][i]] + [""]
-    #              for i in range(len(fun_map["saved_args"]))]
-    # _example_names = [
-    #     "example_" + str(i) for i in range(len(fun_map["saved_args"]))
-    # ]
-    total = sum(allexe[fun_name].values())
-    coverage_examples = [
-        [v for k, v in fun_map["args"][i].items()] +
-        [x for x in fun_map["rets"][i]] +
-        ['{:.2g}'.format(allexe[fun_name][fun_map["path"][i]] / total)] +
-        [allexe[fun_name][fun_map["path"][i]]]
-        for i in range(len(fun_map["args"]))
-    ]
-    coverage_example_names = [
-        "coverage_example_" + str(i) for i in range(len(fun_map["args"]))
-    ]
-    _columns = [
-        "args[{:d}]".format(i) for i in range(len(fun_map["saved_args"][0]))
-    ] + ["rets[{:d}]".format(i) for i in range(len(fun_map["saved_rets"][0]))
-         ] + ["percentage", "counts"]
+    total = sum([path_map["count"] for path_map in list(fun_map.values())[1:]])
 
-    table = pd.DataFrame(
-        [_type] + sorted(coverage_examples, key=lambda x: x[2], reverse=True),
-        ["type"] + coverage_example_names, _columns)
+    args_len, rets_len = 0, 0
+    examples = []
+    for k, path_map in fun_map.items():
+        if k == "loc":
+            continue
+        args_len = max(args_len, len(path_map["args"][0]))
+        rets_len = max(rets_len, len(path_map["rets"][0]))
+        args_list = [[v for k, v in args.items()] for args in path_map["args"]]
+        args = [[args[i] for args in args_list] for i in range(args_len)]
+        rets = [[rets[i] for rets in path_map["rets"]]
+                for i in range(rets_len)]
+        examples.append(args + rets +
+                        ['{:.2g}'.format(path_map["count"] / total)] +
+                        [path_map["count"]])
 
-    comment = "'''\n[function table]\n" + str(table) + "\n'''\n"
+    _columns = ["args[{:d}]".format(i) for i in range(args_len)
+                ] + ["rets[{:d}]".format(i)
+                     for i in range(rets_len)] + ["frequency", "counts"]
+
+    table = pd.DataFrame([_type] +
+                         sorted(examples, key=lambda x: x[2], reverse=True),
+                         columns=_columns)
+
+    table.insert(0, fun_name + "*", ["type"] +
+                 ["example_" + str(i) for i in range(len(fun_map.keys()) - 1)])
+
+    # comment = "'''\n[function table]\n" + str(table) + "\n'''\n"
+    comment = ""
     json_map = json.loads(table.to_json())
     return comment, json_map
 
@@ -580,10 +591,9 @@ if __name__ == "__main__":
     myvars = []
     with open(data_path, "rb") as f:
         tmpvars = pickle.load(f)
-    allexe = tmpvars[-1]
-    funcs = tmpvars[-2]
-    labels = tmpvars[-3]
-    tmpvars = tmpvars[:-3]
+    funcs = tmpvars[-1]
+    labels = tmpvars[-2]
+    tmpvars = tmpvars[:-2]
 
     for i in range(len(tmpvars)):
         myvars.append(
@@ -616,8 +626,9 @@ if __name__ == "__main__":
         insert_to_map(json_map, i, "comment", j, comment[1])
         insert_map[i].append((j, "# [autodocs] " + comment[1] + "\n"))
 
+    # fill not existing entries
     for key, value in json_map.items():
-        cat_list = ["input", "output", "function", "comment"]
+        cat_list = ["input", "output", "summary", "function", "comment"]
         for cat in cat_list:
             if cat not in value.keys():
                 json_map[key][cat] = {}
