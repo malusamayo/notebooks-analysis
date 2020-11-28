@@ -333,10 +333,12 @@ class DataFrame(Variable):
                 if len(indices) >= 5:
                     break
         row_num = self.var.shape[0]
-        if row_num >= 5:
-            while len(indices) < 5:
-                i = random.randint(0, row_num - 1)
-                indices.add(i)
+
+        # disable random choice
+        # if row_num >= 5:
+        # while len(indices) < 5:
+        #     i = random.randint(0, row_num - 1)
+        #     indices.add(i)
 
         def change_str(col, idx):
             if col[-1] != "*":
@@ -554,7 +556,7 @@ def gen_func_comment(fun_name, fun_map):
                      for i in range(rets_len)] + ["frequency", "counts"]
 
     table = pd.DataFrame([_type] +
-                         sorted(examples, key=lambda x: x[2], reverse=True),
+                         sorted(examples, key=lambda x: x[-1], reverse=True),
                          columns=_columns)
 
     table.insert(0, fun_name + "*", ["type"] +

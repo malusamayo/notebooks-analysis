@@ -124,7 +124,6 @@ function value_type_handler(type, node) {
         assert(node.args.length == 1);
         if (node.args[0].type == "literal") {
             let col = node.args[0].value;
-            console.log(node);
             return "[" + col.replace(/['"]+/g, '') + "]";
         } else if (node.args[0].type == "name") {
             return "[" + node.args[0].id + "]";
@@ -167,7 +166,7 @@ function static_analyzer(tree) {
             stmt_str = stmt_str.replace(lambda, lambda_rep);
             replace_strs.push([stmt.location.first_line, stmt.location.last_line, [stmt_str]]);
         }
-        if (stmt.type == "assign") {
+        if (stmt.type == "assign" && stmt.targets.length == stmt.sources.length) {
             // external input: x = pd.read_csv()
             for (let [i, src] of stmt.sources.entries()) {
                 // x[y] = x1[y1].map(...) || x.y = x1.y1.map(...)
@@ -222,7 +221,7 @@ function static_analyzer(tree) {
                             "select columns of specific data types");
                 }
                 // x.at[] = ... || x.loc[] = ...
-                if (stmt.targets[i].type == "index"
+                if (stmt.targets[i].type == "index" && stmt.targets[i].value.type == "dot"
                     && ["at", "loc"].includes(stmt.targets[i].value.name)) {
                     static_comments.set(stmt.location.first_line,
                         "re-write the column");
@@ -303,7 +302,13 @@ function compute_flow_vars(code) {
 
 // type 1 == OUT, type 0 == IN
 function print_info(cell, v, type) {
-    return "my_store_info((" + cell + ", " + type + ", \"" + v + "\"), " + v + ")\n";
+    return `
+try:
+    my_store_info((${cell}, ${type}, "${v}"), ${v})
+except NameError:
+    pass
+`
+    // "my_store_info((" + cell + ", " + type + ", \"" + v + "\"), " + v + ")\n";
 }
 
 function insert_print_stmt(code) {
