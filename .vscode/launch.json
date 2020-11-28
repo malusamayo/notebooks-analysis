@@ -19,7 +19,7 @@
       "request": "launch",
       "program": "${workspaceRoot}/analyzer.py",
       "args": [
-        ".\\notebooks\\titanic_notebooks\\data-analysis-and-feature-extraction-with-python.ipynb"
+        ".\\notebooks\\titanic_notebooks\\a-data-science-framework-to-achieve-99-accuracy.ipynb"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
@@ -28,9 +28,9 @@
       "name": "Debug JS Script",
       "type": "node",
       "request": "launch",
-      "program": "${workspaceRoot}/insrtumenter.js",
+      "program": "${workspaceRoot}/instrumenter.js",
       "args": [
-        ".\\notebooks\\titanic_notebooks\\titanic-eda-and-several-modelling-approaches.py"
+        ".\\notebooks\\titanic_notebooks\\titanic-eda-model-pipeline-keras-nn.py"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"

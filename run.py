@@ -17,9 +17,9 @@ print("\033[96m {}\033[00m".format(
 st = time.time()
 result = subprocess.run(
     ["node", "instrumenter.js", path + filename_no_suffix + ".py"])
+ed1 = time.time()
 if result.returncode:
     exit()
-ed1 = time.time()
 print("\033[96m {}\033[00m".format(
     "Static analysis completed in {:.2f} seconds.".format(ed1 - st)))
 
@@ -29,10 +29,10 @@ print("\033[96m {}\033[00m".format(
 print("\033[96m {}\033[00m".format(
     "Starting dynamic analysis of the notebook..."))
 result = subprocess.run(["python", filename_no_suffix + "_m.py"])
+ed2 = time.time()
+os.chdir(owd)
 if result.returncode:
     exit()
-os.chdir(owd)
-ed2 = time.time()
 print("\033[96m {}\033[00m".format(
     "Dynamic analysis completed in {:.2f} seconds.".format(ed2 - ed1)))
 
