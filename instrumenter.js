@@ -153,19 +153,21 @@ function static_analyzer(tree) {
     let static_comments = new Map();
     for (let [i, stmt] of tree.code.entries()) {
         // console.log(printNode(stmt));
-        let lambda = contain_type(stmt, "lambda");
-        if (lambda != undefined) {
-            // should also record/convert lambda function later
-            // lambda.name = "lambda_" + lambda.location.first_line;
-            // lambda.type = "def";
-            // lambda.params = lambda.args;
-            // lambda.code = [lambda.code, lambda.code];
-            // console.log(printNode(lambda));
-            let lambda_rep = "func_info_saver(" + stmt.location.first_line + ")(" + lambda + ")";
-            let stmt_str = printNode(stmt);
-            stmt_str = stmt_str.replace(lambda, lambda_rep);
-            replace_strs.push([stmt.location.first_line, stmt.location.last_line, [stmt_str]]);
-        }
+
+        // lambda function tracking cancelled
+        // let lambda = contain_type(stmt, "lambda");
+        // if (lambda != undefined) {
+        //     // should also record/convert lambda function later
+        //     // lambda.name = "lambda_" + lambda.location.first_line;
+        //     // lambda.type = "def";
+        //     // lambda.params = lambda.args;
+        //     // lambda.code = [lambda.code, lambda.code];
+        //     // console.log(printNode(lambda));
+        //     let lambda_rep = "func_info_saver(" + stmt.location.first_line + ")(" + lambda + ")";
+        //     let stmt_str = printNode(stmt);
+        //     stmt_str = stmt_str.replace(lambda, lambda_rep);
+        //     replace_strs.push([stmt.location.first_line, stmt.location.last_line, [stmt_str]]);
+        // }
         if (stmt.type == "assign" && stmt.targets.length == stmt.sources.length) {
             // external input: x = pd.read_csv()
             for (let [i, src] of stmt.sources.entries()) {

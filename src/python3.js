@@ -162,7 +162,7 @@ case 31:
  this.$ = [$$[$0-2]].concat($$[$0]) 
 break;
 case 32:
- this.$ = [{ type: 'parameter', name: $$[$0], location: this._$ }] 
+ this.$ = { type: 'parameter', name: $$[$0], location: this._$ }
 break;
 case 33:
  this.$ = [{ type: 'parameter', name: $$[$0-2], default_value: $$[$0], location: this._$ }] 
@@ -380,7 +380,7 @@ case 186:
  this.$ = { type: 'lambda',  args: '', code: $$[$0], location: this._$ } 
 break;
 case 187:
- this.$ = { type: 'lambda',  args: $$[$0-2], code: $$[$0-1], location: this._$ } 
+ this.$ = { type: 'lambda',  args: $$[$0-2], code: $$[$0], location: this._$ } 
 break;
 case 191: case 195: case 201: case 216: case 220: case 224: case 228: case 234: case 240:
  this.$ = $$[$0]($$[$0-1]) 
