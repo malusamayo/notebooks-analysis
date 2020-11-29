@@ -3,6 +3,10 @@
 A Typescript library for parsing Python 3 and doing basic program analysis, 
 like forming control-flow graphs and def-use chains.
 
+## How to use the tool
+1. Run `npm install` and `npm run build`
+2. Run `python run.py your_notebook.ipynb`
+
 ## Parsing
 
 To parse Python 3 code, pass a string containing the code to the `parse` method.
