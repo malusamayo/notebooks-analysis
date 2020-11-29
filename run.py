@@ -18,10 +18,11 @@ st = time.time()
 result = subprocess.run(
     ["node", "instrumenter.js", path + filename_no_suffix + ".py"])
 ed1 = time.time()
+t1 = ed1 - st
 if result.returncode:
     exit()
 print("\033[96m {}\033[00m".format(
-    "Static analysis completed in {:.2f} seconds.".format(ed1 - st)))
+    "Static analysis completed in {:.2f} seconds.".format(t1)))
 
 os.chdir(path)
 print("\033[96m {}\033[00m".format(
@@ -30,18 +31,23 @@ print("\033[96m {}\033[00m".format(
     "Starting dynamic analysis of the notebook..."))
 result = subprocess.run(["python", filename_no_suffix + "_m.py"])
 ed2 = time.time()
+t2 = ed2 - ed1
 os.chdir(owd)
 if result.returncode:
     exit()
 print("\033[96m {}\033[00m".format(
-    "Dynamic analysis completed in {:.2f} seconds.".format(ed2 - ed1)))
+    "Dynamic analysis completed in {:.2f} seconds.".format(t2)))
 
 print("\033[96m {}\033[00m".format(
     "------------------------------------------------"))
 print("\033[96m {}\033[00m".format("Starting generating documentation..."))
 os.system("python analyzer.py " + sys.argv[1])
 ed3 = time.time()
+t3 = ed3 - ed2
 print("\033[96m {}\033[00m".format(
-    "Generation completed in {:.2f} seconds.".format(ed3 - ed2)))
-print("\033[96m {}\033[00m".format(
-    "Script completed in {:.2f} seconds.".format(ed3 - st)))
+'''Generation completed in {:.2f} seconds.
+ Script completed in {:.2f} seconds.
+ Time fraction: [{:.2f}, {:.2f}, {:.2f}] seconds
+'''
+.format(t3, t1+t2+t3, t1, t2, t3)))
+
