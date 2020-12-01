@@ -13,6 +13,8 @@ pd.set_option('display.max_columns', None)
 pd.set_option('precision', 4)
 np.set_printoptions(precision=4)
 
+sys.argv.append("notebooks/fifa_notebooks/fifa-19-deep-learning-with-keras.ipynb")
+
 dir_path = os.path.dirname(os.path.realpath(sys.argv[1]))
 filename = sys.argv[1].split('\\')[-1].split('/')[-1]
 filename_no_suffix = filename[:filename.rfind(".")]
@@ -24,6 +26,7 @@ json_path = os.path.join(dir_path, filename_no_suffix + "_comment.json")
 json_out_path = os.path.join(dir_path, filename_no_suffix + "_out.json")
 
 blanks = "\t- "
+postfix = "[auto]"
 
 ### sample
 '''
@@ -41,7 +44,7 @@ def highlight_text(text):
 
 def add_emphasis(table):
     for col in table:
-        if col[-1] == "*":
+        if col.endswith(postfix):
             table[col] = table[col].map('<b>{}</b>'.format)
             # table[col] = table[col].map('**{}**'.format)
 
@@ -244,13 +247,13 @@ class DataFrame(Variable):
         table = pd.DataFrame([_type] + _examples + [_range],
                              columns=self.columns)
 
-        table.insert(0, self.name + "*", ["type"] + _example_names + ["range"])
+        table.insert(0, self.name + postfix, ["type"] + _example_names + ["range"])
 
         # add_emphasis(table)
 
         def reindex_column(columns):
-            ls1 = list(filter(lambda col: col[-1] == "*", columns))
-            ls2 = list(filter(lambda col: col[-1] != "*", columns))
+            ls1 = list(filter(lambda col: col.endswith(postfix), columns))
+            ls2 = list(filter(lambda col: not col.endswith(postfix), columns))
             return ls1 + ls2
 
         table = table.reindex(columns=reindex_column(table.columns))
@@ -320,15 +323,18 @@ class DataFrame(Variable):
         indices = set()
         values = set()
         for col in self.columns:
-            if col[-1] != "*":
+            if not col.endswith(postfix):
                 continue
             col = col[:-1]
             for i in self.var.index:
-                if str(self.var[col][i]) not in values:
-                    if col in diffset or str(variable.var[col][i]) != str(
-                            self.var[col][i]):
-                        indices.add(i)
-                        values.add(str(self.var[col][i]))
+                try:
+                    if str(self.var[col][i]) not in values:
+                        if col in diffset or str(variable.var[col][i]) != str(
+                                self.var[col][i]):
+                            indices.add(i)
+                            values.add(str(self.var[col][i]))
+                except:
+                    pass
                 # break after enough sample points
                 if len(indices) >= 5:
                     break
@@ -341,7 +347,7 @@ class DataFrame(Variable):
         #     indices.add(i)
 
         def change_str(col, idx):
-            if col[-1] != "*":
+            if not col.endswith(postfix):
                 return str(self.var[col][idx])
             col = col[:-1]
             if col in diffset:
@@ -378,7 +384,7 @@ class DataFrame(Variable):
 
             for i in range(len(self.var.dtypes)):
                 if self.var.columns[i] in a_minus_b:
-                    self.columns[i] += "*"
+                    self.columns[i] += postfix
         return a_minus_b, b_minus_a
 
     def check_change(self, variable, diffset):
@@ -393,13 +399,13 @@ class DataFrame(Variable):
             if str(var_b[column_name].dtype) != str(var_a[column_name].dtype):
                 type_pair = (var_a[column_name].dtype,
                              var_b[column_name].dtype)
-                self.columns[i] += "*"
+                self.columns[i] += postfix
                 if type_pair not in convert.keys():
                     convert[type_pair] = 1
                 else:
                     convert[type_pair] += 1
             elif not var_b[column_name].equals(var_a[column_name]):
-                self.columns[i] += "*"
+                self.columns[i] += postfix
                 if var_a.dtypes[i] not in change.keys():
                     change[var_a.dtypes[i]] = 1
                 else:
@@ -559,7 +565,7 @@ def gen_func_comment(fun_name, fun_map):
                          sorted(examples, key=lambda x: x[-1], reverse=True),
                          columns=_columns)
 
-    table.insert(0, fun_name + "*", ["type"] +
+    table.insert(0, fun_name + postfix, ["type"] +
                  ["example_" + str(i) for i in range(len(fun_map.keys()) - 1)])
 
     # comment = "'''\n[function table]\n" + str(table) + "\n'''\n"
@@ -624,7 +630,7 @@ if __name__ == "__main__":
         insert_map[i].append((j, comment))
 
     for comment in static_comments:
-        (i, j) = line_to_idx[comment[0] - 1]
+        (i, j) = line_to_idx[comment[0] - 3]
         insert_to_map(json_map, i, "comment", j, comment[1])
         insert_map[i].append((j, "# [autodocs] " + comment[1] + "\n"))
 

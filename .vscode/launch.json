@@ -10,7 +10,7 @@
       "type": "python",
       "request": "launch",
       "program": "${file}",
-      "cwd": "${workspaceRoot}/notebooks/titanic_notebooks",
+      // "cwd": "${workspaceRoot}/notebooks/titanic_notebooks",
       "console": "integratedTerminal"
     },
     {
