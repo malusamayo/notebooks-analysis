@@ -7,5 +7,6 @@
     "**/.git/objects/**": true,
     "**/.git/subtree-cache/**": true,
     "**/node_modules/*/**": true
-  }
+  },
+  "python.pythonPath": "/home/stevenyang/anaconda3/bin/python"
 }

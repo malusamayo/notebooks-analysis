@@ -317,7 +317,7 @@ function insert_print_stmt(code) {
     let lines = code.split("\n");
     let max_line = lines.length;
     let cur_cell = 0;
-    lines[0] = lines[0] + head_str;
+    lines[0] = head_str + lines[0];
     for (let item of replace_strs) {
         let idx = item[0] - 1;
         let space = " ".repeat((lines[idx].length - lines[idx].trimLeft().length))
