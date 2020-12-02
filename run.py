@@ -2,9 +2,18 @@ import sys
 import os
 import time
 import subprocess
+import argparse
 
-filename = sys.argv[1].split('\\')[-1].split('/')[-1]
-path = sys.argv[1].replace(filename, "")
+parser = argparse.ArgumentParser(description='Generate documentation for notebooks')
+parser.add_argument('notebook', help='the notebook to be analyzed')
+parser.add_argument('-c', '--clean', help='clean intermediate files', action="store_true")
+parser.add_argument('-s', '--skip', help='skip execution of original script', action="store_true")
+parser.add_argument('-k', '--keep', help='keep output of scripts', action="store_true")
+
+args = parser.parse_args()
+
+filename = args.notebook.split('\\')[-1].split('/')[-1]
+path = args.notebook.replace(filename, "")
 filename_no_suffix = filename[:filename.rfind(".")]
 suffix = filename[filename.rfind("."):]
 owd = os.getcwd()
@@ -14,14 +23,17 @@ log = open(os.path.join(path, "log.txt"), "a")
 t = [0, 0, 0, 0]
 
 def execute_script():
-    os.system("jupyter nbconvert --to python " + sys.argv[1])
+    if args.skip:
+        return
     os.chdir(path)
     print("\033[96m {}\033[00m".format('-'*40))
     print("\033[96m {}\033[00m".format(
         "Cleaning the original notebook..."))
     # clean up the python code first
     with open(filename_no_suffix + ".py", "r+") as f:
-        content = "import os, sys \nsys.stdout = open(os.devnull, \"w\")\n"
+        content = ""
+        if not args.keep:
+            content += "import os, sys \nsys.stdout = open(os.devnull, \"w\")\n"
         for line in f:
             if line.startswith("get_ipython") or line.startswith("display("):
                 line = "# " + line
@@ -85,7 +97,7 @@ def analyze():
     print("\033[96m {}\033[00m".format('-'*40))
     print("\033[96m {}\033[00m".format("Starting generating documentation..."))
     st = time.time()
-    result = subprocess.run(["python", "analyzer.py", sys.argv[1]])
+    result = subprocess.run(["python", "analyzer.py", args.notebook])
     ed3 = time.time()
     t[3] = ed3 - st
     if result.returncode:
@@ -102,7 +114,18 @@ def analyze():
     log.write(filename + "\t" + "{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\n".format(t[0], t[1], t[2], t[3], t[1]+t[2]+t[3]))
     log.close()
 
+def clean():
+    subprocess.run(["rm", os.path.join(path, filename_no_suffix + "_log.dat")])
+    if not args.clean:
+        return
+    subprocess.run(["rm", os.path.join(path, filename_no_suffix + ".py")])
+    subprocess.run(["rm", os.path.join(path, filename_no_suffix + "_m.py")])
+    subprocess.run(["rm", os.path.join(path, filename_no_suffix + "_comment.json")])
+
+
+os.system("jupyter nbconvert --to python " + args.notebook)
 execute_script()
 static_analysis()
 dynamic_analysis()
 analyze()
+clean()
