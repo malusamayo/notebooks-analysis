@@ -4,8 +4,8 @@ import pickle
 import copy as lib_copy
 import inspect, collections, functools
 import matplotlib
-store_vars = []
-my_labels = []
+store_vars = collections.defaultdict(list)
+# my_labels = []
 my_dir_path = os.path.dirname(os.path.realpath(__file__))
 ignore_types = [
     "<class 'module'>", "<class 'type'>", "<class 'function'>",
@@ -66,8 +66,9 @@ sys.settrace(trace_calls)
 def my_store_info(info, var):
     if str(type(var)) in ignore_types:
         return
-    my_labels.append(info)
-    store_vars.append(wrap_copy(var))
+    # my_labels.append(info)
+    # store_vars.append(wrap_copy(var))
+    store_vars[info[0]].append((wrap_copy(var), info))
 
 
 def wrap_copy(var):
@@ -141,3 +142,4 @@ def cov(f):
         return cov_wrapper_2
     else:
         return f
+

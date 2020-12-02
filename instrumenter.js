@@ -26,12 +26,16 @@ let def_list = [];
 
 const trace_into_line = head_str.split("\n").findIndex(x => x.startsWith("TRACE_INTO"));
 let write_str =
-    "store_vars.append(my_labels)\n" +
-    "store_vars.append(ddict2dict(funcs))\n" +
-    "f = open(os.path.join(my_dir_path, \"" + filename_no_suffix +
-    "_log.dat\"), \"wb\")\n" +
-    "pickle.dump(store_vars, f)\n" +
-    "f.close()\n";
+    `
+tmp_dir_path = os.path.join(my_dir_path, "${filename_no_suffix}")
+if not os.path.isdir(tmp_dir_path):
+    os.mkdir(tmp_dir_path)
+for idx, vars in store_vars.items():
+    with open(os.path.join(tmp_dir_path, "${filename_no_suffix}_" + str(idx) + ".dat"), "wb") as f:
+        pickle.dump(vars, f)
+with open(os.path.join(tmp_dir_path, "${filename_no_suffix}_f.dat"), "wb") as f:
+    pickle.dump(ddict2dict(funcs), f)
+`
 
 function init_lineToCell() {
     let lines = text.split("\n");
