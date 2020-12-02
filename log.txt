@@ -1,1 +1,0 @@
--s	Static analysis failed

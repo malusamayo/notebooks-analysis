@@ -13,14 +13,14 @@ pd.set_option('display.max_columns', None)
 pd.set_option('precision', 4)
 np.set_printoptions(precision=4)
 
-sys.argv.append("notebooks/fifa_notebooks/fifa-19-deep-learning-with-keras.ipynb")
+sys.argv.append("notebooks/initial_test_notebooks/debug_example.ipynb")
 
 dir_path = os.path.dirname(os.path.realpath(sys.argv[1]))
 filename = sys.argv[1].split('\\')[-1].split('/')[-1]
 filename_no_suffix = filename[:filename.rfind(".")]
 suffix = filename[filename.rfind("."):]
 
-data_path = os.path.join(dir_path, filename_no_suffix + "_log.dat")
+data_path = os.path.join(dir_path, filename_no_suffix)
 output_path = os.path.join(dir_path, filename_no_suffix + "_m" + suffix)
 json_path = os.path.join(dir_path, filename_no_suffix + "_comment.json")
 json_out_path = os.path.join(dir_path, filename_no_suffix + "_out.json")
@@ -442,7 +442,7 @@ class DataFrame(Variable):
                 self.json_map["hint"] += "rearrange columns" + "; "
 
 
-def handlecell(num, st, ed):
+def handlecell(myvars, st, ed):
     # comments = ["\'\'\'"]
     comments = []
     first_in = -1
@@ -496,25 +496,26 @@ def handlecell(num, st, ed):
                     myvars[i].name] = myvars[i].json_map["hint"]
 
     # comments.append("\'\'\'\n")
-    return "\n".join(comments), json_map
+    # return "\n".join(comments), 
+    return json_map
 
 
-def gen_comments(labels, tmpvars):
-    comment_str = {}
-    max_len = len(labels)
-    intervals = {}
-    for i in range(max_len):
-        curcell = labels[i][0]
-        if curcell not in intervals.keys():
-            intervals[curcell] = (i, i)
-        else:
-            intervals[curcell] = (intervals[curcell][0], i)
-    json_map = {}
-    for key in intervals:
-        comment_str[key], inner_json_map = handlecell(key, intervals[key][0],
-                                                      intervals[key][1])
-        json_map[code_indices[key - 1]] = inner_json_map
-    return comment_str, json_map
+# def gen_comments(labels, tmpvars):
+#     comment_str = {}
+#     max_len = len(labels)
+#     intervals = {}
+#     for i in range(max_len):
+#         curcell = labels[i][0]
+#         if curcell not in intervals.keys():
+#             intervals[curcell] = (i, i)
+#         else:
+#             intervals[curcell] = (intervals[curcell][0], i)
+#     json_map = {}
+#     for key in intervals:
+#         comment_str[key], inner_json_map = handlecell(key, intervals[key][0],
+#                                                       intervals[key][1])
+#         json_map[code_indices[key - 1]] = inner_json_map
+#     return comment_str, json_map
 
 
 def dispatch_gen(var, name, cellnum, outflag):
@@ -595,19 +596,36 @@ if __name__ == "__main__":
         for j in range(l):
             line_to_idx[idx + j] = (code_indices[i], j)
 
-    tmpvars = []
-    myvars = []
-    with open(data_path, "rb") as f:
-        tmpvars = pickle.load(f)
-    funcs = tmpvars[-1]
-    labels = tmpvars[-2]
-    tmpvars = tmpvars[:-2]
+    json_map = {}
+    funcs = []
 
-    for i in range(len(tmpvars)):
-        myvars.append(
-            dispatch_gen(tmpvars[i], labels[i][2], labels[i][0], labels[i][1]))
+    for file in os.listdir(data_path):
+        myvars = []
+        if file.endswith("_f.dat"):
+            with open(os.path.join(data_path, file), "rb") as f:
+                funcs = pickle.load(f)
+        else:
+            with open(os.path.join(data_path, file), "rb") as f:
+                vars = pickle.load(f)
+                for i in range(len(vars)):
+                    try:
+                        myvars.append(
+                            dispatch_gen(vars[i][0], vars[i][1][2], vars[i][1][0], vars[i][1][1]))
+                    except:
+                        pass
+                json_map[code_indices[vars[0][1][0] - 1]] = handlecell(myvars, 0, len(vars)-1)
 
-    comment_str, json_map = gen_comments(labels, tmpvars)
+    # with open(data_path, "rb") as f:
+    #     tmpvars = pickle.load(f)
+    # funcs = tmpvars[-1]
+    # labels = tmpvars[-2]
+    # tmpvars = tmpvars[:-2]
+
+    # for i in range(len(tmpvars)):
+    #     myvars.append(
+    #         dispatch_gen(tmpvars[i], labels[i][2], labels[i][0], labels[i][1]))
+
+    # comment_str, json_map = gen_comments(labels, tmpvars)
 
     with open(json_path) as f:
         static_comments = json.load(f)
@@ -624,7 +642,8 @@ if __name__ == "__main__":
     insert_map = collections.defaultdict(list)
     for fun_name, fun_map in funcs.items():
         # print(lines[fun_map["loc"] - 1])
-        (i, j) = line_to_idx[fun_map["loc"] - 1]
+        # affected by "-s"
+        (i, j) = line_to_idx[fun_map["loc"] -3]
         comment, func_json_map = gen_func_comment(fun_name, fun_map)
         insert_to_map(json_map, i, "function", fun_name, func_json_map)
         insert_map[i].append((j, comment))

@@ -41,7 +41,6 @@ def execute_script():
         f.seek(0)
         f.truncate()
         f.write(content)
-    f.close()
 
     print("\033[96m {}\033[00m".format(
         "Running the original notebook..."))
