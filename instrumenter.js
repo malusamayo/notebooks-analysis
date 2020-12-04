@@ -300,6 +300,10 @@ function compute_flow_vars(code) {
     // add_extra_vars(tree); // bugs here
     let comments = static_analyzer(tree);
     def_list = collect_defs(tree.code);
+    def_list.forEach(item => {
+        comments.set(item[0], lineToCell.get(item[1]))
+    });
+    def_list = def_list.map(item => item[0]);
     // disable coverage replacement now
     // replace_strs = replace_strs.concat(wrap_methods(tree));
     console.log(ins);
