@@ -188,10 +188,10 @@ function collect_defs(code) {
     let def_list = []
     for (let [i, stmt] of code.entries()) {
         if (stmt.type == "def") {
-            def_list.push(stmt.name);
+            def_list.push([stmt.name, stmt.location.first_line]);
             def_list.concat(collect_defs(stmt.code));
         } else if (stmt.type == "class") {
-            collect_defs(stmt.code);
+            def_list.concat(collect_defs(stmt.code));
         }
     }
     return def_list;

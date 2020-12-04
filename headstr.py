@@ -105,8 +105,9 @@ def func_info_saver(line):
                 funcs[name][tuple(cur_exe)]["rets"] = []
 
             funcs[name][tuple(cur_exe)]["count"] += 1
-            funcs[name][tuple(cur_exe)]["args"].append(wrap_copy(arg_dict))
-            funcs[name][tuple(cur_exe)]["rets"].append([wrap_copy(rets)])
+            if funcs[name][tuple(cur_exe)]["count"] <= 10:
+                funcs[name][tuple(cur_exe)]["args"].append(wrap_copy(arg_dict))
+                funcs[name][tuple(cur_exe)]["rets"].append([wrap_copy(rets)])
             cur_exe.clear()
             # if len(funcs[name]["saved_args"]) < 5:
             #     funcs[name]["saved_args"].append(copy.deepcopy(arg_dict))

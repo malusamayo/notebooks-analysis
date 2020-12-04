@@ -13,7 +13,7 @@ pd.set_option('display.max_columns', None)
 pd.set_option('precision', 4)
 np.set_printoptions(precision=4)
 
-sys.argv.append("notebooks/fifa_notebooks/fifa19-ultimate-team.ipynb")
+sys.argv.append("notebooks/fifa_notebooks/serie-a-league-player-analysis-fifa-19.ipynb")
 
 dir_path = os.path.dirname(os.path.realpath(sys.argv[1]))
 filename = sys.argv[1].split('\\')[-1].split('/')[-1]
@@ -496,8 +496,7 @@ def handlecell(myvars, st, ed):
                     myvars[i].name] = myvars[i].json_map["hint"]
 
     # comments.append("\'\'\'\n")
-    # return "\n".join(comments), 
-    return json_map
+    return "\n".join(comments), json_map
 
 
 # def gen_comments(labels, tmpvars):
@@ -587,33 +586,39 @@ if __name__ == "__main__":
     code_indices = list(
         filter(lambda i: notebook.cells[i] in code_cells,
                range(len(notebook.cells))))
-    begin_indices = [
-        i + 3 for i in range(len(lines)) if lines[i].startswith("# In[")
-    ]
-    line_to_idx = {}
-    for i, idx in enumerate(begin_indices):
-        l = len(notebook.cells[code_indices[i]].source.split("\n"))
-        for j in range(l):
-            line_to_idx[idx + j] = (code_indices[i], j)
+    # begin_indices = [
+    #     i + 3 for i in range(len(lines)) if lines[i].startswith("# In[")
+    # ]
+    # line_to_idx = {}
+    # for i, idx in enumerate(begin_indices):
+    #     l = len(notebook.cells[code_indices[i]].source.split("\n"))
+    #     for j in range(l):
+    #         line_to_idx[idx + j] = (code_indices[i], j)
 
     json_map = {}
-    funcs = []
+    funcs = {}
 
     for file in os.listdir(data_path):
         myvars = []
         if file.endswith("_f.dat"):
             with open(os.path.join(data_path, file), "rb") as f:
-                funcs = pickle.load(f)
+                try:
+                    funcs = pickle.load(f)
+                except:
+                    pass
         else:
             with open(os.path.join(data_path, file), "rb") as f:
-                vars = pickle.load(f)
+                try:
+                    vars = pickle.load(f)
+                except AttributeError:
+                    continue
                 for i in range(len(vars)):
                     try:
                         myvars.append(
                             dispatch_gen(vars[i][0], vars[i][1][2], vars[i][1][0], vars[i][1][1]))
                     except:
                         pass
-                json_map[code_indices[vars[0][1][0] - 1]] = handlecell(myvars, 0, len(vars)-1)
+                _, json_map[code_indices[vars[0][1][0] - 1]] = handlecell(myvars, 0, len(vars)-1)
 
     # with open(data_path, "rb") as f:
     #     tmpvars = pickle.load(f)
@@ -628,8 +633,8 @@ if __name__ == "__main__":
     # comment_str, json_map = gen_comments(labels, tmpvars)
 
     # comment should be used later, along with cell number
-    # with open(json_path) as f:
-    #     static_comments = json.load(f)
+    with open(json_path) as f:
+        static_comments = json.load(f)
 
     def insert_to_map(json_map, cell_num, cat, name, value):
         if cell_num not in json_map.keys():
@@ -644,10 +649,13 @@ if __name__ == "__main__":
     for fun_name, fun_map in funcs.items():
         # print(lines[fun_map["loc"] - 1])
         # affected by "-s"
-        (i, j) = line_to_idx[fun_map["loc"] -3]
+        # (i, j) = line_to_idx[fun_map["loc"] -3]
+        fun_name_no_idx = fun_name[:fun_name.rfind("_")]
+        cell_num = [x[1] for x in static_comments if x[0] == fun_name_no_idx]
+        assert(len(cell_num) == 1)
         comment, func_json_map = gen_func_comment(fun_name, fun_map)
-        insert_to_map(json_map, i, "function", fun_name, func_json_map)
-        insert_map[i].append((j, comment))
+        insert_to_map(json_map, cell_num[0], "function", fun_name, func_json_map)
+        # insert_map[i].append((j, comment))
 
     # for comment in static_comments:
     #     (i, j) = line_to_idx[comment[0] - 3]
