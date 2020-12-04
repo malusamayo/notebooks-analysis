@@ -13,7 +13,7 @@ pd.set_option('display.max_columns', None)
 pd.set_option('precision', 4)
 np.set_printoptions(precision=4)
 
-sys.argv.append("notebooks/initial_test_notebooks/debug_example.ipynb")
+sys.argv.append("notebooks/fifa_notebooks/fifa19-ultimate-team.ipynb")
 
 dir_path = os.path.dirname(os.path.realpath(sys.argv[1]))
 filename = sys.argv[1].split('\\')[-1].split('/')[-1]
@@ -627,8 +627,9 @@ if __name__ == "__main__":
 
     # comment_str, json_map = gen_comments(labels, tmpvars)
 
-    with open(json_path) as f:
-        static_comments = json.load(f)
+    # comment should be used later, along with cell number
+    # with open(json_path) as f:
+    #     static_comments = json.load(f)
 
     def insert_to_map(json_map, cell_num, cat, name, value):
         if cell_num not in json_map.keys():
@@ -648,10 +649,10 @@ if __name__ == "__main__":
         insert_to_map(json_map, i, "function", fun_name, func_json_map)
         insert_map[i].append((j, comment))
 
-    for comment in static_comments:
-        (i, j) = line_to_idx[comment[0] - 3]
-        insert_to_map(json_map, i, "comment", j, comment[1])
-        insert_map[i].append((j, "# [autodocs] " + comment[1] + "\n"))
+    # for comment in static_comments:
+    #     (i, j) = line_to_idx[comment[0] - 3]
+    #     insert_to_map(json_map, i, "comment", j, comment[1])
+    #     insert_map[i].append((j, "# [autodocs] " + comment[1] + "\n"))
 
     # fill not existing entries
     for key, value in json_map.items():
