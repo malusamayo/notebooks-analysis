@@ -22,18 +22,20 @@ log = open(os.path.join(path, "log.txt"), "a")
 
 t = [0, 0, 0, 0]
 
+def my_print(msg):
+    print("\033[96m {}\033[00m".format(msg))
+
 def execute_script():
     if args.skip:
         return
     os.chdir(path)
-    print("\033[96m {}\033[00m".format('-'*40))
-    print("\033[96m {}\033[00m".format(
-        "Cleaning the original notebook..."))
+    my_print('-'*40)
+    my_print("Cleaning the original notebook...")
     # clean up the python code first
     with open(filename_no_suffix + ".py", "r+") as f:
         content = ""
         if not args.keep:
-            content += "import os, sys \nsys.stdout = open(os.devnull, \"w\")\n"
+            content += "import os, sys, matplotlib \nsys.stdout = open(os.devnull, \"w\")\nmatplotlib.use('Agg')\n"
         for line in f:
             if line.startswith("get_ipython") or line.startswith("display("):
                 line = "# " + line
@@ -42,8 +44,7 @@ def execute_script():
         f.truncate()
         f.write(content)
 
-    print("\033[96m {}\033[00m".format(
-        "Running the original notebook..."))
+    my_print("Running the original notebook...")
     st = time.time()
     result = subprocess.run(["python", filename_no_suffix + ".py"])
     ed0 = time.time()
@@ -114,7 +115,8 @@ def analyze():
     log.close()
 
 def clean():
-    subprocess.run(["rm", os.path.join(path, filename_no_suffix + "_log.dat")])
+    os.system("rm " + os.path.join(path, filename_no_suffix, "*.dat"))
+    subprocess.run(["rmdir", os.path.join(path, filename_no_suffix)])
     if not args.clean:
         return
     subprocess.run(["rm", os.path.join(path, filename_no_suffix + ".py")])

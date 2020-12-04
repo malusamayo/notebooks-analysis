@@ -159,6 +159,7 @@ function static_analyzer(tree) {
         // console.log(printNode(stmt));
 
         // lambda function tracking cancelled
+
         // let lambda = contain_type(stmt, "lambda");
         // if (lambda != undefined) {
         //     // should also record/convert lambda function later
@@ -172,6 +173,7 @@ function static_analyzer(tree) {
         //     stmt_str = stmt_str.replace(lambda, lambda_rep);
         //     replace_strs.push([stmt.location.first_line, stmt.location.last_line, [stmt_str]]);
         // }
+        let key = lineToCell.get(stmt.location.first_line);
         if (stmt.type == "assign" && stmt.targets.length == stmt.sources.length) {
             // external input: x = pd.read_csv()
             for (let [i, src] of stmt.sources.entries()) {
@@ -179,7 +181,7 @@ function static_analyzer(tree) {
                 if (src.type == "call" && src.func.name == "map") {
                     let res = map_handler(src, stmt.targets[i]);
                     if (res)
-                        static_comments.set(stmt.location.first_line,
+                        static_comments.set(key,
                             res);
                     // let value_type = ["index", "dot"];
                     // if (value_type.includes(stmt.targets[i].type)
@@ -192,51 +194,51 @@ function static_analyzer(tree) {
                     //         comment = "modify column " + des_col + " using map/apply"
                     //     else
                     //         comment = "create column " + des_col + " from " + src_col
-                    //     static_comments.set(stmt.location.first_line,
+                    //     static_comments.set(key,
                     //         comment);
                     // }
                 }
                 if (src.type == "call" && src.func.name == "apply") {
                     let res = map_handler(src, stmt.targets[i]);
                     if (res)
-                        static_comments.set(stmt.location.first_line,
+                        static_comments.set(key,
                             res);
                     else {
                         let value_type = ["index", "dot"];
                         if (value_type.includes(stmt.targets[i].type)) {
                             let des_col = value_type_handler(stmt.targets[i].type, stmt.targets[i]);
-                            static_comments.set(stmt.location.first_line,
+                            static_comments.set(key,
                                 "create column " + des_col + " from whole row");
                         }
                     }
                 }
                 // x = pd.get_dymmies()
                 if (src.type == "call" && src.func.name == "get_dummies") {
-                    static_comments.set(stmt.location.first_line,
+                    static_comments.set(key,
                         "encoding in dummy variables");
                 }
                 // x1, x2, y1, y2 = train_test_split()
                 if (src.type == "call" && src.func.name == "train_test_split") {
-                    static_comments.set(stmt.location.first_line,
+                    static_comments.set(key,
                         "spliting data to train set and test set");
                 }
                 // x = df.select_dtypes().columns
                 if (src.type == "dot" && src.name == "columns") {
                     if (src.value.type == "call" && src.value.func.name == "select_dtypes")
-                        static_comments.set(stmt.location.first_line,
+                        static_comments.set(key,
                             "select columns of specific data types");
                 }
                 // x.at[] = ... || x.loc[] = ...
                 if (stmt.targets[i].type == "index" && stmt.targets[i].value.type == "dot"
                     && ["at", "loc"].includes(stmt.targets[i].value.name)) {
-                    static_comments.set(stmt.location.first_line,
+                    static_comments.set(key,
                         "re-write the column");
                 }
             }
         } else if (stmt.type == "call") {
             // x.fillna()
             if (stmt.func.name == "fillna") {
-                static_comments.set(stmt.location.first_line,
+                static_comments.set(key,
                     "fill missing values");
             }
         }
