@@ -193,6 +193,37 @@ class NdArray(Variable):
                     self.json_map[
                         "hint"] += "truncated from " + variable.name + "； "
 
+'''
+column-level checker for dataframe patterns
+'''
+class PatternChecker(object):
+    def __init__(self):
+        pass
+    '''
+    df1: after, df2: before, col: the target column
+    '''
+    def check_fillna(self, df1, df2, from_col, to_col):
+        cmp_df = df1[to_col].compare(df2[from_col])
+        if cmp_df["other"].isnull().all():
+            return True
+    
+    def check_typeconvert(self, df1, df2, from_col, to_col):
+        if str(df1[to_col].dtype) != str(df2[from_col].dtype):
+            return True
+    
+    def check_dict(self):
+        return True
+
+    def check_str(self, df1, df2, from_col, to_col):
+        if str(df1[to_col].dtype) == "str":
+            return True
+    
+    def check_num(self, df1, df2, from_col, to_col):
+        if np.issubdtype(df1[to_col].dtype, np.number):
+            return True
+    
+    def check(self, df1, df2, from_col, to_col):
+        pass
 
 class DataFrame(Variable):
     def __init__(self, var, name, cellnum, outflag):
@@ -632,6 +663,7 @@ if __name__ == "__main__":
 
     # comment_str, json_map = gen_comments(labels, tmpvars)
 
+    # format: [[cellnum, comment] or [funcname, cellnum]]
     # comment should be used later, along with cell number
     with open(json_path) as f:
         static_comments = json.load(f)

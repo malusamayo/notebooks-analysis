@@ -87,8 +87,7 @@ funcs.forEach(item => {
 })
 console.log(funcs.length)
 
-// console.log(cntType);
-// console.log(length_arr)
-// console.log(length_arr.reduce((x, y) => x + y, 0))
-// console.log(summaries.length);
-// console.log(summaries);
+console.log(cntType);
+console.log(length_arr)
+console.log(length_arr.reduce((x, y) => x + y, 0))
+console.log(summaries);
