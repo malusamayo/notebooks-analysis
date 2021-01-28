@@ -30,7 +30,7 @@
       "request": "launch",
       "program": "${workspaceRoot}/instrumenter.js",
       "args": [
-        "./notebooks/initial_test_notebooks/debug_example.py"
+        "./notebooks/debug_example.py"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"

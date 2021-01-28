@@ -14,6 +14,156 @@ const str_fun = ["capitalize", "casefold", "lower", "replace", "title", "upper",
 
 let changed = false;
 
+function find_col(node) {
+    switch (node.type) {
+        case 'assert':
+            find_col(node.cond);
+            break;
+        case 'assign': {
+            node.targets.forEach(x => find_col(x));
+            node.sources.forEach(x => find_col(x));
+            break;
+        }
+        case 'binop': {
+            find_col(node.left);
+            find_col(node.right);
+            break;
+        }
+        case 'call': {
+            find_col(node.func);
+            node.args.forEach(x => find_col(x));
+            break;
+        }
+        case 'class': {
+            node.code.forEach(stmt => find_col(stmt));
+            break;
+        }
+        // case 'decorator':
+        //     return ('@' +
+        //         node.decorator +
+        //         (node.args ? '(' + commaSep(node.args) + ')' : ''));
+        // case 'decorate':
+        //     return (tabs +
+        //         lines(node.decorators, tabLevel) +
+        //         printTabbed(node.def, tabLevel));
+        case 'def': {
+            node.code.forEach(stmt => find_col(stmt, true));
+            break;
+        }
+        case 'dot': {
+            find_col(node.value);
+            if (node.value.type == "name" &&
+                find_col.pyTypeof.get(node.value.id) != undefined)
+                find_col.cols.add(node.name)
+            break;
+        }
+        case 'else': {
+            node.code.forEach(x => find_col(x));
+            break;
+        }
+        case 'for': {
+            node.code.forEach(x => find_col(x));
+            if (node.else)
+                node.else.forEach(x => find_col(x));
+            break;
+        }
+        case 'if': {
+            // no need to replace condition?
+            // find_col(node.cond);
+            node.code.forEach(x => find_col(x));
+            if (node.elif) {
+                node.elif.forEach(elif => elif.code.forEach(x => find_col(x)))
+            }
+            if (node.else) {
+                node.else.code.forEach(x => find_col(x));
+            }
+            break;
+        }
+        // case 'ifexpr':
+        //     return (printNode(node.then) +
+        //         ' if ' +
+        //         printNode(node.test) +
+        //         ' else ' +
+        //         printNode(node.else));
+        case 'index': {
+            find_col(node.value);
+            node.args.forEach(x => find_col(x));
+            if (node.value.type == "name" &&
+                find_col.pyTypeof.get(node.value.id) != undefined &&
+                node.args.length == 1 &&
+                node.args[0].type == "literal")
+                find_col.cols.add(node.args[0].value)
+            break;
+        }
+        // case 'lambda':
+        //     return ('lambda ' +
+        //         node.args.map(printParam).join(comma) +
+        //         ': ' +
+        //         printNode(node.code));
+        // case 'list':
+        //     return '[' + node.items.map(function (item) { return printNode(item); }).join(comma) + ']';
+        // case 'module':
+        //     return lines(node.code, tabLevel);
+        // case 'name':
+        //     return node.id;
+        // case 'nonlocal':
+        //     return tabs + 'nonlocal ' + node.names.join(comma);
+        // case 'return':
+        //     return tabs + 'return ' + (node.values ? commaSep(node.values) : '');
+        // case 'set':
+        //     return '{' + commaSep(node.entries) + '}';
+        // case 'slice':
+        //     return ((node.start ? printNode(node.start) : '') +
+        //         ':' +
+        //         (node.stop ? printNode(node.stop) : '') +
+        //         (node.step ? ':' + printNode(node.step) : ''));
+        // case 'starred':
+        //     find_col(node.value);
+        // case 'try':
+        //     return (tabs +
+        //         'try:' +
+        //         lines(node.code, tabLevel + 1) +
+        //         (node.excepts
+        //             ? node.excepts.map(function (ex) {
+        //                 return tabs +
+        //                     'except ' +
+        //                     (ex.cond
+        //                         ? printNode(ex.cond) + (ex.name ? ' as ' + ex.name : '')
+        //                         : '') +
+        //                     ':' +
+        //                     lines(ex.code, tabLevel + 1);
+        //             })
+        //             : '') +
+        //         (node.else ? tabs + 'else:' + lines(node.else, tabLevel + 1) : '') +
+        //         (node.finally
+        //             ? tabs + 'finally:' + lines(node.finally, tabLevel + 1)
+        //             : ''));
+        // case 'tuple':
+        //     node.items.forEach(x => find_col(x));
+        case 'unop': {
+            find_col(node.operand);
+            break;
+        }
+        case 'while': {
+            // find_col(node.cond);
+            node.code.forEach(x => find_col(x));
+            break;
+        }
+        // case 'with':
+        //     return (tabs +
+        //         'with ' +
+        //         node.items.map(function (w) { return w.with + (w.as ? ' as ' + w.as : ''); }).join(comma) +
+        //         ':' +
+        //         lines(node.code, tabLevel + 1));
+        // case 'yield':
+        //     return (tabs +
+        //         'yield ' +
+        //         (node.from ? printNode(node.from) : '') +
+        //         (node.value ? commaSep(node.value) : ''));
+    }
+    return [];
+}
+
 function traverse(node, in_def) {
     switch (node.type) {
         case 'assert':
@@ -111,6 +261,10 @@ function traverse(node, in_def) {
         //     return '[' + node.items.map(function (item) { return printNode(item); }).join(comma) + ']';
         // case 'module':
         //     return lines(node.code, tabLevel);
+        // case 'name':
+        //     return node.id;
+        // case 'nonlocal':
+        //     return tabs + 'nonlocal ' + node.names.join(comma);
         // case 'return':
         //     return tabs + 'return ' + (node.values ? commaSep(node.values) : '');
         // case 'set':
@@ -197,5 +351,13 @@ function collect_defs(code) {
     return def_list;
 }
 
+function collect_cols(stmt, pyTypeof) {
+    find_col.cols = new Set();
+    find_col.pyTypeof = pyTypeof;
+    find_col(stmt);
+    return find_col.cols;
+}
+
 exports.collect_defs = collect_defs;
 exports.wrap_methods = wrap_methods;
+exports.collect_cols = collect_cols;

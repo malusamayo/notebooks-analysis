@@ -7,7 +7,7 @@ const { printArg } = require("./dist/es5/printNode");
 const { ADDRCONFIG } = require("dns");
 const { assert } = require("console");
 const { collapseTextChangeRangesAcrossMultipleVersions } = require("typescript");
-const { wrap_methods, collect_defs } = require('../python-program-analysis/method-wrapper');
+const { wrap_methods, collect_defs, collect_cols } = require('../python-program-analysis/method-wrapper');
 
 let args = process.argv.slice(2);
 let path = args[0];
@@ -23,6 +23,8 @@ let outs = new Map();
 let replace_strs = [];
 let head_str = fs.readFileSync("headstr.py").toString();
 let def_list = [];
+
+let pyTypeof = new Map();
 
 const trace_into_line = head_str.split("\n").findIndex(x => x.startsWith("TRACE_INTO"));
 let write_str =
@@ -45,6 +47,8 @@ function init_lineToCell() {
         if (lines[i].startsWith('# In['))
             cur_cell++;
         if (lines[i].startsWith("#"))
+            continue;
+        if (lines[i].trim() == "")
             continue;
         lineToCell.set(i + 1, cur_cell);
     }
@@ -123,39 +127,73 @@ function contain_type(node, type) {
     return undefined;
 }
 
-function value_type_handler(type, node) {
-    if (type == "index") {
-        assert(node.args.length == 1);
-        if (node.args[0].type == "literal") {
-            let col = node.args[0].value;
-            return "[" + col.replace(/['"]+/g, '') + "]";
-        } else if (node.args[0].type == "name") {
-            return "[" + node.args[0].id + "]";
-        }
-    } else if (type == "dot") {
-        return "[" + node.name.replace(/['"]+/g, '') + "]";
-    }
-}
-
-function map_handler(src, des) {
-    let value_type = ["index", "dot"];
-    if (value_type.includes(des.type)
-        && value_type.includes(src.func.value.type)) {
-        let src_col = value_type_handler(src.func.value.type, src.func.value);
-        let des_col = value_type_handler(des.type, des);
-        let comment = ""
-        // same/different literal
-        if (src_col == des_col)
-            comment = "modify column " + des_col + " using map/apply"
-        else
-            comment = "create column " + des_col + " from " + src_col
-        return comment;
-    }
-}
-
 function static_analyzer(tree) {
     let static_comments = new Map();
-    for (let [i, stmt] of tree.code.entries()) {
+    let df_construct = ["DataFrame", "read_csv"];
+    let df_funcs = ["append", "concat", "copy", "drop", "get_dummies"];
+    let old_key = -1;
+    let cell_cols = new Set()
+
+    // simple type inference
+    function infer_types(stmt) {
+        if (stmt.type == "assign" && stmt.targets.length == stmt.sources.length) {
+            for (let [i, src] of stmt.sources.entries()) {
+                if (src.type == "dict")
+                    pyTypeof.set(stmt.targets[i].id, "dict");
+                // df = pd.read_csv() ...
+                if (src.type == "call" && df_construct.includes(src.func.name)) {
+                    pyTypeof.set(stmt.targets[i].id, "dataframe");
+                }
+                // df = df.func()
+                if (src.type == "call" && df_funcs.includes(src.func.name)) {
+                    if (src.func.value.type == "name" &&
+                        pyTypeof.get(src.func.value.id) == "dataframe")
+                        pyTypeof.set(stmt.targets[i].id, "dataframe");
+                }
+                if (stmt.type == "def") {
+                    pyTypeof.set(stmt.name, "func");
+                }
+            }
+        }
+    }
+
+    function value_type_handler(type, node) {
+        if (type == "index") {
+            assert(node.args.length == 1);
+            if (node.args[0].type == "literal") {
+                let col = node.args[0].value;
+                return "[" + col.replace(/['"]+/g, '') + "]";
+            } else if (node.args[0].type == "name") {
+                return "[" + node.args[0].id + "]";
+            }
+        } else if (type == "dot") {
+            return "[" + node.name.replace(/['"]+/g, '') + "]";
+        }
+    }
+
+    function map_handler(src, des) {
+        let value_type = ["index", "dot"];
+        if (value_type.includes(des.type)
+            && value_type.includes(src.func.value.type)) {
+            let src_col = value_type_handler(src.func.value.type, src.func.value);
+            let des_col = value_type_handler(des.type, des);
+            let comment = ""
+            // same/different literal
+            if (src_col == des_col)
+                comment = "[map],modify column " + des_col + " using map/apply"
+            else
+                comment = "[map],create column " + des_col + " from " + src_col
+            if (pyTypeof.get(src.args[0].actual.id) == 'dict')
+                comment += " with dict"
+            return comment;
+        }
+    }
+
+    for (let [_, stmt] of tree.code.entries()) {
+        infer_types(stmt);
+        let cols = collect_cols(stmt, pyTypeof);
+        cols.forEach(value => cell_cols.add(value));
+
         // console.log(printNode(stmt));
 
         // lambda function tracking cancelled
@@ -174,6 +212,14 @@ function static_analyzer(tree) {
         //     replace_strs.push([stmt.location.first_line, stmt.location.last_line, [stmt_str]]);
         // }
         let key = lineToCell.get(stmt.location.first_line);
+        if (key != old_key) {
+            if (old_key != -1 && cell_cols.size > 0) {
+                add(static_comments, old_key,
+                    "[used]," + Array.from(cell_cols).join(","))
+                cell_cols.clear()
+            }
+            old_key = key;
+        }
         if (stmt.type == "assign" && stmt.targets.length == stmt.sources.length) {
             // external input: x = pd.read_csv()
             for (let [i, src] of stmt.sources.entries()) {
@@ -181,65 +227,49 @@ function static_analyzer(tree) {
                 if (src.type == "call" && src.func.name == "map") {
                     let res = map_handler(src, stmt.targets[i]);
                     if (res)
-                        static_comments.set(key,
-                            res);
-                    // let value_type = ["index", "dot"];
-                    // if (value_type.includes(stmt.targets[i].type)
-                    //     && value_type.includes(src.func.value.type)) {
-                    //     let src_col = value_type_handler(src.func.value.type, src.func.value);
-                    //     let des_col = value_type_handler(stmt.targets[i].type, stmt.targets[i]);
-                    //     let comment = ""
-                    //     // same/different literal
-                    //     if (src_col == des_col)
-                    //         comment = "modify column " + des_col + " using map/apply"
-                    //     else
-                    //         comment = "create column " + des_col + " from " + src_col
-                    //     static_comments.set(key,
-                    //         comment);
-                    // }
+                        add(static_comments, key, res);
                 }
                 if (src.type == "call" && src.func.name == "apply") {
-                    let res = map_handler(src, stmt.targets[i]);
-                    if (res)
-                        static_comments.set(key,
-                            res);
-                    else {
-                        let value_type = ["index", "dot"];
-                        if (value_type.includes(stmt.targets[i].type)) {
-                            let des_col = value_type_handler(stmt.targets[i].type, stmt.targets[i]);
-                            static_comments.set(key,
-                                "create column " + des_col + " from whole row");
-                        }
+                    // let res = map_handler(src, stmt.targets[i]);
+                    // if (res)
+                    //     add(static_comments, key, res);
+                    // else {
+                    let value_type = ["index", "dot"];
+                    if (value_type.includes(stmt.targets[i].type)) {
+                        let des_col = value_type_handler(stmt.targets[i].type, stmt.targets[i]);
+                        add(static_comments, key,
+                            "[apply],create column " + des_col + " from whole row");
                     }
+                    // }
                 }
                 // x = pd.get_dymmies()
                 if (src.type == "call" && src.func.name == "get_dummies") {
-                    static_comments.set(key,
-                        "encoding in dummy variables");
+                    add(static_comments, key,
+                        "[get_dummies],encoding in dummy variables");
                 }
                 // x1, x2, y1, y2 = train_test_split()
                 if (src.type == "call" && src.func.name == "train_test_split") {
-                    static_comments.set(key,
-                        "spliting data to train set and test set");
+                    add(static_comments, key,
+                        "[train_test_split],spliting data to train set and test set");
                 }
                 // x = df.select_dtypes().columns
                 if (src.type == "dot" && src.name == "columns") {
                     if (src.value.type == "call" && src.value.func.name == "select_dtypes")
-                        static_comments.set(key,
-                            "select columns of specific data types");
+                        add(static_comments, key,
+                            "[select_dtypes],select columns of specific data types");
                 }
                 // x.at[] = ... || x.loc[] = ...
                 if (stmt.targets[i].type == "index" && stmt.targets[i].value.type == "dot"
                     && ["at", "loc"].includes(stmt.targets[i].value.name)) {
-                    static_comments.set(key,
-                        "re-write the column");
+                    add(static_comments, key,
+                        "[at/loc],re-write the column");
                 }
             }
         } else if (stmt.type == "call") {
             // x.fillna()
             if (stmt.func.name == "fillna") {
-                static_comments.set(key,
-                    "fill missing values");
+                add(static_comments, key,
+                    "[fillna],fill missing values");
             }
         }
     }
