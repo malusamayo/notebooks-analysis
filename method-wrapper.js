@@ -31,7 +31,7 @@ function find_col(node) {
         }
         case 'call': {
             find_col(node.func);
-            node.args.forEach(x => find_col(x));
+            node.args.forEach(x => find_col(x.actual));
             break;
         }
         case 'class': {
@@ -354,7 +354,10 @@ function collect_defs(code) {
 function collect_cols(stmt, pyTypeof) {
     find_col.cols = new Set();
     find_col.pyTypeof = pyTypeof;
-    find_col(stmt);
+    if (stmt.type == 'assign')
+        stmt.sources.forEach(x => find_col(x))
+    else
+        find_col(stmt);
     return find_col.cols;
 }
 

@@ -9,11 +9,12 @@ import random
 import collections
 from nbconvert import PythonExporter
 import json
+import itertools
 pd.set_option('display.max_columns', None)
 pd.set_option('precision', 4)
 np.set_printoptions(precision=4)
 
-sys.argv.append("notebooks/fifa_notebooks/serie-a-league-player-analysis-fifa-19.ipynb")
+sys.argv.append("notebooks/debug_example.ipynb")
 
 dir_path = os.path.dirname(os.path.realpath(sys.argv[1]))
 filename = sys.argv[1].split('\\')[-1].split('/')[-1]
@@ -193,37 +194,153 @@ class NdArray(Variable):
                     self.json_map[
                         "hint"] += "truncated from " + variable.name + "； "
 
-'''
-column-level checker for dataframe patterns
-'''
-class PatternChecker(object):
-    def __init__(self):
-        pass
-    '''
-    df1: after, df2: before, col: the target column
-    '''
-    def check_fillna(self, df1, df2, from_col, to_col):
-        cmp_df = df1[to_col].compare(df2[from_col])
-        if cmp_df["other"].isnull().all():
-            return True
-    
-    def check_typeconvert(self, df1, df2, from_col, to_col):
-        if str(df1[to_col].dtype) != str(df2[from_col].dtype):
-            return True
-    
-    def check_dict(self):
-        return True
 
-    def check_str(self, df1, df2, from_col, to_col):
-        if str(df1[to_col].dtype) == "str":
-            return True
+class PatternSynthesizer(object):
+
+    '''
+    df1: before, df2: after, col: the target column
+    '''
+    def __init__(self, df1, df2, hints):
+        self.df1 = df1
+        self.df2 = df2
+        self.cols1 = list(df1.columns)
+        self.cols2 = list(df2.columns)
+        self.srccols = set()
+        self.syn_stack = []
+        for hint in hints:
+            if hint.startswith("[used]"):
+                self.srccols = set(hint.split(",")[1:])
+                self.srccols.intersection_update(set(self.cols1))
     
-    def check_num(self, df1, df2, from_col, to_col):
-        if np.issubdtype(df1[to_col].dtype, np.number):
-            return True
+    def check_fillna_only(self, df1, df2, from_col, to_col):
+        cmp_df = df2[to_col].compare(df1[from_col])
+        return cmp_df["other"].isnull().all()
+
+    def check_fillna(self, df1, df2, from_col, to_col):
+        return df1[from_col].isnull().values.any() and not df2[to_col].isnull().values.any()
     
-    def check(self, df1, df2, from_col, to_col):
-        pass
+    def check_str(self, df, col):
+        return pd.api.types.is_string_dtype(df[col])
+    
+    def check_int(self, df, col):
+        return pd.api.types.is_integer_dtype(df[col])
+
+    def check_float(self, df, col):
+        return pd.api.types.is_float_dtype(df[col])
+
+    def check_num(self, df, col):
+        return pd.api.types.is_numeric_dtype(df[col])
+
+    def check_cat(self, df, col):
+        return pd.api.types.is_categorical_dtype(df[col])
+
+    def check_typeconvert(self, df1, df2, from_col, to_col):
+        def check_transform(f):
+            try:
+                if df1[from_col].map(f).equals(df2[to_col]):
+                    return
+            except:
+                pass
+            if self.check_num(df1, from_col):
+                self.syn_stack.append(("num_transform", [from_col], [to_col]))
+            elif self.check_str(df1, from_col):
+                self.syn_stack.append(("str_transform", [from_col], [to_col]))
+
+        if df1[from_col].dtype != df2[to_col].dtype:
+            if self.check_float(df2, to_col):
+                self.syn_stack.append(("float", [from_col], [to_col]))
+                check_transform(float)
+            elif self.check_cat(df2, to_col):
+                self.syn_stack.append(("discretize", [from_col], [to_col]))
+            elif self.check_int(df2, to_col):
+                l = df2[to_col].unique()
+                if sorted(l) == list(range(min(l), max(l)+1)):
+                    self.syn_stack.append(("encode", [from_col], [to_col]))
+                else:
+                    self.syn_stack.append(("int", [from_col], [to_col]))
+                    check_transform(int)
+            else:
+                self.syn_stack.append(("type_convert", [from_col], [to_col]))
+            return True
+        return False
+
+    def check_column(self, df1, df2, from_col, to_col):
+        
+        # check the case when only different values are null values
+        if self.check_fillna_only(df1, df2, from_col, to_col):
+            self.syn_stack.append(("fillna", [from_col], [to_col]))
+            return
+
+        if not self.check_typeconvert(df1, df2, from_col, to_col):
+            if df1[from_col].nunique() > df2[to_col].nunique():
+                # [TODO] exclude fillna case
+                print(len(df1[from_col].unique()), len(df2[to_col].unique()))
+                self.syn_stack.append(("merge", [from_col], [to_col]))
+            elif self.check_num(df1, from_col):
+                self.syn_stack.append(("num_transform", [from_col], [to_col]))
+            elif self.check_str(df1, from_col):
+                self.syn_stack.append(("str_transform", [from_col], [to_col]))
+            else:
+                self.syn_stack.append(("map", [from_col], [to_col]))
+        
+        if self.check_fillna(df1, df2, from_col, to_col):
+            self.syn_stack.append(("fillna", [from_col], [to_col]))
+
+    def check_removecol(self, df1, df2):
+        removed = [x for x in self.cols1 if x not in self.cols2]
+        if removed:        
+            self.cols1 = [x for x in self.cols1 if x in self.cols2]
+            self.syn_stack.append(("removecol", removed))
+            return True
+        return False
+    
+    def check_rearrange(self, df1, df2):
+        if self.cols1 != self.cols2 and set(self.cols1) == set(self.cols2):
+            self.syn_stack.append(("rearrange", self.cols1, self.cols2))
+            return True
+        return False
+
+    # refine remove row
+    def check_removerow(self, df1, df2):
+        if len(df1) > len(df2):
+            self.syn_stack.append(("removerow"))
+            return True
+        return False
+
+    def search(self, df1, df2):
+        cols_dummy = [col for col in self.colsnew if set(df2[col].unique()).issubset({0, 1})]
+        if cols_dummy:
+            self.syn_stack.append(("one_hot_encoding", cols_dummy))
+        # [TODO] add src cols for create; special optimization for one src col
+        for col in self.colsnew - set(cols_dummy):
+            if len(self.srccols) == 1:
+                self.check_column(df1, df2, list(self.srccols)[0], col)
+            elif self.check_num(df2, col):
+                self.syn_stack.append(("num_transform", [col]))
+            elif self.check_str(df2, col):
+                self.syn_stack.append(("str_transform", [col]))
+            else:
+                self.syn_stack.append(("create", [col]))
+
+        # [TODO] merge the same op for different cols?
+        for col in self.colschange:
+            self.check_column(df1, df2, col, col)
+
+    def check(self, df1, df2):
+        # [TODO] differentiate between irrelevant dfs and real transformations
+        if set(self.cols1).isdisjoint(set(self.cols2)):
+            return
+        if len(df1) < len(df2):
+            return
+        self.check_removecol(df1, df2)
+        self.check_rearrange(df1, df2)
+        if self.check_removerow(df1, df2):
+            return self.syn_stack
+        self.colsnew = set(self.cols2).difference(set(self.cols1))
+        self.colschange = set(col for col in self.cols1 if not df1[col].equals(df2[col]))
+        print(self.colsnew, self.colschange)
+        self.search(df1, df2)
+        return self.syn_stack
 
 class DataFrame(Variable):
     def __init__(self, var, name, cellnum, outflag):
@@ -473,7 +590,7 @@ class DataFrame(Variable):
                 self.json_map["hint"] += "rearrange columns" + "; "
 
 
-def handlecell(myvars, st, ed):
+def handlecell(myvars, st, ed, hints):
     # comments = ["\'\'\'"]
     comments = []
     first_in = -1
@@ -498,6 +615,11 @@ def handlecell(myvars, st, ed):
             for j in range(first_in, first_out):
                 score = myvars[i].check_rel(myvars[j])
                 # print(myvars[i].name, myvars[j].name, score)
+                if type(myvars[i].var) == pd.core.frame.DataFrame:
+                    if type(myvars[j].var) == pd.core.frame.DataFrame:
+                        checker = PatternSynthesizer(myvars[j].var, myvars[i].var, hints)
+                        l = checker.check(myvars[j].var, myvars[i].var)
+                        print(myvars[i].cellnum, myvars[j].name, myvars[i].name, "\033[96m", l, "\033[0m")
                 if cur_score > score:
                     cur_score = score
                     choose_idx = j
@@ -626,8 +748,16 @@ if __name__ == "__main__":
     #     for j in range(l):
     #         line_to_idx[idx + j] = (code_indices[i], j)
 
+
+    static_comments = {}
+    with open(json_path) as f:
+        json_tmp_list = json.load(f)
+        for [idx, content] in json_tmp_list:
+            static_comments[idx] = content
+
     json_map = {}
     funcs = {}
+    cur = 0
 
     for file in os.listdir(data_path):
         myvars = []
@@ -641,7 +771,8 @@ if __name__ == "__main__":
             with open(os.path.join(data_path, file), "rb") as f:
                 try:
                     vars = pickle.load(f)
-                except AttributeError:
+                except AttributeError as e:
+                    print(e)
                     continue
                 for i in range(len(vars)):
                     try:
@@ -649,7 +780,8 @@ if __name__ == "__main__":
                             dispatch_gen(vars[i][0], vars[i][1][2], vars[i][1][0], vars[i][1][1]))
                     except:
                         pass
-                _, json_map[code_indices[vars[0][1][0] - 1]] = handlecell(myvars, 0, len(vars)-1)
+                comments = static_comments[vars[0][1][0]] if vars[0][1][0] in static_comments.keys() else []
+                _, json_map[code_indices[vars[0][1][0] - 1]] = handlecell(myvars, 0, len(vars)-1, comments)
 
     # with open(data_path, "rb") as f:
     #     tmpvars = pickle.load(f)
@@ -665,8 +797,6 @@ if __name__ == "__main__":
 
     # format: [[cellnum, comment] or [funcname, cellnum]]
     # comment should be used later, along with cell number
-    with open(json_path) as f:
-        static_comments = json.load(f)
 
     def insert_to_map(json_map, cell_num, cat, name, value):
         if cell_num not in json_map.keys():
@@ -683,7 +813,7 @@ if __name__ == "__main__":
         # affected by "-s"
         # (i, j) = line_to_idx[fun_map["loc"] -3]
         fun_name_no_idx = fun_name[:fun_name.rfind("_")]
-        cell_num = [x[1] for x in static_comments if x[0] == fun_name_no_idx]
+        cell_num = [v for k, v in static_comments.items() if k == fun_name_no_idx]
         assert(len(cell_num) == 1)
         comment, func_json_map = gen_func_comment(fun_name, fun_map)
         insert_to_map(json_map, cell_num[0], "function", fun_name, func_json_map)
