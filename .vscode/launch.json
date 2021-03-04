@@ -10,7 +10,7 @@
       "type": "python",
       "request": "launch",
       "program": "${file}",
-      // "cwd": "${workspaceRoot}/notebooks/titanic_notebooks",
+      "cwd": "${workspaceRoot}/notebooks/",
       "console": "integratedTerminal"
     },
     {
@@ -19,7 +19,7 @@
       "request": "launch",
       "program": "${workspaceRoot}/analyzer.py",
       "args": [
-        ".\\notebooks\\titanic_notebooks\\a-data-science-framework-to-achieve-99-accuracy.ipynb"
+        ".\\notebooks\\comprehensive-eda-viz-linear-regression.ipynb"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"

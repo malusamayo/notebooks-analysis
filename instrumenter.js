@@ -33,10 +33,12 @@ tmp_dir_path = os.path.join(my_dir_path, "${filename_no_suffix}")
 if not os.path.isdir(tmp_dir_path):
     os.mkdir(tmp_dir_path)
 for idx, vars in store_vars.items():
-    with open(os.path.join(tmp_dir_path, "${filename_no_suffix}_" + str(idx) + ".dat"), "wb") as f:
+    with open(os.path.join(tmp_dir_path, "${filename_no_suffix}_" + format(idx, '03') + ".dat"), "wb") as f:
         pickle.dump(vars, f)
 with open(os.path.join(tmp_dir_path, "${filename_no_suffix}_f.dat"), "wb") as f:
     pickle.dump(ddict2dict(funcs), f)
+with open(os.path.join(tmp_dir_path, "info.json"), "w") as f:
+    f.write(json.dumps({"get": get__keys, "set": set__keys, "par": partitions}))
 `
 
 function init_lineToCell() {
@@ -132,7 +134,8 @@ function static_analyzer(tree) {
     let df_construct = ["DataFrame", "read_csv"];
     let df_funcs = ["append", "concat", "copy", "drop", "get_dummies"];
     let old_key = -1;
-    let cell_cols = new Set()
+    let lambda_id = 0;
+    let cell_cols = new Set();
 
     // simple type inference
     function infer_types(stmt) {
@@ -149,6 +152,10 @@ function static_analyzer(tree) {
                     if (src.func.value.type == "name" &&
                         pyTypeof.get(src.func.value.id) == "dataframe")
                         pyTypeof.set(stmt.targets[i].id, "dataframe");
+                }
+                // df2 = df
+                if (src.type == "name" && pyTypeof.get(src.id) == "dataframe") {
+                    pyTypeof.set(stmt.targets[i].id, "dataframe");
                 }
                 if (stmt.type == "def") {
                     pyTypeof.set(stmt.name, "func");
@@ -171,7 +178,7 @@ function static_analyzer(tree) {
         }
     }
 
-    function map_handler(src, des) {
+    function map_handler(stmt, src, des) {
         let value_type = ["index", "dot"];
         if (value_type.includes(des.type)
             && value_type.includes(src.func.value.type)) {
@@ -180,11 +187,32 @@ function static_analyzer(tree) {
             let comment = ""
             // same/different literal
             if (src_col == des_col)
-                comment = "[map],modify column " + des_col + " using map/apply"
+                comment = "[map/apply],modify column " + des_col + " using map/apply"
             else
-                comment = "[map],create column " + des_col + " from " + src_col
+                comment = "[map/apply],create column " + des_col + " from " + src_col
             if (pyTypeof.get(src.args[0].actual.id) == 'dict')
                 comment += " with dict"
+            if (src.args[0].actual.type == 'lambda') {
+                // console.log(printNode(src.args[0].actual));
+                let args = src.args[0].actual.args.map(x => x.name);
+                let code = src.args[0].actual.code;
+                let def_code = "";
+                if (code.type == "ifexpr") {
+                    def_code = ["def lambda_" + lambda_id + "(" + args.join(", ") + "):",
+                    "if " + printNode(code.test) + ":", "\treturn " + printNode(code.then),
+                        "else:", "\treturn " + printNode(code.else)];
+                } else {
+                    def_code = ["def lambda_" + lambda_id + "(" + args.join(", ") + "):", "return " + printNode(code)];
+                }
+                // console.log(def_code.join("\n\t"));
+
+                src.args[0].actual = { id: "lambda_" + lambda_id, location: src.args[0].actual.location, type: "name" };
+                replace_strs.push([stmt.location.first_line, stmt.location.last_line, [def_code.join("\n\t") + "\n" + printNode(stmt)]]);
+                def_list.push("lambda_" + lambda_id)
+                lambda_id++;
+            } else if (src.args[0].actual.type == 'name') {
+                def_list.push(src.args[0].actual.id);
+            }
             return comment;
         }
     }
@@ -192,7 +220,7 @@ function static_analyzer(tree) {
     for (let [_, stmt] of tree.code.entries()) {
         infer_types(stmt);
         let cols = collect_cols(stmt, pyTypeof);
-        cols.forEach(value => cell_cols.add(value));
+        cols.forEach(value => cell_cols.add(value.replace(/['"]+/g, '')));
 
         // console.log(printNode(stmt));
 
@@ -225,22 +253,22 @@ function static_analyzer(tree) {
             for (let [i, src] of stmt.sources.entries()) {
                 // x[y] = x1[y1].map(...) || x.y = x1.y1.map(...)
                 if (src.type == "call" && src.func.name == "map") {
-                    let res = map_handler(src, stmt.targets[i]);
+                    let res = map_handler(stmt, src, stmt.targets[i]);
                     if (res)
                         add(static_comments, key, res);
                 }
                 if (src.type == "call" && src.func.name == "apply") {
-                    // let res = map_handler(src, stmt.targets[i]);
-                    // if (res)
-                    //     add(static_comments, key, res);
-                    // else {
-                    let value_type = ["index", "dot"];
-                    if (value_type.includes(stmt.targets[i].type)) {
-                        let des_col = value_type_handler(stmt.targets[i].type, stmt.targets[i]);
-                        add(static_comments, key,
-                            "[apply],create column " + des_col + " from whole row");
+                    let res = map_handler(stmt, src, stmt.targets[i]);
+                    if (res)
+                        add(static_comments, key, res);
+                    else {
+                        let value_type = ["index", "dot"];
+                        if (value_type.includes(stmt.targets[i].type)) {
+                            let des_col = value_type_handler(stmt.targets[i].type, stmt.targets[i]);
+                            add(static_comments, key,
+                                "[apply],create column " + des_col + " from whole row");
+                        }
                     }
-                    // }
                 }
                 // x = pd.get_dymmies()
                 if (src.type == "call" && src.func.name == "get_dummies") {
@@ -329,11 +357,12 @@ function compute_flow_vars(code) {
     }
     // add_extra_vars(tree); // bugs here
     let comments = static_analyzer(tree);
-    def_list = collect_defs(tree.code);
-    def_list.forEach(item => {
+    let defs = collect_defs(tree.code);
+    defs.forEach(item => {
         comments.set(item[0], lineToCell.get(item[1]))
     });
-    def_list = def_list.map(item => item[0]);
+    // def_list = def_list.map(item => item[0]);
+
     // disable coverage replacement now
     // replace_strs = replace_strs.concat(wrap_methods(tree));
     console.log(ins);
@@ -350,7 +379,6 @@ try:
 except NameError:
     pass
 `
-    // "my_store_info((" + cell + ", " + type + ", \"" + v + "\"), " + v + ")\n";
 }
 
 function insert_print_stmt(code) {
@@ -367,11 +395,16 @@ function insert_print_stmt(code) {
     }
     for (let i = 0; i < max_line; i++) {
         if (lines[i].startsWith('# In[')) {
+            lines[i - 1] += "set_partition()\n"
             if (outs.get(cur_cell) !== undefined)
                 outs.get(cur_cell).forEach(x => lines[i - 1] += print_info(cur_cell, x, 1));
             cur_cell++;
-            if (ins.get(cur_cell) !== undefined)
+            if (ins.get(cur_cell) !== undefined) {
                 ins.get(cur_cell).forEach(x => lines[i] += print_info(cur_cell, x, 0));
+                lines[i] += "update_maxrow([" + ins.get(cur_cell).join(", ") + "])\n";
+            }
+            // update cur_cell before execution
+            lines[i] += "cur_cell = " + cur_cell + "\n";
         }
         if (lines[i].startsWith("#"))
             continue;
@@ -393,7 +426,18 @@ function insert_print_stmt(code) {
 }
 
 
-// let tree = py.parse("[x+y for x,y in debug]");
+// let tree = py.parse(
+//     `data_Simple['Unit'] = data_Simple['Value'].str[-1]
+// data_Simple['Value (M)'] = np.where(data_Simple['Unit'] == '0', 0, 
+//                                            data_Simple['Value'].str[1:-1].replace(r'[a-zA-Z]',''))
+// data_Simple['Value (M)'] = data_Simple['Value (M)'].astype(float)
+// data_Simple['Value (M)'] = np.where(data_Simple['Unit'] == 'M', 
+//                                            data_Simple['Value (M)'], 
+//                                            data_Simple['Value (M)']/1000)
+// data_Simple = data_Simple.drop('Unit', 1)
+// `);
+// let _ = static_analyzer(tree);
+// console.log(_)
 // for (let [i, stmt] of tree.code.entries()) {
 //     // console.log(stmt);
 //     console.log(printNode(stmt));
@@ -417,7 +461,7 @@ function insert_print_stmt(code) {
 init_lineToCell();
 let comments = compute_flow_vars(text);
 // set up trace functions
-let def_str = "TRACE_INTO = ['cov_wrapper_1','cov_wrapper_2'," + def_list.map(x => "'" + x + "'").join(",") + "]\n";
+let def_str = "TRACE_INTO = [" + def_list.map(x => "'" + x + "'").join(",") + "]\n";
 head_str = head_str.split("\n")
 head_str[trace_into_line] = def_str
 head_str = head_str.join("\n") + "\n"

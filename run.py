@@ -32,7 +32,7 @@ def execute_script():
     my_print('-'*40)
     my_print("Cleaning the original notebook...")
     # clean up the python code first
-    with open(filename_no_suffix + ".py", "r+") as f:
+    with open(filename_no_suffix + ".py", "r+", encoding='utf-8') as f:
         content = ""
         if not args.keep:
             content += "import os, sys, matplotlib \nsys.stdout = open(os.devnull, \"w\")\nmatplotlib.use('Agg')\n"

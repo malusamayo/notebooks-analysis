@@ -1,9 +1,10 @@
-# header codes added by autodoc
-import os, sys
-import pickle
+import os, sys, re
+from numpy.lib.function_base import append
+import pandas as pd
+import numpy as np
 import copy as lib_copy
 import inspect, collections, functools
-import matplotlib
+import matplotlib, pickle, json
 store_vars = collections.defaultdict(list)
 # my_labels = []
 my_dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -11,15 +12,15 @@ ignore_types = [
     "<class 'module'>", "<class 'type'>", "<class 'function'>",
     "<class 'matplotlib.figure.Figure'>"
 ]
-TRACE_INTO = []
-TYPE_1_FUN = ["capitalize", "casefold", "lower", "replace", "title", "upper"]
-TYPE_2_FUN = ["rsplit", "split", "splitlines"]
+TRACE_INTO = ['lambda_0','Title_Dictionary','lambda_1','cleanTicket','lambda_2','lambda_3','lambda_4']
+
+
+# TYPE_1_FUN = ["capitalize", "casefold", "lower", "replace", "title", "upper"]
+# TYPE_2_FUN = ["rsplit", "split", "splitlines"]
 
 matplotlib.use('Agg')
 noop = lambda *args, **kwargs: None
-func_coverage = collections.defaultdict(set)
 cur_exe = []
-all_exe = collections.defaultdict(lambda: collections.defaultdict(int))
 
 
 def ddict():
@@ -66,8 +67,6 @@ sys.settrace(trace_calls)
 def my_store_info(info, var):
     if str(type(var)) in ignore_types:
         return
-    # my_labels.append(info)
-    # store_vars.append(wrap_copy(var))
     store_vars[info[0]].append((wrap_copy(var), info))
 
 
@@ -86,32 +85,44 @@ def func_info_saver(line):
     def inner_decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            name = func.__name__ + "_" + str(line)
-            args_name = tuple(inspect.signature(func).parameters)
-            arg_dict = dict(zip(args_name, args))
-            arg_dict.update(kwargs)
-            funcs[name]["loc"] = line
-            rets = func(*args, **kwargs)
-            # diff = cur_exe.difference(func_coverage[name])
-            # if len(diff) > 0:
-            #     print('cover new line ' + str(diff))
-            #     func_coverage[name] |= diff
-            # if all_exe[name][tuple(cur_exe)] == 1:
-            #     funcs[name]["path"][tuple(cur_exe)].append(
-            #         copy.deepcopy(tuple(cur_exe)))
-            if tuple(cur_exe) not in funcs[name].keys():
-                funcs[name][tuple(cur_exe)]["count"] = 0
-                funcs[name][tuple(cur_exe)]["args"] = []
-                funcs[name][tuple(cur_exe)]["rets"] = []
+            if func.__name__ not in TRACE_INTO:
+                return func(*args, **kwargs)
+            try:
+                wrapper.cnt = (wrapper.cnt + 1) % maxrow
+            except:
+                wrapper.cnt = 0
+            MyStr.cnt = wrapper.cnt
 
-            funcs[name][tuple(cur_exe)]["count"] += 1
-            if funcs[name][tuple(cur_exe)]["count"] <= 10:
-                funcs[name][tuple(cur_exe)]["args"].append(wrap_copy(arg_dict))
-                funcs[name][tuple(cur_exe)]["rets"].append([wrap_copy(rets)])
+            # name = func.__name__ + "_" + str(line)
+            # args_name = tuple(inspect.signature(func).parameters)
+            # arg_dict = dict(zip(args_name, args))
+            # arg_dict.update(kwargs)
+            # funcs[name]["loc"] = line
+
+            new_args = []
+            for arg in list(args):
+                if type(arg) == str:
+                    new_args.append(MyStr(arg))
+                else:
+                    new_args.append(arg)
+            args = tuple(new_args)
+
+            rets = func(*args, **kwargs)
+            if type(rets) == MyStr:
+                rets = str(rets)
+            
+            path_per_row[wrapper.cnt] += cur_exe
+
+            # if tuple(cur_exe) not in funcs[name].keys():
+            #     funcs[name][tuple(cur_exe)]["count"] = 0
+            #     funcs[name][tuple(cur_exe)]["args"] = []
+            #     funcs[name][tuple(cur_exe)]["rets"] = []
+
+            # funcs[name][tuple(cur_exe)]["count"] += 1
+            # if funcs[name][tuple(cur_exe)]["count"] <= 10:
+            #     funcs[name][tuple(cur_exe)]["args"].append(wrap_copy(arg_dict))
+            #     funcs[name][tuple(cur_exe)]["rets"].append([wrap_copy(rets)])
             cur_exe.clear()
-            # if len(funcs[name]["saved_args"]) < 5:
-            #     funcs[name]["saved_args"].append(copy.deepcopy(arg_dict))
-            #     funcs[name]["saved_rets"].append(copy.deepcopy([rets]))
             return rets
 
         return wrapper
@@ -119,28 +130,170 @@ def func_info_saver(line):
     return inner_decorator
 
 
-def cov(f):
-    @functools.wraps(f)
-    def cov_wrapper_1(*args, **kwargs):
-        ret = f(*args, **kwargs)
-        if (ret == args[0]):
-            noop
+# def cov(f):
+#     @functools.wraps(f)
+#     def cov_wrapper_1(*args, **kwargs):
+#         ret = f(*args, **kwargs)
+#         if (ret == args[0]):
+#             noop
+#         else:
+#             noop
+#         return ret
+
+#     def cov_wrapper_2(*args, **kwargs):
+#         ret = f(*args, **kwargs)
+#         if (len(ret) <= 1):
+#             noop
+#         else:
+#             noop
+#         return ret
+
+#     if f.__name__ in TYPE_1_FUN:
+#         return cov_wrapper_1
+#     elif f.__name__ in TYPE_2_FUN:
+#         return cov_wrapper_2
+#     else:
+#         return f
+
+cur_cell = 0
+maxrow = 1
+
+get__keys = collections.defaultdict(list)
+set__keys = collections.defaultdict(list)
+path_per_row = collections.defaultdict(list)
+partitions = {}
+
+# should converted to str when return
+class MyStr(str):
+    cnt = 0
+    def __new__(cls, content):
+        return super().__new__(cls, content)
+    
+    def replace(self, __old: str, __new: str, __count=-1) -> str:
+        ret = super().replace(__old, __new, __count)
+        if self == ret:
+            path_per_row[MyStr.cnt].append(0)
         else:
-            noop
-        return ret
+            path_per_row[MyStr.cnt].append(1)
+        return MyStr(ret)
+    
+    def split(self, sep=None, maxsplit=-1):
+        ret = super().split(sep, maxsplit)
+        path_per_row[MyStr.cnt].append(len(ret))
+        return [MyStr(x) for x in ret]
 
-    def cov_wrapper_2(*args, **kwargs):
-        ret = f(*args, **kwargs)
-        if (len(ret) <= 1):
-            noop
+    def strip(self, __chars=None) :
+        ret = super().strip(__chars)
+        if self == ret:
+            path_per_row[MyStr.cnt].append(0)
         else:
-            noop
-        return ret
+            path_per_row[MyStr.cnt].append(1)
+        return MyStr(ret)
 
-    if f.__name__ in TYPE_1_FUN:
-        return cov_wrapper_1
-    elif f.__name__ in TYPE_2_FUN:
-        return cov_wrapper_2
-    else:
-        return f
+class LibDecorator(object):
+    def __init__(self):
+        super().__init__()
+        pd.DataFrame.__getitem__ = self.get_decorator(pd.DataFrame.__getitem__)
+        pd.DataFrame.__setitem__ = self.set_decorator(pd.DataFrame.__setitem__)
+        pd.Series.replace = self.replace_decorator(pd.Series.replace)
+        pd.Series.fillna = self.fillna_decorator(pd.Series.fillna)
+        pd.Series.map  = self.map_decorator(pd.Series.map) 
+    
+    def replace_decorator(self, wrapped_method):
+        def f(x, key, value, regex):
+            try:
+                f.cnt = (f.cnt + 1) % maxrow
+            except:
+                f.cnt = 0
+            if regex:
+                try:
+                    if bool(re.search(key, x)):
+                        path_per_row[f.cnt].append(0)
+                    else:
+                        path_per_row[f.cnt].append(1)
+                except:
+                    path_per_row[f.cnt].append(-1)
+            elif type(key) == list:
+                path_per_row[f.cnt].append(key.index(x) if x in key else -1)
+            else:
+                if x == key:
+                    path_per_row[f.cnt].append(0)
+                else:
+                    path_per_row[f.cnt].append(1)
+        def decorate(self, to_replace=None, value=None, inplace=False, limit=None, regex=False, method="pad"):
+            self.map(lambda x: f(x, to_replace, value, regex))
+            return wrapped_method(self, to_replace, value, inplace, limit, regex, method)
+        return decorate
 
+    def fillna_decorator(self, wrapped_method):
+        def f(x, value):
+            try:
+                f.cnt = (f.cnt + 1) % maxrow
+            except:
+                f.cnt = 0
+            if pd.api.types.is_numeric_dtype(type(x)) and np.isnan(x):
+                path_per_row[f.cnt].append(0)
+            else:
+                path_per_row[f.cnt].append(1)
+        def decorate(self, value=None, method=None, axis=None, inplace=False, limit=None, downcast=None):
+            self.map(lambda x: f(x, value))
+            return wrapped_method(self, value, method, axis, inplace, limit, downcast)
+        return decorate
+
+    def map_decorator(self, wrapped_method):
+        def f(x, d):
+            try:
+                f.cnt = (f.cnt + 1) % maxrow
+            except:
+                f.cnt = 0
+            path_per_row[f.cnt].append(list(d).index(x) if x in d else -1)
+        def decorate(self, arg, na_action=None):
+            if type(arg) == dict:
+                self.map(lambda x: f(x, arg))
+            return wrapped_method(self, arg, na_action)
+        return decorate
+
+
+    def get_decorator(self, method):     
+        def append(key, ls):
+            if pd.core.dtypes.common.is_hashable(key) and key not in ls:
+                ls.append(key)
+        def decorate(self, key):
+            if type(key) == list:
+                for item in key:
+                    append(item, get__keys[cur_cell])
+            else:
+                append(key, get__keys[cur_cell])
+            return method(self, key)
+        return decorate
+    def set_decorator(self, method):
+        def append(key, ls):
+            if pd.core.dtypes.common.is_hashable(key) and key not in ls:
+                ls.append(key)
+        def decorate(self, key, value):
+            if type(key) == list:
+                for item in key:
+                    append(item, set__keys[cur_cell])
+            else:
+                append(key, set__keys[cur_cell])
+            return method(self, key, value)
+        return decorate
+
+# we now update maxrow before each cell; we could also update it before each map/apply
+def update_maxrow(ls):
+    global maxrow
+    # local_max = 1
+    # for item in ls:
+    #     if type(item) == pd.DataFrame:
+    #         local_max = max(local_max, len(item))
+    maxrow = max([len(item) for item in ls if type(item) == pd.DataFrame] + [1])
+    # print(maxrow)
+
+def set_partition():
+    row_eq = collections.defaultdict(list)
+    for k, v in path_per_row.items():
+        row_eq[str(tuple(v))].append(k)
+    partitions[cur_cell] = row_eq
+    path_per_row.clear()
+
+libDec = LibDecorator()
