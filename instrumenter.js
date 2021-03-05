@@ -21,7 +21,7 @@ let lineToCell = new Map();
 let ins = new Map();
 let outs = new Map();
 let replace_strs = [];
-let head_str = fs.readFileSync("headstr.py").toString();
+let head_str = fs.readFileSync("helper.py").toString();
 let def_list = [];
 
 let pyTypeof = new Map();
@@ -35,10 +35,10 @@ if not os.path.isdir(tmp_dir_path):
 for idx, vars in store_vars.items():
     with open(os.path.join(tmp_dir_path, "${filename_no_suffix}_" + format(idx, '03') + ".dat"), "wb") as f:
         pickle.dump(vars, f)
-with open(os.path.join(tmp_dir_path, "${filename_no_suffix}_f.dat"), "wb") as f:
-    pickle.dump(ddict2dict(funcs), f)
+# with open(os.path.join(tmp_dir_path, "${filename_no_suffix}_f.dat"), "wb") as f:
+#     pickle.dump(ddict2dict(funcs), f)
 with open(os.path.join(tmp_dir_path, "info.json"), "w") as f:
-    f.write(json.dumps({"get": get__keys, "set": set__keys, "par": partitions}))
+    f.write(json.dumps({"get": get__keys, "set": set__keys, "par": pathTracker.partitions}))
 `
 
 function init_lineToCell() {
