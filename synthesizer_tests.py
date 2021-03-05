@@ -40,3 +40,13 @@ def run_all_tests():
         test()
 
 run_all_tests()
+
+# df['Happy'] = df['Age'].map(f)
+
+# df['Puzzled'] = df['Age'].map(f) + df['Country'].map(g)
+
+# df['Country'].map(g)
+# df['Sad'] = df['Age'].map(f)
+
+# df['Age'] = df['Age'].map(f) + df['Country'].map(g)
+# df['Evil'] = df['Age'].map(f)
