@@ -49,6 +49,9 @@ def add_emphasis(table):
             table[col] = table[col].map('<b>{}</b>'.format)
             # table[col] = table[col].map('**{}**'.format)
 
+def print_error(msg):
+    print("\033[91m", msg, "\033[0m")
+
 
 class Variable(object):
     def __init__(self, var, name, cellnum, outflag):
@@ -272,8 +275,7 @@ class PatternSynthesizer(object):
 
         if not self.check_typeconvert(df1, df2, from_col, to_col):
             if df1[from_col].nunique() > df2[to_col].nunique():
-                # [TODO] exclude fillna case
-                print(len(df1[from_col].unique()), len(df2[to_col].unique()))
+                # print(len(df1[from_col].unique()), len(df2[to_col].unique()))
                 self.syn_stack.append(("merge", [from_col], [to_col]))
             elif self.check_num(df1, from_col):
                 self.syn_stack.append(("num_transform", [from_col], [to_col]))
@@ -335,16 +337,16 @@ class PatternSynthesizer(object):
             self.check_column(df1, df2, col, col)
         
         # generate default partition
-        MAGIC_BOUND = 0.25
+        MAGIC_BOUND = 25
         if not self.partition:
             paths = collections.defaultdict(list)
             for col in self.colsnew:
-                if df2[col].nunique()/len(df2[col]) > MAGIC_BOUND:
+                if df2[col].nunique() > MAGIC_BOUND:
                     continue
                 for i in df2.index:
                     paths[i].append(str(df2[col].at[i]))
             for col in self.colschange:
-                if df2[col].nunique()/df1[col].nunique() > MAGIC_BOUND:
+                if df2[col].nunique() > MAGIC_BOUND:
                     continue
                 for i in df2.index:
                     if df2[col].at[i] == df1[col].at[i]:
@@ -837,8 +839,8 @@ if __name__ == "__main__":
             with open(os.path.join(data_path, file), "rb") as f:
                 try:
                     vars = pickle.load(f)
-                except AttributeError as e:
-                    print(e)
+                except AttributeError as e:    
+                    print_error("error when pickle from " + file)
                     continue
                 for i in range(len(vars)):
                     try:
