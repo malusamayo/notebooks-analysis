@@ -200,17 +200,14 @@ class PatternSynthesizer(object):
     '''
     df1: before, df2: after, col: the target column
     '''
-    def __init__(self, df1, df2, hints):
+    def __init__(self, df1, df2, info):
         self.df1 = df1
         self.df2 = df2
         self.cols1 = list(df1.columns)
         self.cols2 = list(df2.columns)
-        self.srccols = set()
+        self.srccols = set(info.get).intersection(self.cols1)
+        self.descols = set(info.set).intersection(self.cols1)
         self.syn_stack = []
-        for hint in hints:
-            if hint.startswith("[used]"):
-                self.srccols = set(hint.split(",")[1:])
-                self.srccols.intersection_update(set(self.cols1))
     
     def check_fillna_only(self, df1, df2, from_col, to_col):
         cmp_df = df2[to_col].compare(df1[from_col])
@@ -300,9 +297,10 @@ class PatternSynthesizer(object):
             return True
         return False
 
-    # refine remove row
+    # [TODO] refine remove row
     def check_removerow(self, df1, df2):
-        if len(df1) > len(df2):
+        # use index to track row mappings
+        if set(df2.index).issubset(set(df1.index)):
             self.syn_stack.append(("removerow"))
             return True
         return False
@@ -335,7 +333,7 @@ class PatternSynthesizer(object):
         self.check_removecol(df1, df2)
         self.check_rearrange(df1, df2)
         if self.check_removerow(df1, df2):
-            return self.syn_stack
+            df1 = df1.iloc[df2.index]
         self.colsnew = set(self.cols2).difference(set(self.cols1))
         self.colschange = set(col for col in self.cols1 if not df1[col].equals(df2[col]))
         print(self.colsnew, self.colschange)
@@ -589,8 +587,23 @@ class DataFrame(Variable):
                 self.comment += highlight_text("rearrange columns")
                 self.json_map["hint"] += "rearrange columns" + "; "
 
+class Info(object):
+    def __init__(self, info, cellnum):
+        super().__init__()
+        self.get = []
+        self.set = []
+        self.par = {}
+        if info == None:
+            return
+        if str(cellnum) in info["get"]:
+            self.get = info["get"][str(cellnum)]
+        if str(cellnum) in info["set"]:
+            self.set = info["set"][str(cellnum)]
+        if str(cellnum) in info["par"]:
+            self.par = info["par"][str(cellnum)]
 
-def handlecell(myvars, st, ed, hints):
+
+def handlecell(myvars, st, ed, info):
     # comments = ["\'\'\'"]
     comments = []
     first_in = -1
@@ -617,9 +630,9 @@ def handlecell(myvars, st, ed, hints):
                 # print(myvars[i].name, myvars[j].name, score)
                 if type(myvars[i].var) == pd.core.frame.DataFrame:
                     if type(myvars[j].var) == pd.core.frame.DataFrame:
-                        checker = PatternSynthesizer(myvars[j].var, myvars[i].var, hints)
+                        checker = PatternSynthesizer(myvars[j].var, myvars[i].var, info)
                         l = checker.check(myvars[j].var, myvars[i].var)
-                        print(myvars[i].cellnum, myvars[j].name, myvars[i].name, "\033[96m", l, "\033[0m")
+                        print(myvars[i].cellnum, ":", myvars[j].name, "->", myvars[i].name, "\033[96m", l, "\033[0m")
                 if cur_score > score:
                     cur_score = score
                     choose_idx = j
@@ -681,51 +694,50 @@ def dispatch_gen(var, name, cellnum, outflag):
         return Variable(var, name, cellnum, outflag)
 
 
-def gen_func_comment(fun_name, fun_map):
-    # not considering multiple return types from branches
+# def gen_func_comment(fun_name, fun_map):
+#     # not considering multiple return types from branches
 
-    _type = []
-    for k, path_map in fun_map.items():
-        if k == "loc":
-            continue
-        _type = [
-            k + ": " + str(type(v)) for k, v in path_map["args"][0].items()
-        ] + [str(type(x)) for x in path_map["rets"][0]]
-        break
+#     _type = []
+#     for k, path_map in fun_map.items():
+#         if k == "loc":
+#             continue
+#         _type = [
+#             k + ": " + str(type(v)) for k, v in path_map["args"][0].items()
+#         ] + [str(type(x)) for x in path_map["rets"][0]]
+#         break
 
-    total = sum([path_map["count"] for path_map in list(fun_map.values())[1:]])
+#     total = sum([path_map["count"] for path_map in list(fun_map.values())[1:]])
 
-    args_len, rets_len = 0, 0
-    examples = []
-    for k, path_map in fun_map.items():
-        if k == "loc":
-            continue
-        args_len = max(args_len, len(path_map["args"][0]))
-        rets_len = max(rets_len, len(path_map["rets"][0]))
-        args_list = [[v for k, v in args.items()] for args in path_map["args"]]
-        args = [[args[i] for args in args_list] for i in range(args_len)]
-        rets = [[rets[i] for rets in path_map["rets"]]
-                for i in range(rets_len)]
-        examples.append(args + rets +
-                        ['{:.2g}'.format(path_map["count"] / total)] +
-                        [path_map["count"]])
+#     args_len, rets_len = 0, 0
+#     examples = []
+#     for k, path_map in fun_map.items():
+#         if k == "loc":
+#             continue
+#         args_len = max(args_len, len(path_map["args"][0]))
+#         rets_len = max(rets_len, len(path_map["rets"][0]))
+#         args_list = [[v for k, v in args.items()] for args in path_map["args"]]
+#         args = [[args[i] for args in args_list] for i in range(args_len)]
+#         rets = [[rets[i] for rets in path_map["rets"]]
+#                 for i in range(rets_len)]
+#         examples.append(args + rets +
+#                         ['{:.2g}'.format(path_map["count"] / total)] +
+#                         [path_map["count"]])
 
-    _columns = ["args[{:d}]".format(i) for i in range(args_len)
-                ] + ["rets[{:d}]".format(i)
-                     for i in range(rets_len)] + ["frequency", "counts"]
+#     _columns = ["args[{:d}]".format(i) for i in range(args_len)
+#                 ] + ["rets[{:d}]".format(i)
+#                      for i in range(rets_len)] + ["frequency", "counts"]
 
-    table = pd.DataFrame([_type] +
-                         sorted(examples, key=lambda x: x[-1], reverse=True),
-                         columns=_columns)
+#     table = pd.DataFrame([_type] +
+#                          sorted(examples, key=lambda x: x[-1], reverse=True),
+#                          columns=_columns)
 
-    table.insert(0, fun_name + postfix, ["type"] +
-                 ["example_" + str(i) for i in range(len(fun_map.keys()) - 1)])
+#     table.insert(0, fun_name + postfix, ["type"] +
+#                  ["example_" + str(i) for i in range(len(fun_map.keys()) - 1)])
 
-    # comment = "'''\n[function table]\n" + str(table) + "\n'''\n"
-    comment = ""
-    json_map = json.loads(table.to_json())
-    return comment, json_map
-
+#     # comment = "'''\n[function table]\n" + str(table) + "\n'''\n"
+#     comment = ""
+#     json_map = json.loads(table.to_json())
+#     return comment, json_map
 
 if __name__ == "__main__":
     with open(sys.argv[1], encoding="UTF-8") as f:
@@ -748,7 +760,6 @@ if __name__ == "__main__":
     #     for j in range(l):
     #         line_to_idx[idx + j] = (code_indices[i], j)
 
-
     static_comments = {}
     with open(json_path) as f:
         json_tmp_list = json.load(f)
@@ -756,17 +767,22 @@ if __name__ == "__main__":
             static_comments[idx] = content
 
     json_map = {}
-    funcs = {}
-    cur = 0
+    info = {}
+    # funcs = {}
+    with open(os.path.join(data_path, "info.json"), 'r') as j:
+        info = json.loads(j.read())
+
 
     for file in os.listdir(data_path):
         myvars = []
-        if file.endswith("_f.dat"):
-            with open(os.path.join(data_path, file), "rb") as f:
-                try:
-                    funcs = pickle.load(f)
-                except:
-                    pass
+        if file == "info.json" or file.endswith("_f.dat"):
+            continue
+        # if file.endswith("_f.dat"):
+        #     with open(os.path.join(data_path, file), "rb") as f:
+        #         try:
+        #             funcs = pickle.load(f)
+        #         except:
+        #             pass
         else:
             with open(os.path.join(data_path, file), "rb") as f:
                 try:
@@ -780,8 +796,19 @@ if __name__ == "__main__":
                             dispatch_gen(vars[i][0], vars[i][1][2], vars[i][1][0], vars[i][1][1]))
                     except:
                         pass
-                comments = static_comments[vars[0][1][0]] if vars[0][1][0] in static_comments.keys() else []
-                _, json_map[code_indices[vars[0][1][0] - 1]] = handlecell(myvars, 0, len(vars)-1, comments)
+                # comments = static_comments[vars[0][1][0]] if vars[0][1][0] in static_comments.keys() else []
+                _, json_map[code_indices[vars[0][1][0] - 1]] = handlecell(myvars, 0, len(vars)-1, Info(info, vars[0][1][0]))
+                
+
+    # fill not existing entries
+    for key, value in json_map.items():
+        cat_list = ["input", "output", "summary", "function", "comment"]
+        for cat in cat_list:
+            if cat not in value.keys():
+                json_map[key][cat] = {}
+
+    with open(json_out_path, "w") as f:
+        f.write(json.dumps(json_map))
 
     # with open(data_path, "rb") as f:
     #     tmpvars = pickle.load(f)
@@ -798,41 +825,33 @@ if __name__ == "__main__":
     # format: [[cellnum, comment] or [funcname, cellnum]]
     # comment should be used later, along with cell number
 
-    def insert_to_map(json_map, cell_num, cat, name, value):
-        if cell_num not in json_map.keys():
-            json_map[cell_num] = {cat: {name: value}}
-        elif cat not in json_map[cell_num].keys():
-            json_map[cell_num][cat] = {name: value}
-        else:
-            json_map[cell_num][cat][name] = value
+    # def insert_to_map(json_map, cell_num, cat, name, value):
+    #     if cell_num not in json_map.keys():
+    #         json_map[cell_num] = {cat: {name: value}}
+    #     elif cat not in json_map[cell_num].keys():
+    #         json_map[cell_num][cat] = {name: value}
+    #     else:
+    #         json_map[cell_num][cat][name] = value
 
-    # add function info
-    insert_map = collections.defaultdict(list)
-    for fun_name, fun_map in funcs.items():
-        # print(lines[fun_map["loc"] - 1])
-        # affected by "-s"
-        # (i, j) = line_to_idx[fun_map["loc"] -3]
-        fun_name_no_idx = fun_name[:fun_name.rfind("_")]
-        cell_num = [v for k, v in static_comments.items() if k == fun_name_no_idx]
-        assert(len(cell_num) == 1)
-        comment, func_json_map = gen_func_comment(fun_name, fun_map)
-        insert_to_map(json_map, cell_num[0], "function", fun_name, func_json_map)
-        # insert_map[i].append((j, comment))
+    # # add function info
+    # insert_map = collections.defaultdict(list)
+    # for fun_name, fun_map in funcs.items():
+    #     # print(lines[fun_map["loc"] - 1])
+    #     # affected by "-s"
+    #     # (i, j) = line_to_idx[fun_map["loc"] -3]
+    #     fun_name_no_idx = fun_name[:fun_name.rfind("_")]
+    #     cell_num = [v for k, v in static_comments.items() if k == fun_name_no_idx]
+    #     assert(len(cell_num) == 1)
+    #     comment, func_json_map = gen_func_comment(fun_name, fun_map)
+    #     insert_to_map(json_map, cell_num[0], "function", fun_name, func_json_map)
+    #     # insert_map[i].append((j, comment))
 
     # for comment in static_comments:
     #     (i, j) = line_to_idx[comment[0] - 3]
     #     insert_to_map(json_map, i, "comment", j, comment[1])
     #     insert_map[i].append((j, "# [autodocs] " + comment[1] + "\n"))
 
-    # fill not existing entries
-    for key, value in json_map.items():
-        cat_list = ["input", "output", "summary", "function", "comment"]
-        for cat in cat_list:
-            if cat not in value.keys():
-                json_map[key][cat] = {}
-
-    with open(json_out_path, "w") as f:
-        f.write(json.dumps(json_map))
+    
 
     # for key, value in insert_map.items():
     #     code = notebook.cells[key].source.split("\n")
