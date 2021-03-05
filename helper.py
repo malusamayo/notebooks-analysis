@@ -5,7 +5,6 @@ import numpy as np
 import copy as lib_copy
 import inspect, collections, functools
 import matplotlib, pickle, json
-store_vars = collections.defaultdict(list)
 # my_labels = []
 my_dir_path = os.path.dirname(os.path.realpath(__file__))
 ignore_types = [
@@ -14,56 +13,31 @@ ignore_types = [
 ]
 TRACE_INTO = []
 
-
-
 # TYPE_1_FUN = ["capitalize", "casefold", "lower", "replace", "title", "upper"]
 # TYPE_2_FUN = ["rsplit", "split", "splitlines"]
 
 matplotlib.use('Agg')
-noop = lambda *args, **kwargs: None
+
+# global variables for information saving
+store_vars = collections.defaultdict(list)
+cur_cell = 0
 cur_exe = []
+get__keys = collections.defaultdict(list)
+set__keys = collections.defaultdict(list)
+# noop = lambda *args, **kwargs: None
+
+# def ddict():
+#     return collections.defaultdict(ddict)
 
 
-def ddict():
-    return collections.defaultdict(ddict)
+# def ddict2dict(d):
+#     for k, v in d.items():
+#         if isinstance(v, dict):
+#             d[k] = ddict2dict(v)
+#     return dict(d)
 
 
-def ddict2dict(d):
-    for k, v in d.items():
-        if isinstance(v, dict):
-            d[k] = ddict2dict(v)
-    return dict(d)
-
-
-funcs = ddict()
-
-
-def trace_lines(frame, event, arg):
-    if event != 'line':
-        return
-    co = frame.f_code
-    func_name = co.co_name
-    line_no = frame.f_lineno
-    filename = co.co_filename
-    cur_exe.append(line_no)
-
-
-def trace_calls(frame, event, arg):
-    if event != 'call':
-        return
-    co = frame.f_code
-    func_name = co.co_name
-    try:
-        if func_name not in TRACE_INTO:
-            return
-    except TypeError:
-        print(func_name, TRACE_INTO)
-    line_no = frame.f_lineno
-    return trace_lines
-
-
-sys.settrace(trace_calls)
-
+# funcs = ddict()
 
 def my_store_info(info, var):
     if str(type(var)) in ignore_types:
@@ -134,15 +108,6 @@ def func_info_saver(line):
         return wrapper
 
     return inner_decorator
-
-# global variables for information saving
-cur_cell = 0
-# maxrow = 1
-
-get__keys = collections.defaultdict(list)
-set__keys = collections.defaultdict(list)
-# path_per_row = collections.defaultdict(list)
-partitions = {}
 
 # should converted to str when return
 class MyStr(str):
@@ -309,6 +274,8 @@ class PathTracker(object):
     def __init__(self) -> None:
         super().__init__()
         self.paths = collections.defaultdict(list)
+        self.partitions = {}
+        sys.settrace(self.trace_calls)
 
     def reset(self, index):
         self.index = index
@@ -333,25 +300,36 @@ class PathTracker(object):
         row_eq = collections.defaultdict(list)
         for k, v in self.paths.items():
             row_eq[str(tuple(v))].append(k)
-        partitions[cur_cell] = row_eq
+        self.partitions[cur_cell] = row_eq
         self.paths.clear()
+
+    def trace_lines(self, frame, event, arg):
+        if event != 'line':
+            return
+        co = frame.f_code
+        func_name = co.co_name
+        line_no = frame.f_lineno
+        filename = co.co_filename
+        cur_exe.append(line_no)
+
+
+    def trace_calls(self, frame, event, arg):
+        if event != 'call':
+            return
+        co = frame.f_code
+        func_name = co.co_name
+        try:
+            if func_name not in TRACE_INTO:
+                return
+        except TypeError:
+            print(func_name, TRACE_INTO)
+        line_no = frame.f_lineno
+        return self.trace_lines
 
 # we now update maxrow before each map/apply
 # def update_maxrow(l):
 #     global maxrow
 #     maxrow = l
-
-# def set_partition():
-#     if not path_per_row:
-#         return
-#     row_eq = collections.defaultdict(list)
-#     for k, v in path_per_row.items():
-#         row_eq[str(tuple(v))].append(k)
-#     partitions[cur_cell] = row_eq
-#     path_per_row.clear()
-
-# def update_path(idx, path):
-#     path_per_row[idx].append(path)
 
 libDec = LibDecorator()
 pathTracker = PathTracker()
