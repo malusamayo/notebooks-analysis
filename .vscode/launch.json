@@ -14,18 +14,18 @@
       "console": "integratedTerminal"
     },
     {
-      "name": "Debug python Script",
+      "name": "Debug analyzer/tests",
       "type": "python",
       "request": "launch",
-      "program": "${workspaceRoot}/analyzer.py",
+      "program": "${file}",
       "args": [
-        ".\\notebooks\\debug_example.ipynb"
+        ".\\notebooks\\comprehensive-eda-viz-linear-regression.ipynb"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
     },
     {
-      "name": "Debug JS Script",
+      "name": "Debug instrumenter",
       "type": "node",
       "request": "launch",
       "program": "${workspaceRoot}/instrumenter.js",
