@@ -88,11 +88,12 @@ def func_info_saver(line):
         def wrapper(*args, **kwargs):
             if func.__name__ not in TRACE_INTO:
                 return func(*args, **kwargs)
-            try:
-                wrapper.cnt = (wrapper.cnt + 1) % maxrow
-            except:
-                wrapper.cnt = 0
-            MyStr.cnt = wrapper.cnt
+            pathTracker.next_iter()
+            # try:
+            #     wrapper.cnt = (wrapper.cnt + 1) % maxrow
+            # except:
+            #     wrapper.cnt = 0
+            # MyStr.cnt = wrapper.cnt
 
             # name = func.__name__ + "_" + str(line)
             # args_name = tuple(inspect.signature(func).parameters)
@@ -109,12 +110,14 @@ def func_info_saver(line):
                     new_args.append(arg)
             args = tuple(new_args)
 
+            # should make sure it is inside map/apply
             rets = func(*args, **kwargs)
             # convert back to str
             if type(rets) == MyStr:
                 rets = str(rets)
             
-            path_per_row[wrapper.cnt] += cur_exe
+            pathTracker.update_ls(cur_exe)
+            # path_per_row[wrapper.cnt] += cur_exe
 
             # if tuple(cur_exe) not in funcs[name].keys():
             #     funcs[name][tuple(cur_exe)]["count"] = 0
@@ -134,45 +137,45 @@ def func_info_saver(line):
 
 # global variables for information saving
 cur_cell = 0
-maxrow = 1
+# maxrow = 1
 
 get__keys = collections.defaultdict(list)
 set__keys = collections.defaultdict(list)
-path_per_row = collections.defaultdict(list)
+# path_per_row = collections.defaultdict(list)
 partitions = {}
 
 # should converted to str when return
 class MyStr(str):
-    cnt = 0
+    # cnt = 0
     def __new__(cls, content):
         return super().__new__(cls, content)
     
     def replace(self, __old: str, __new: str, __count=-1) -> str:
         ret = super().replace(__old, __new, __count)
         if self == ret:
-            path_per_row[MyStr.cnt].append(0)
+            pathTracker.update(0)
         else:
-            path_per_row[MyStr.cnt].append(1)
+            pathTracker.update(1)
         return MyStr(ret)
     
     def split(self, sep=None, maxsplit=-1):
         ret = super().split(sep, maxsplit)
-        path_per_row[MyStr.cnt].append(len(ret))
+        pathTracker.update(len(ret))
         return [MyStr(x) for x in ret]
 
     def strip(self, __chars=None) :
         ret = super().strip(__chars)
-        path_per_row[MyStr.cnt].append(int(self != ret))
+        pathTracker.update(int(self != ret))
         return MyStr(ret)
     
     def lower(self):
         ret = super().lower()
-        path_per_row[MyStr.cnt].append(int(self != ret))
+        pathTracker.update(int(self != ret))
         return MyStr(ret)
 
     def upper(self):
         ret = super().upper()
-        path_per_row[MyStr.cnt].append(int(self != ret))
+        pathTracker.update(int(self != ret))
         return MyStr(ret)
 
 class LibDecorator(object):
@@ -188,31 +191,32 @@ class LibDecorator(object):
     
     def replace_decorator(self, wrapped_method):
         def f(x, key, value, regex):
-            try:
-                f.cnt = (f.cnt + 1) % maxrow
-            except:
-                f.cnt = 0
+            # try:
+            #     f.cnt = (f.cnt + 1) % maxrow
+            # except:
+            #     f.cnt = 0
+            pathTracker.next_iter()
             if regex:
                 try:
                     if type(key) == list:
                         for i, pat in enumerate(key):
                             if bool(re.search(pat, x)):
-                                path_per_row[f.cnt].append(i)
+                                pathTracker.update(i)
                                 return
-                        path_per_row[f.cnt].append(-1)
+                        pathTracker.update(-1)
                     elif bool(re.search(key, x)):
-                        path_per_row[f.cnt].append(1)
+                        pathTracker.update(1)
                     else:
-                        path_per_row[f.cnt].append(0)
+                        pathTracker.update(0)
                 except:
-                    path_per_row[f.cnt].append(-2) # error
+                    pathTracker.update(-2) # error
             elif type(key) == list:
-                path_per_row[f.cnt].append(key.index(x) if x in key else -1)
+                pathTracker.update(key.index(x) if x in key else -1)
             else:
                 if x == key:
-                    path_per_row[f.cnt].append(1)
+                    pathTracker.update(1)
                 else:
-                    path_per_row[f.cnt].append(0)
+                    pathTracker.update(0)
         def decorate(self, to_replace=None, value=None, inplace=False, limit=None, regex=False, method="pad"):
             if to_replace != None:
                 self.map(lambda x: f(x, to_replace, value, regex))
@@ -221,20 +225,22 @@ class LibDecorator(object):
 
     def fillna_decorator(self, wrapped_method):
         def f(x, value):
-            try:
-                f.cnt = (f.cnt + 1) % maxrow
-            except:
-                f.cnt = 0
+            # try:
+            #     f.cnt = (f.cnt + 1) % maxrow
+            # except:
+            #     f.cnt = 0
+            pathTracker.next_iter()
             if pd.api.types.is_numeric_dtype(type(x)) and np.isnan(x):
-                path_per_row[f.cnt].append(1)
+                pathTracker.update(1)
             else:
-                path_per_row[f.cnt].append(0)
+                pathTracker.update(0)
 
         def decorate(self, value=None, method=None, axis=None, inplace=False, limit=None, downcast=None):
             if type(self) == pd.DataFrame:
-                update_maxrow(len(self))
+                pathTracker.reset(self.index)
                 for i, v in enumerate(self.isnull().sum(axis=1)):
-                    path_per_row[i].append(v)
+                    pathTracker.next_iter()
+                    pathTracker.update(v)
             else:
                 self.map(lambda x: f(x, value))
             return wrapped_method(self, value, method, axis, inplace, limit, downcast)
@@ -242,15 +248,16 @@ class LibDecorator(object):
 
     def str_split_decorator(self, wrapped_method):
         def f(x, pat, n):
-            try:
-                f.cnt = (f.cnt + 1) % maxrow
-            except:
-                f.cnt = 0
+            # try:
+            #     f.cnt = (f.cnt + 1) % maxrow
+            # except:
+            #     f.cnt = 0
+            pathTracker.next_iter()
             try:
                 ret = x.split(pat, n)
-                path_per_row[f.cnt].append(len(ret))
+                pathTracker.update(len(ret))
             except AttributeError:
-                path_per_row[f.cnt].append(-2) # x not str
+                pathTracker.update(-2) # x not str
         def decorate(self, pat=None, n=-1, expand=False):
             self._parent.map(lambda x: f(x, pat, n))
             return wrapped_method(self, pat, n, expand)
@@ -258,13 +265,15 @@ class LibDecorator(object):
 
     def map_decorator(self, wrapped_method):
         def f(x, d):
-            try:
-                f.cnt = (f.cnt + 1) % maxrow
-            except:
-                f.cnt = 0
-            path_per_row[f.cnt].append(list(d).index(x) if x in d else -1)
+            # try:
+            #     f.cnt = (f.cnt + 1) % maxrow
+            # except:
+            #     f.cnt = 0
+            pathTracker.next_iter()
+            pathTracker.update(list(d).index(x) if x in d else -1)
         def decorate(self, arg, na_action=None):
-            update_maxrow(len(self))
+            # should do init work here
+            pathTracker.reset(self.index)
             if type(arg) == dict:
                 self.map(lambda x: f(x, arg))
             return wrapped_method(self, arg, na_action)
@@ -296,21 +305,53 @@ class LibDecorator(object):
             return method(self, key, value)
         return decorate
 
+class PathTracker(object):
+    def __init__(self) -> None:
+        super().__init__()
+        self.paths = collections.defaultdict(list)
+
+    def reset(self, index):
+        self.index = index
+        self.iter = iter(index)
+        self.cur_idx = -1
+
+    def next_iter(self):
+        # try:
+        self.cur_idx = next(self.iter)
+        # except StopIteration:
+        #     self.cur_idx = next(iter(self.index))
+
+    def update(self, new_path):
+        self.paths[self.cur_idx].append(new_path)
+
+    def update_ls(self, new_paths):
+        self.paths[self.cur_idx] += new_paths
+
+    def to_partition(self):
+        if not self.paths:
+            return
+        row_eq = collections.defaultdict(list)
+        for k, v in self.paths.items():
+            row_eq[str(tuple(v))].append(k)
+        partitions[cur_cell] = row_eq
+        self.paths.clear()
+
 # we now update maxrow before each map/apply
-def update_maxrow(l):
-    global maxrow
-    maxrow = l
+# def update_maxrow(l):
+#     global maxrow
+#     maxrow = l
 
-def set_partition():
-    if not path_per_row:
-        return
-    row_eq = collections.defaultdict(list)
-    for k, v in path_per_row.items():
-        row_eq[str(tuple(v))].append(k)
-    partitions[cur_cell] = row_eq
-    path_per_row.clear()
+# def set_partition():
+#     if not path_per_row:
+#         return
+#     row_eq = collections.defaultdict(list)
+#     for k, v in path_per_row.items():
+#         row_eq[str(tuple(v))].append(k)
+#     partitions[cur_cell] = row_eq
+#     path_per_row.clear()
 
-def update_path(idx, path):
-    path_per_row[idx].append(path)
+# def update_path(idx, path):
+#     path_per_row[idx].append(path)
 
 libDec = LibDecorator()
+pathTracker = PathTracker()
