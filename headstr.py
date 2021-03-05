@@ -232,6 +232,7 @@ class LibDecorator(object):
 
         def decorate(self, value=None, method=None, axis=None, inplace=False, limit=None, downcast=None):
             if type(self) == pd.DataFrame:
+                update_maxrow(len(self))
                 for i, v in enumerate(self.isnull().sum(axis=1)):
                     path_per_row[i].append(v)
             else:
@@ -245,11 +246,11 @@ class LibDecorator(object):
                 f.cnt = (f.cnt + 1) % maxrow
             except:
                 f.cnt = 0
-            if type(x) != str:
-                path_per_row[f.cnt].append(-1)
-                return
-            ret = x.split(pat, n)
-            path_per_row[f.cnt].append(len(ret))
+            try:
+                ret = x.split(pat, n)
+                path_per_row[f.cnt].append(len(ret))
+            except AttributeError:
+                path_per_row[f.cnt].append(-2) # x not str
         def decorate(self, pat=None, n=-1, expand=False):
             self._parent.map(lambda x: f(x, pat, n))
             return wrapped_method(self, pat, n, expand)
@@ -263,6 +264,7 @@ class LibDecorator(object):
                 f.cnt = 0
             path_per_row[f.cnt].append(list(d).index(x) if x in d else -1)
         def decorate(self, arg, na_action=None):
+            update_maxrow(len(self))
             if type(arg) == dict:
                 self.map(lambda x: f(x, arg))
             return wrapped_method(self, arg, na_action)
@@ -294,10 +296,10 @@ class LibDecorator(object):
             return method(self, key, value)
         return decorate
 
-# we now update maxrow before each cell; we could also update it before each map/apply
-def update_maxrow(ls):
+# we now update maxrow before each map/apply
+def update_maxrow(l):
     global maxrow
-    maxrow = max([len(item) for item in ls if type(item) == pd.DataFrame] + [1])
+    maxrow = l
 
 def set_partition():
     if not path_per_row:
@@ -307,5 +309,8 @@ def set_partition():
         row_eq[str(tuple(v))].append(k)
     partitions[cur_cell] = row_eq
     path_per_row.clear()
+
+def update_path(idx, path):
+    path_per_row[idx].append(path)
 
 libDec = LibDecorator()

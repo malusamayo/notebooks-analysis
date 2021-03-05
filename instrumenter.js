@@ -401,7 +401,7 @@ function insert_print_stmt(code) {
             cur_cell++;
             if (ins.get(cur_cell) !== undefined) {
                 ins.get(cur_cell).forEach(x => lines[i] += print_info(cur_cell, x, 0));
-                lines[i] += "update_maxrow([" + ins.get(cur_cell).join(", ") + "])\n";
+                // lines[i] += "update_maxrow([" + ins.get(cur_cell).join(", ") + "])\n";
             }
             // update cur_cell before execution
             lines[i] += "cur_cell = " + cur_cell + "\n";

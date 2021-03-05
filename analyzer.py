@@ -243,7 +243,8 @@ class PatternSynthesizer(object):
             elif self.check_str(df1, from_col):
                 self.syn_stack.append(("str_transform", [from_col], [to_col]))
 
-        if df1[from_col].dtype != df2[to_col].dtype:
+        # converted to str to avoid bugs when dtype == Categorical
+        if str(df1[from_col].dtype) != str(df2[to_col].dtype):
             if self.check_float(df2, to_col):
                 self.syn_stack.append(("float", [from_col], [to_col]))
                 check_transform(float)
@@ -300,8 +301,15 @@ class PatternSynthesizer(object):
     # [TODO] refine remove row
     def check_removerow(self, df1, df2):
         # use index to track row mappings
-        if set(df2.index).issubset(set(df1.index)):
-            self.syn_stack.append(("removerow"))
+        if len(df2) < len(df1) and set(df2.index).issubset(set(df1.index)):
+            tmp = df1.loc[~df1.index.isin(df2.index)]
+            tmp_null = tmp.isnull()
+            # all rows contain nan
+            if tmp_null.any(axis=1).all():
+                # select columns that removed rows all contain nan
+                self.syn_stack.append(("remove_null", list(tmp_null.columns[tmp_null.all()])))
+            else:
+                self.syn_stack.append(("removerow"))
             return True
         return False
 
@@ -330,14 +338,19 @@ class PatternSynthesizer(object):
             return
         if len(df1) < len(df2):
             return
+        if self.check_removerow(df1, df2):
+            df1 = df1.loc[df2.index]
+        # rows not removed -> index not subset -> irrelevant dfs
+        if len(df1) > len(df2):
+            return
         self.check_removecol(df1, df2)
         self.check_rearrange(df1, df2)
-        if self.check_removerow(df1, df2):
-            df1 = df1.iloc[df2.index]
         self.colsnew = set(self.cols2).difference(set(self.cols1))
         self.colschange = set(col for col in self.cols1 if not df1[col].equals(df2[col]))
         print(self.colsnew, self.colschange)
         self.search(df1, df2)
+        if not self.syn_stack:
+            self.syn_stack.append("copy")
         return self.syn_stack
 
 class DataFrame(Variable):
@@ -606,50 +619,57 @@ class Info(object):
 def handlecell(myvars, st, ed, info):
     # comments = ["\'\'\'"]
     comments = []
-    first_in = -1
-    first_out = -1
-    header = "---\n"
-    for i in range(st, ed + 1):
-        if myvars[i].outflag == 0 and first_in == -1:
-            first_in = i
-            myvars[i].comment = header + "**input**\n" + myvars[i].comment
-        elif myvars[i].outflag == 1 and first_out == -1:
-            first_out = i
-            tmp = "**output**\n" + myvars[i].comment
-            myvars[i].comment = header + tmp if first_in == -1 else "\n" + tmp
+
+    # find the first input and output
+    flags = [var.outflag for var in myvars[st:ed+1]]
+    first_in = flags.index(0) + st if 0 in flags else -1
+    first_out = flags.index(1) + st if 1 in flags else -1
+
+    # first_in = -1
+    # first_out = -1
+    # header = "---\n"
+    # for i in range(st, ed + 1):
+    #     if myvars[i].outflag == 0 and first_in == -1:
+    #         first_in = i
+    #         myvars[i].comment = header + "**input**\n" + myvars[i].comment
+    #     elif myvars[i].outflag == 1 and first_out == -1:
+    #         first_out = i
+    #         tmp = "**output**\n" + myvars[i].comment
+    #         myvars[i].comment = header + tmp if first_in == -1 else "\n" + tmp
     '''
     for each output variable, find the input that is closest to it
     find rel within in/out group
     '''
     if first_out != -1 and first_in != -1:
         for i in range(first_out, ed + 1):
-            choose_idx = -1
-            cur_score = 5
+            # choose_idx = -1
+            # cur_score = 5
             for j in range(first_in, first_out):
-                score = myvars[i].check_rel(myvars[j])
+                # score = myvars[i].check_rel(myvars[j])
                 # print(myvars[i].name, myvars[j].name, score)
                 if type(myvars[i].var) == pd.core.frame.DataFrame:
                     if type(myvars[j].var) == pd.core.frame.DataFrame:
                         checker = PatternSynthesizer(myvars[j].var, myvars[i].var, info)
                         l = checker.check(myvars[j].var, myvars[i].var)
                         print(myvars[i].cellnum, ":", myvars[j].name, "->", myvars[i].name, "\033[96m", l, "\033[0m")
-                if cur_score > score:
-                    cur_score = score
-                    choose_idx = j
-            if choose_idx != -1:
-                myvars[i].compare_to(myvars[choose_idx])
+                # if cur_score > score:
+                #     cur_score = score
+                #     choose_idx = j
+            # if choose_idx != -1:
+                # myvars[i].compare_to(myvars[choose_idx])
 
     # if both output, we only check copy
-    if first_out != -1:
-        for i in range(first_out, ed + 1):
-            for j in range(i + 1, ed + 1):
-                myvars[j].check_copy(myvars[i])
-        for i in range(first_out, ed + 1):
-            myvars[i].add_data_distribute()
+    # if first_out != -1:
+    #     for i in range(first_out, ed + 1):
+    #         for j in range(i + 1, ed + 1):
+    #             myvars[j].check_copy(myvars[i])
+    #     for i in range(first_out, ed + 1):
+    #         myvars[i].add_data_distribute()
 
-    for i in range(st, ed + 1):
-        comments.append(myvars[i].comment)
+    # for i in range(st, ed + 1):
+    #     comments.append(myvars[i].comment)
 
+    # build json maps
     json_map = {"input": {}, "output": {}, "summary": {}}
     for i in range(st, ed + 1):
         if myvars[i].outflag == 0:
