@@ -12,7 +12,8 @@ ignore_types = [
     "<class 'module'>", "<class 'type'>", "<class 'function'>",
     "<class 'matplotlib.figure.Figure'>"
 ]
-TRACE_INTO = ['lambda_0','Title_Dictionary','lambda_1','cleanTicket','lambda_2','lambda_3','lambda_4']
+TRACE_INTO = []
+
 
 
 # TYPE_1_FUN = ["capitalize", "casefold", "lower", "replace", "title", "upper"]
@@ -99,6 +100,7 @@ def func_info_saver(line):
             # arg_dict.update(kwargs)
             # funcs[name]["loc"] = line
 
+            # convert arg of str to MyStr
             new_args = []
             for arg in list(args):
                 if type(arg) == str:
@@ -108,6 +110,7 @@ def func_info_saver(line):
             args = tuple(new_args)
 
             rets = func(*args, **kwargs)
+            # convert back to str
             if type(rets) == MyStr:
                 rets = str(rets)
             
@@ -129,32 +132,7 @@ def func_info_saver(line):
 
     return inner_decorator
 
-
-# def cov(f):
-#     @functools.wraps(f)
-#     def cov_wrapper_1(*args, **kwargs):
-#         ret = f(*args, **kwargs)
-#         if (ret == args[0]):
-#             noop
-#         else:
-#             noop
-#         return ret
-
-#     def cov_wrapper_2(*args, **kwargs):
-#         ret = f(*args, **kwargs)
-#         if (len(ret) <= 1):
-#             noop
-#         else:
-#             noop
-#         return ret
-
-#     if f.__name__ in TYPE_1_FUN:
-#         return cov_wrapper_1
-#     elif f.__name__ in TYPE_2_FUN:
-#         return cov_wrapper_2
-#     else:
-#         return f
-
+# global variables for information saving
 cur_cell = 0
 maxrow = 1
 
@@ -184,10 +162,17 @@ class MyStr(str):
 
     def strip(self, __chars=None) :
         ret = super().strip(__chars)
-        if self == ret:
-            path_per_row[MyStr.cnt].append(0)
-        else:
-            path_per_row[MyStr.cnt].append(1)
+        path_per_row[MyStr.cnt].append(int(self != ret))
+        return MyStr(ret)
+    
+    def lower(self):
+        ret = super().lower()
+        path_per_row[MyStr.cnt].append(int(self != ret))
+        return MyStr(ret)
+
+    def upper(self):
+        ret = super().upper()
+        path_per_row[MyStr.cnt].append(int(self != ret))
         return MyStr(ret)
 
 class LibDecorator(object):
@@ -197,7 +182,9 @@ class LibDecorator(object):
         pd.DataFrame.__setitem__ = self.set_decorator(pd.DataFrame.__setitem__)
         pd.Series.replace = self.replace_decorator(pd.Series.replace)
         pd.Series.fillna = self.fillna_decorator(pd.Series.fillna)
-        pd.Series.map  = self.map_decorator(pd.Series.map) 
+        pd.DataFrame.fillna = self.fillna_decorator(pd.DataFrame.fillna)
+        pd.Series.map  = self.map_decorator(pd.Series.map)
+        pd.Series.str.split = self.str_split_decorator(pd.Series.str.split)
     
     def replace_decorator(self, wrapped_method):
         def f(x, key, value, regex):
@@ -207,21 +194,28 @@ class LibDecorator(object):
                 f.cnt = 0
             if regex:
                 try:
-                    if bool(re.search(key, x)):
-                        path_per_row[f.cnt].append(0)
-                    else:
+                    if type(key) == list:
+                        for i, pat in enumerate(key):
+                            if bool(re.search(pat, x)):
+                                path_per_row[f.cnt].append(i)
+                                return
+                        path_per_row[f.cnt].append(-1)
+                    elif bool(re.search(key, x)):
                         path_per_row[f.cnt].append(1)
+                    else:
+                        path_per_row[f.cnt].append(0)
                 except:
-                    path_per_row[f.cnt].append(-1)
+                    path_per_row[f.cnt].append(-2) # error
             elif type(key) == list:
                 path_per_row[f.cnt].append(key.index(x) if x in key else -1)
             else:
                 if x == key:
-                    path_per_row[f.cnt].append(0)
-                else:
                     path_per_row[f.cnt].append(1)
+                else:
+                    path_per_row[f.cnt].append(0)
         def decorate(self, to_replace=None, value=None, inplace=False, limit=None, regex=False, method="pad"):
-            self.map(lambda x: f(x, to_replace, value, regex))
+            if to_replace != None:
+                self.map(lambda x: f(x, to_replace, value, regex))
             return wrapped_method(self, to_replace, value, inplace, limit, regex, method)
         return decorate
 
@@ -232,12 +226,33 @@ class LibDecorator(object):
             except:
                 f.cnt = 0
             if pd.api.types.is_numeric_dtype(type(x)) and np.isnan(x):
-                path_per_row[f.cnt].append(0)
-            else:
                 path_per_row[f.cnt].append(1)
+            else:
+                path_per_row[f.cnt].append(0)
+
         def decorate(self, value=None, method=None, axis=None, inplace=False, limit=None, downcast=None):
-            self.map(lambda x: f(x, value))
+            if type(self) == pd.DataFrame:
+                for i, v in enumerate(self.isnull().sum(axis=1)):
+                    path_per_row[i].append(v)
+            else:
+                self.map(lambda x: f(x, value))
             return wrapped_method(self, value, method, axis, inplace, limit, downcast)
+        return decorate
+
+    def str_split_decorator(self, wrapped_method):
+        def f(x, pat, n):
+            try:
+                f.cnt = (f.cnt + 1) % maxrow
+            except:
+                f.cnt = 0
+            if type(x) != str:
+                path_per_row[f.cnt].append(-1)
+                return
+            ret = x.split(pat, n)
+            path_per_row[f.cnt].append(len(ret))
+        def decorate(self, pat=None, n=-1, expand=False):
+            self._parent.map(lambda x: f(x, pat, n))
+            return wrapped_method(self, pat, n, expand)
         return decorate
 
     def map_decorator(self, wrapped_method):
@@ -282,14 +297,11 @@ class LibDecorator(object):
 # we now update maxrow before each cell; we could also update it before each map/apply
 def update_maxrow(ls):
     global maxrow
-    # local_max = 1
-    # for item in ls:
-    #     if type(item) == pd.DataFrame:
-    #         local_max = max(local_max, len(item))
     maxrow = max([len(item) for item in ls if type(item) == pd.DataFrame] + [1])
-    # print(maxrow)
 
 def set_partition():
+    if not path_per_row:
+        return
     row_eq = collections.defaultdict(list)
     for k, v in path_per_row.items():
         row_eq[str(tuple(v))].append(k)

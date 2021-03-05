@@ -19,7 +19,7 @@
       "request": "launch",
       "program": "${workspaceRoot}/analyzer.py",
       "args": [
-        ".\\notebooks\\comprehensive-eda-viz-linear-regression.ipynb"
+        ".\\notebooks\\debug_example.ipynb"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
