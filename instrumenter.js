@@ -395,7 +395,7 @@ function insert_print_stmt(code) {
     }
     for (let i = 0; i < max_line; i++) {
         if (lines[i].startsWith('# In[')) {
-            lines[i - 1] += "set_partition()\n"
+            lines[i - 1] += "pathTracker.to_partition()\n"
             if (outs.get(cur_cell) !== undefined)
                 outs.get(cur_cell).forEach(x => lines[i - 1] += print_info(cur_cell, x, 1));
             cur_cell++;
