@@ -207,6 +207,7 @@ class PatternSynthesizer(object):
         self.cols2 = list(df2.columns)
         self.srccols = set(info.get).intersection(self.cols1)
         self.descols = set(info.set).intersection(self.cols1)
+        self.partition = info.par
         self.syn_stack = []
     
     def check_fillna_only(self, df1, df2, from_col, to_col):
@@ -288,7 +289,7 @@ class PatternSynthesizer(object):
         removed = [x for x in self.cols1 if x not in self.cols2]
         if removed:        
             self.cols1 = [x for x in self.cols1 if x in self.cols2]
-            self.syn_stack.append(("removecol", removed))
+            self.syn_stack.append(("removecol", removed, []))
             return True
         return False
     
@@ -309,28 +310,51 @@ class PatternSynthesizer(object):
                 # select columns that removed rows all contain nan
                 self.syn_stack.append(("remove_null", list(tmp_null.columns[tmp_null.all()])))
             else:
-                self.syn_stack.append(("removerow"))
+                self.syn_stack.append(("removerow", [], []))
             return True
         return False
 
     def search(self, df1, df2):
         cols_dummy = [col for col in self.colsnew if set(df2[col].unique()).issubset({0, 1})]
         if cols_dummy:
-            self.syn_stack.append(("one_hot_encoding", cols_dummy))
+            # should check whether dummies are true
+            self.syn_stack.append(("one_hot_encoding", list(self.srccols), cols_dummy))
         # [TODO] add src cols for create; special optimization for one src col
         for col in self.colsnew - set(cols_dummy):
             if len(self.srccols) == 1:
                 self.check_column(df1, df2, list(self.srccols)[0], col)
             elif self.check_num(df2, col):
-                self.syn_stack.append(("num_transform", [col]))
+                self.syn_stack.append(("num_transform", list(self.srccols), [col]))
             elif self.check_str(df2, col):
-                self.syn_stack.append(("str_transform", [col]))
+                self.syn_stack.append(("str_transform", list(self.srccols), [col]))
             else:
-                self.syn_stack.append(("create", [col]))
+                self.syn_stack.append(("create", list(self.srccols), [col]))
 
         # [TODO] merge the same op for different cols?
         for col in self.colschange:
             self.check_column(df1, df2, col, col)
+        
+        # generate default partition
+        MAGIC_BOUND = 0.25
+        if not self.partition:
+            paths = collections.defaultdict(list)
+            for col in self.colsnew:
+                if df2[col].nunique()/len(df2[col]) > MAGIC_BOUND:
+                    continue
+                for i in df2.index:
+                    paths[i].append(str(df2[col].at[i]))
+            for col in self.colschange:
+                if df2[col].nunique()/df1[col].nunique() > MAGIC_BOUND:
+                    continue
+                for i in df2.index:
+                    if df2[col].at[i] == df1[col].at[i]:
+                        paths[i].append("DUMMY")
+                    else:
+                        paths[i].append(str(df2[col].at[i]))
+            for k, v in paths.items():
+                self.partition[str(tuple(v))].append(k)
+            # print(self.partition.keys())
+
 
     def check(self, df1, df2):
         # [TODO] differentiate between irrelevant dfs and real transformations
@@ -348,9 +372,10 @@ class PatternSynthesizer(object):
         self.colsnew = set(self.cols2).difference(set(self.cols1))
         self.colschange = set(col for col in self.cols1 if not df1[col].equals(df2[col]))
         print(self.colsnew, self.colschange)
-        self.search(df1, df2)
-        if not self.syn_stack:
-            self.syn_stack.append("copy")
+        if self.colsnew or self.colschange:
+            self.search(df1, df2)
+        # if not self.syn_stack:
+        #     self.syn_stack.append("copy")
         return self.syn_stack
 
 class DataFrame(Variable):
@@ -605,7 +630,7 @@ class Info(object):
         super().__init__()
         self.get = []
         self.set = []
-        self.par = {}
+        self.par = collections.defaultdict(list)
         if info == None:
             return
         if str(cellnum) in info["get"]:
@@ -636,6 +661,19 @@ def handlecell(myvars, st, ed, info):
     #         first_out = i
     #         tmp = "**output**\n" + myvars[i].comment
     #         myvars[i].comment = header + tmp if first_in == -1 else "\n" + tmp
+
+    # build json maps
+    json_map = {"input": {}, "output": {}, "summary": {}, "partition": {}}
+    for i in range(st, ed + 1):
+        if myvars[i].outflag == 0:
+            json_map["input"][myvars[i].name] = myvars[i].json_map
+        elif myvars[i].outflag == 1:
+            json_map["output"][myvars[i].name] = myvars[i].json_map
+            # if myvars[i].json_map["type"].startswith(
+            #         "DataFrame") and myvars[i].json_map["hint"] != "":
+            #     json_map["summary"][
+            #         myvars[i].name] = myvars[i].json_map["hint"]
+
     '''
     for each output variable, find the input that is closest to it
     find rel within in/out group
@@ -650,8 +688,12 @@ def handlecell(myvars, st, ed, info):
                 if type(myvars[i].var) == pd.core.frame.DataFrame:
                     if type(myvars[j].var) == pd.core.frame.DataFrame:
                         checker = PatternSynthesizer(myvars[j].var, myvars[i].var, info)
-                        l = checker.check(myvars[j].var, myvars[i].var)
-                        print(myvars[i].cellnum, ":", myvars[j].name, "->", myvars[i].name, "\033[96m", l, "\033[0m")
+                        result = checker.check(myvars[j].var, myvars[i].var)
+                        if result:
+                            flow = ' '.join([myvars[j].name, "->", myvars[i].name])
+                            print(myvars[i].cellnum, ":", flow, "\033[96m", result, "\033[0m")
+                            json_map["summary"][flow] = result
+                            json_map["partition"][flow] = checker.partition
                 # if cur_score > score:
                 #     cur_score = score
                 #     choose_idx = j
@@ -668,18 +710,6 @@ def handlecell(myvars, st, ed, info):
 
     # for i in range(st, ed + 1):
     #     comments.append(myvars[i].comment)
-
-    # build json maps
-    json_map = {"input": {}, "output": {}, "summary": {}}
-    for i in range(st, ed + 1):
-        if myvars[i].outflag == 0:
-            json_map["input"][myvars[i].name] = myvars[i].json_map
-        elif myvars[i].outflag == 1:
-            json_map["output"][myvars[i].name] = myvars[i].json_map
-            if myvars[i].json_map["type"].startswith(
-                    "DataFrame") and myvars[i].json_map["hint"] != "":
-                json_map["summary"][
-                    myvars[i].name] = myvars[i].json_map["hint"]
 
     # comments.append("\'\'\'\n")
     return "\n".join(comments), json_map
