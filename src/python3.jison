@@ -323,7 +323,7 @@ varargslist
 
 varargspart
     : vfpdef
-        { $$ = [{ type: 'parameter', name: $1, location: @$ }] }
+        { $$ = { type: 'parameter', name: $1, location: @$ } }
     | vfpdef '='test
         { $$ = [{ type: 'parameter', name: $1, default_value: $3, location: @$ }] }
     | '*'
@@ -792,7 +792,7 @@ lambdef
     : 'lambda' ':' test
         { $$ = { type: 'lambda',  args: '', code: $3, location: @$ } }
     | 'lambda' varargslist ':' test
-        { $$ = { type: 'lambda',  args: $2, code: $3, location: @$ } }
+        { $$ = { type: 'lambda',  args: $2, code: $4, location: @$ } }
     ;
 
 // lambdef_nocond: 'lambda' [varargslist] ':' test_nocond
