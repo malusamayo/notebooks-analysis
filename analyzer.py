@@ -743,10 +743,6 @@ def handlecell(myvars, st, ed, info):
                 
     # comments.append("\'\'\'\n")
 
-    # distributed
-    with open(os.path.join(data_path, f"result_{cell_num}.json"), "w") as f:
-        f.write(json.dumps(json_map))
-
     return "\n".join(comments), json_map
 
 
@@ -877,7 +873,11 @@ if __name__ == "__main__":
                         print_error("error when dispatch var " + vars[i][1][2])
                         pass
                 # comments = static_comments[vars[0][1][0]] if vars[0][1][0] in static_comments.keys() else []
-                _, _ = handlecell(myvars, 0, len(vars)-1, Info(info, vars[0][1][0]))
+                _, json_map = handlecell(myvars, 0, len(vars)-1, Info(info, vars[0][1][0]))
+                
+                # distributed
+                with open(os.path.join(data_path, f"result_{code_indices[vars[0][1][0] - 1]}.json"), "w") as f:
+                    f.write(json.dumps(json_map))
                 
 
     # fill not existing entries
