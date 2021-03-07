@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { Block, ControlFlowGraph } from "./control-flow";
+import { printNode } from "./printNode";
 import * as ast from "./python-parser";
 import { Set } from "./set";
 import { DefaultSpecs, FunctionSpec, JsonSpecs, TypeSpec } from "./specs";
@@ -10,7 +11,7 @@ class DefUse {
     public DEFINITION = new RefSet(),
     public UPDATE = new RefSet(),
     public USE = new RefSet()
-  ) {}
+  ) { }
 
   public get defs() {
     return this.DEFINITION.union(this.UPDATE);
@@ -466,7 +467,7 @@ abstract class AnalysisWalker implements ast.WalkListener {
   constructor(
     protected _statement: ast.SyntaxNode,
     protected symbolTable: SymbolTable
-  ) {}
+  ) { }
   abstract onEnterNode?(node: ast.SyntaxNode, ancestors: ast.SyntaxNode[]);
 }
 
@@ -520,7 +521,7 @@ class DefAnnotationAnalysis extends AnalysisWalker {
                 node: this._statement
               });
             }
-          } catch (e) {}
+          } catch (e) { }
         }
       }
     }
@@ -616,6 +617,16 @@ class ApiCallAnalysis extends AnalysisWalker {
       });
       if (node.func.type === ast.DOT && node.func.value.type === ast.NAME) {
         const name = node.func.value.id;
+        this.defs.add({
+          type: SymbolType.MUTATION,
+          level: ReferenceType.UPDATE,
+          name: name,
+          location: node.location,
+          node: this._statement
+        });
+      } else if (node.func.type === ast.DOT && node.func.value.type == ast.DOT) {
+        // deal with the case x.field.func(), x might be changed!
+        const name = printNode(node.func.value).split('.')[0];
         this.defs.add({
           type: SymbolType.MUTATION,
           level: ReferenceType.UPDATE,
