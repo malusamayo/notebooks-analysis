@@ -561,18 +561,24 @@ class PatternSynthesizer(object):
             return True
         return False
 
-    # [TODO] refine remove row
     def check_removerow(self, df1, df2):
+        # [TODO] add other cases: duplicates/etc.
         # use index to track row mappings
         if len(df2) < len(df1) and set(df2.index).issubset(set(df1.index)):
-            tmp = df1.loc[~df1.index.isin(df2.index)]
-            tmp_null = tmp.isnull()
+            removed = df1.loc[~df1.index.isin(df2.index)]
+            left = df1.loc[df1.index.isin(df2.index)]
+            removed_null = removed.isnull()
+            left_null = left.isnull()
             # all removed rows contain nan
-            if tmp_null.any(axis=1).all():
-                # select columns that removed rows all contain nan
-                self.synthesis_append("removerow_null", list(tmp_null.columns[tmp_null.all()]), [])
+            if removed_null.any(axis=1).all():
+                # select columns that removed rows all contain nan & remaining rows contain no nan
+                all_nan = set(removed_null.columns[removed_null.all()])
+                no_nan = set(left_null.columns[~left_null.any()])
+                self.synthesis_append("removerow_null", list(all_nan & no_nan), [])
+            elif len(left.merge(removed)) == len(left):
+                self.synthesis_append("removerow_dup", [], [])
             else:
-                self.synthesis_append("removerow", [str(len(tmp))], [])
+                self.synthesis_append("removerow", [str(len(removed))], [])
             return True
         return False
 
@@ -581,7 +587,6 @@ class PatternSynthesizer(object):
         if cols_dummy:
             # should check whether dummies are true
             self.synthesis_append("one_hot_encoding", list(self.srccols), cols_dummy)
-        # [TODO] add src cols for create; special optimization for one src col
         for col in self.colsnew - set(cols_dummy):
             if len(self.srccols) == 1:
                 self.check_column(df1, df2, list(self.srccols)[0], col)
@@ -592,7 +597,6 @@ class PatternSynthesizer(object):
             else:
                 self.synthesis_append("create", list(self.srccols), [col])
 
-        # [TODO] merge the same op for different cols?
         for col in self.colschange:
             self.check_column(df1, df2, col, col)
         
@@ -619,7 +623,6 @@ class PatternSynthesizer(object):
 
 
     def check(self, df1, df2):
-        # [TODO] differentiate between irrelevant dfs and real transformations
         if set(self.cols1).isdisjoint(set(self.cols2)):
             return
         if len(df1) < len(df2):
