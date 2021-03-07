@@ -19,7 +19,7 @@
       "request": "launch",
       "program": "${file}",
       "args": [
-        ".\\notebooks\\debug_example.ipynb"
+        ".\\notebooks\\comprehensive-eda-viz-linear-regression.ipynb"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
