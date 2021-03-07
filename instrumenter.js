@@ -198,8 +198,9 @@ function static_analyzer(tree) {
                 let code = src.args[0].actual.code;
                 let def_code = "";
                 if (code.type == "ifexpr") {
+                    let testcode = printNode(code.test).replace(/[\(\)]/g, "");
                     def_code = ["def lambda_" + lambda_id + "(" + args.join(", ") + "):",
-                    "if " + printNode(code.test) + ":", "\treturn " + printNode(code.then),
+                    "if " + testcode + ":", "\treturn " + printNode(code.then),
                         "else:", "\treturn " + printNode(code.else)];
                 } else {
                     def_code = ["def lambda_" + lambda_id + "(" + args.join(", ") + "):", "return " + printNode(code)];
@@ -218,6 +219,7 @@ function static_analyzer(tree) {
     }
 
     for (let [_, stmt] of tree.code.entries()) {
+        // console.log(printNode(stmt));
         infer_types(stmt);
         let cols = collect_cols(stmt, pyTypeof);
         cols.forEach(value => cell_cols.add(value.replace(/['"]+/g, '')));
