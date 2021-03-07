@@ -24,7 +24,7 @@ suffix = filename[filename.rfind("."):]
 data_path = os.path.join(dir_path, filename_no_suffix)
 output_path = os.path.join(dir_path, filename_no_suffix + "_m" + suffix)
 json_path = os.path.join(dir_path, filename_no_suffix + "_comment.json")
-json_out_path = os.path.join(dir_path, filename_no_suffix + "_out.json")
+json_out_path = os.path.join(data_path, "result.json")
 
 blanks = "\t- "
 postfix = "[auto]"
@@ -460,7 +460,19 @@ class PatternSynthesizer(object):
         self.descols = set(info.set).intersection(self.cols1)
         self.partition = info.par
         self.syn_stack = []
+        self.summary = collections.defaultdict(list)
+        self.markers = {}
     
+    def synthesis_append(self, pattern, from_col, to_col):
+        self.syn_stack.append((pattern, from_col, to_col))
+        if pattern == "rearrange":
+            self.summary["other_patterns"].append({pattern: 
+                ','.join(from_col) + '|' + ','.join(to_col)})
+        elif len(to_col) > 0:
+            self.summary[','.join(from_col) + '|' + ','.join(to_col)].append(pattern)
+        else:
+            self.summary["other_patterns"].append({pattern: ','.join(from_col)})
+
     def check_fillna_only(self, df1, df2, from_col, to_col):
         cmp_df = df2[to_col].compare(df1[from_col])
         return cmp_df["other"].isnull().all()
@@ -492,26 +504,26 @@ class PatternSynthesizer(object):
                 pass
                 # print_error("error when check transform: " + str(df1[from_col].dtype) + "->" + str(df2[to_col].dtype))
             if self.check_num(df1, from_col):
-                self.syn_stack.append(("num_transform", [from_col], [to_col]))
+                self.synthesis_append("num_transform", [from_col], [to_col])
             elif self.check_str(df1, from_col):
-                self.syn_stack.append(("str_transform", [from_col], [to_col]))
+                self.synthesis_append("str_transform", [from_col], [to_col])
 
         # converted to str to avoid bugs when dtype == Categorical
         if str(df1[from_col].dtype) != str(df2[to_col].dtype):
             if self.check_float(df2, to_col):
-                self.syn_stack.append(("float", [from_col], [to_col]))
+                self.synthesis_append("float", [from_col], [to_col])
                 check_transform(float)
             elif self.check_cat(df2, to_col):
-                self.syn_stack.append(("discretize", [from_col], [to_col]))
+                self.synthesis_append("discretize", [from_col], [to_col])
             elif self.check_int(df2, to_col):
                 l = df2[to_col].unique()
                 if sorted(l) == list(range(min(l), max(l)+1)):
-                    self.syn_stack.append(("encode", [from_col], [to_col]))
+                    self.synthesis_append("encode", [from_col], [to_col])
                 else:
-                    self.syn_stack.append(("int", [from_col], [to_col]))
+                    self.synthesis_append("int", [from_col], [to_col])
                     check_transform(int)
             else:
-                self.syn_stack.append(("type_convert", [from_col], [to_col]))
+                self.synthesis_append("type_convert", [from_col], [to_col])
             return True
         return False
 
@@ -519,34 +531,33 @@ class PatternSynthesizer(object):
         
         # check the case when only different values are null values
         if self.check_fillna_only(df1, df2, from_col, to_col):
-            self.syn_stack.append(("fillna", [from_col], [to_col]))
+            self.synthesis_append("fillna", [from_col], [to_col])
             return
 
         if not self.check_typeconvert(df1, df2, from_col, to_col):
             if df1[from_col].nunique() > df2[to_col].nunique():
-                # print(len(df1[from_col].unique()), len(df2[to_col].unique()))
-                self.syn_stack.append(("merge", [from_col], [to_col]))
+                self.synthesis_append("merge", [from_col], [to_col])
             elif self.check_num(df1, from_col):
-                self.syn_stack.append(("num_transform", [from_col], [to_col]))
+                self.synthesis_append("num_transform", [from_col], [to_col])
             elif self.check_str(df1, from_col):
-                self.syn_stack.append(("str_transform", [from_col], [to_col]))
+                self.synthesis_append("str_transform", [from_col], [to_col])
             else:
-                self.syn_stack.append(("map", [from_col], [to_col]))
+                self.synthesis_append("map", [from_col], [to_col])
         
         if self.check_fillna(df1, df2, from_col, to_col):
-            self.syn_stack.append(("fillna", [from_col], [to_col]))
+            self.synthesis_append("fillna", [from_col], [to_col])
 
     def check_removecol(self, df1, df2):
         removed = [x for x in self.cols1 if x not in self.cols2]
         if removed:        
             self.cols1 = [x for x in self.cols1 if x in self.cols2]
-            self.syn_stack.append(("removecol", removed, []))
+            self.synthesis_append("removecol", removed, [])
             return True
         return False
     
     def check_rearrange(self, df1, df2):
         if self.cols1 != self.cols2 and set(self.cols1) == set(self.cols2):
-            self.syn_stack.append(("rearrange", self.cols1, self.cols2))
+            self.synthesis_append("rearrange", self.cols1, self.cols2)
             return True
         return False
 
@@ -556,12 +567,12 @@ class PatternSynthesizer(object):
         if len(df2) < len(df1) and set(df2.index).issubset(set(df1.index)):
             tmp = df1.loc[~df1.index.isin(df2.index)]
             tmp_null = tmp.isnull()
-            # all rows contain nan
+            # all removed rows contain nan
             if tmp_null.any(axis=1).all():
                 # select columns that removed rows all contain nan
-                self.syn_stack.append(("remove_null", list(tmp_null.columns[tmp_null.all()]), []))
+                self.synthesis_append("removerow_null", list(tmp_null.columns[tmp_null.all()]), [])
             else:
-                self.syn_stack.append(("removerow", [], []))
+                self.synthesis_append("removerow", [str(len(tmp))], [])
             return True
         return False
 
@@ -569,17 +580,17 @@ class PatternSynthesizer(object):
         cols_dummy = [col for col in self.colsnew if set(df2[col].unique()).issubset({0, 1})]
         if cols_dummy:
             # should check whether dummies are true
-            self.syn_stack.append(("one_hot_encoding", list(self.srccols), cols_dummy))
+            self.synthesis_append("one_hot_encoding", list(self.srccols), cols_dummy)
         # [TODO] add src cols for create; special optimization for one src col
         for col in self.colsnew - set(cols_dummy):
             if len(self.srccols) == 1:
                 self.check_column(df1, df2, list(self.srccols)[0], col)
             elif self.check_num(df2, col):
-                self.syn_stack.append(("num_transform", list(self.srccols), [col]))
+                self.synthesis_append("num_transform", list(self.srccols), [col])
             elif self.check_str(df2, col):
-                self.syn_stack.append(("str_transform", list(self.srccols), [col]))
+                self.synthesis_append("str_transform", list(self.srccols), [col])
             else:
-                self.syn_stack.append(("create", list(self.srccols), [col]))
+                self.synthesis_append("create", list(self.srccols), [col])
 
         # [TODO] merge the same op for different cols?
         for col in self.colschange:
@@ -625,9 +636,53 @@ class PatternSynthesizer(object):
         print(self.colsnew, self.colschange)
         if self.colsnew or self.colschange:
             self.search(df1, df2)
-        # if not self.syn_stack:
-        #     self.syn_stack.append("copy")
-        return self.syn_stack
+        if self.syn_stack:
+            return self.gen_table(df1, df2)
+        return
+
+    def gen_table(self, df1, df2):
+        df = df2.copy()
+
+        # generate extra info
+        def get_range(col):
+            if str(col.dtype) == "category":
+                return len(col.unique())
+            if np.issubdtype(col.dtype, np.number):
+                return [np.min(col), np.max(col)]
+            else:
+                return len(col.unique())
+        _type = {col:str(df[col].dtype) for col in df}
+        _range = {col: str(get_range(df[col])) for col in df}
+
+        # build data flow
+        for col in self.colschange:
+            df[col] = df1[col].astype(str) + ['->']*len(df1) +  df[col].astype(str)
+
+        # [TODO] special info for removed col & src cols
+        
+        # sort examples 
+        new_df = pd.DataFrame()
+        if self.partition:
+            # sort self.partition first by frequency
+            self.partition = dict(sorted(self.partition.items(), key=lambda item: len(item[1]), reverse=True))
+            for k, l in dict(self.partition).items():
+                self.markers[k] = len(new_df)
+                new_df = new_df.append(df.loc[l])
+        else:
+            new_df = df
+        
+        df = pd.concat([pd.DataFrame([_type, _range]), new_df], ignore_index=True)
+
+        # rearrange cols to make changed/new cols first
+        cols_star = self.colsnew.union(self.colschange)
+        colsleft = set(df.columns).difference(cols_star)
+        df = df.reindex(columns = list(self.colschange) + list(self.colsnew) + list(colsleft))
+
+        df.rename(lambda col: col + postfix if col in cols_star else col, axis =1 ,inplace = True)
+
+        # print(self.markers)
+        return json.loads(df.to_json())
+        
 
 class Info(object):
     def __init__(self, info, cellnum):
@@ -648,35 +703,20 @@ class Info(object):
 def handlecell(myvars, st, ed, info):
     # comments = ["\'\'\'"]
     comments = []
+    cell_num = myvars[st].cellnum
 
     # find the first input and output
     flags = [var.outflag for var in myvars[st:ed+1]]
     first_in = flags.index(0) + st if 0 in flags else -1
     first_out = flags.index(1) + st if 1 in flags else -1
 
-    # first_in = -1
-    # first_out = -1
-    # header = "---\n"
-    # for i in range(st, ed + 1):
-    #     if myvars[i].outflag == 0 and first_in == -1:
-    #         first_in = i
-    #         myvars[i].comment = header + "**input**\n" + myvars[i].comment
-    #     elif myvars[i].outflag == 1 and first_out == -1:
-    #         first_out = i
-    #         tmp = "**output**\n" + myvars[i].comment
-    #         myvars[i].comment = header + tmp if first_in == -1 else "\n" + tmp
-
     # build json maps
-    json_map = {"input": {}, "output": {}, "summary": {}, "partition": {}}
+    json_map = {"input": {}, "output": {}, "summary": {}, "partition": {}, "table":{}}
     for i in range(st, ed + 1):
         if myvars[i].outflag == 0:
             json_map["input"][myvars[i].name] = myvars[i].json_map
         elif myvars[i].outflag == 1:
             json_map["output"][myvars[i].name] = myvars[i].json_map
-            # if myvars[i].json_map["type"].startswith(
-            #         "DataFrame") and myvars[i].json_map["hint"] != "":
-            #     json_map["summary"][
-            #         myvars[i].name] = myvars[i].json_map["hint"]
 
     '''
     for each output variable, find the input that is closest to it
@@ -695,27 +735,18 @@ def handlecell(myvars, st, ed, info):
                         result = checker.check(myvars[j].var, myvars[i].var)
                         if result:
                             flow = ' '.join([myvars[j].name, "->", myvars[i].name])
-                            print(myvars[i].cellnum, ":", flow, "\033[96m", result, "\033[0m")
-                            json_map["summary"][flow] = result
-                            json_map["partition"][flow] = checker.partition
-                # if cur_score > score:
-                #     cur_score = score
-                #     choose_idx = j
-            # if choose_idx != -1:
-                # myvars[i].compare_to(myvars[choose_idx])
-
-    # if both output, we only check copy
-    # if first_out != -1:
-    #     for i in range(first_out, ed + 1):
-    #         for j in range(i + 1, ed + 1):
-    #             myvars[j].check_copy(myvars[i])
-    #     for i in range(first_out, ed + 1):
-    #         myvars[i].add_data_distribute()
-
-    # for i in range(st, ed + 1):
-    #     comments.append(myvars[i].comment)
-
+                            json_map["summary"][flow] = dict(checker.summary)
+                            json_map["partition"][flow] = checker.markers
+                            json_map["table"][flow] = result
+                            print(myvars[i].cellnum, ":", flow, "\033[96m", 
+                                dict(checker.summary), "\033[0m")
+                
     # comments.append("\'\'\'\n")
+
+    # distributed
+    with open(os.path.join(data_path, f"result_{cell_num}.json"), "w") as f:
+        f.write(json.dumps(json_map))
+
     return "\n".join(comments), json_map
 
 
@@ -846,28 +877,19 @@ if __name__ == "__main__":
                         print_error("error when dispatch var " + vars[i][1][2])
                         pass
                 # comments = static_comments[vars[0][1][0]] if vars[0][1][0] in static_comments.keys() else []
-                _, json_map[code_indices[vars[0][1][0] - 1]] = handlecell(myvars, 0, len(vars)-1, Info(info, vars[0][1][0]))
+                _, _ = handlecell(myvars, 0, len(vars)-1, Info(info, vars[0][1][0]))
                 
 
     # fill not existing entries
-    for key, value in json_map.items():
-        cat_list = ["input", "output", "summary", "function", "comment"]
-        for cat in cat_list:
-            if cat not in value.keys():
-                json_map[key][cat] = {}
+    # for key, value in json_map.items():
+    #     cat_list = ["input", "output", "summary", "partition", "table"]
+    #     for cat in cat_list:
+    #         if cat not in value.keys():
+    #             json_map[key][cat] = {}
 
-    with open(json_out_path, "w") as f:
-        f.write(json.dumps(json_map))
+    # with open(json_out_path, "w") as f:
+    #     f.write(json.dumps(json_map))
 
-    # with open(data_path, "rb") as f:
-    #     tmpvars = pickle.load(f)
-    # funcs = tmpvars[-1]
-    # labels = tmpvars[-2]
-    # tmpvars = tmpvars[:-2]
-
-    # for i in range(len(tmpvars)):
-    #     myvars.append(
-    #         dispatch_gen(tmpvars[i], labels[i][2], labels[i][0], labels[i][1]))
 
     # comment_str, json_map = gen_comments(labels, tmpvars)
 
