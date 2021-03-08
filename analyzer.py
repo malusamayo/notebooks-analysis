@@ -456,8 +456,8 @@ class PatternSynthesizer(object):
         self.df2 = df2
         self.cols1 = list(df1.columns)
         self.cols2 = list(df2.columns)
-        self.srccols = set(info.get).intersection(self.cols1)
-        self.descols = set(info.set).intersection(self.cols1)
+        self.srccols = [col for col in info.get if col in self.cols1] 
+        self.descols = [col for col in info.set if col in self.cols1] 
         self.partition = info.par
         self.syn_stack = []
         self.summary = collections.defaultdict(list)
@@ -584,18 +584,19 @@ class PatternSynthesizer(object):
 
     def search(self, df1, df2):
         cols_dummy = [col for col in self.colsnew if set(df2[col].unique()).issubset({0, 1})]
+        cols_left = [col for col in self.colsnew if col not in cols_dummy]
         if cols_dummy:
             # should check whether dummies are true
-            self.synthesis_append("one_hot_encoding", list(self.srccols), cols_dummy)
-        for col in self.colsnew - set(cols_dummy):
+            self.synthesis_append("one_hot_encoding", self.srccols, cols_dummy)
+        for col in cols_left:
             if len(self.srccols) == 1:
-                self.check_column(df1, df2, list(self.srccols)[0], col)
+                self.check_column(df1, df2, self.srccols[0], col)
             elif self.check_num(df2, col):
-                self.synthesis_append("num_transform", list(self.srccols), [col])
+                self.synthesis_append("num_transform", self.srccols, [col])
             elif self.check_str(df2, col):
-                self.synthesis_append("str_transform", list(self.srccols), [col])
+                self.synthesis_append("str_transform", self.srccols, [col])
             else:
-                self.synthesis_append("create", list(self.srccols), [col])
+                self.synthesis_append("create", self.srccols, [col])
 
         for col in self.colschange:
             self.check_column(df1, df2, col, col)
@@ -634,8 +635,8 @@ class PatternSynthesizer(object):
             return
         self.check_removecol(df1, df2)
         self.check_rearrange(df1, df2)
-        self.colsnew = set(self.cols2).difference(set(self.cols1))
-        self.colschange = set(col for col in self.cols1 if not df1[col].equals(df2[col]))
+        self.colsnew = [col for col in self.cols2 if col not in self.cols1] # set(self.cols2).difference(set(self.cols1))
+        self.colschange = [col for col in self.cols1 if not df1[col].equals(df2[col])]
         print(self.colsnew, self.colschange)
         if self.colsnew or self.colschange:
             self.search(df1, df2)
@@ -677,11 +678,17 @@ class PatternSynthesizer(object):
         df = pd.concat([pd.DataFrame([_type, _range]), new_df], ignore_index=True)
 
         # rearrange cols to make changed/new cols first
-        cols_star = self.colsnew.union(self.colschange)
-        colsleft = set(df.columns).difference(cols_star)
-        df = df.reindex(columns = list(self.colschange) + list(self.colsnew) + list(colsleft))
+        colsleft = [col for col in df.columns if col not in self.colsnew + self.colschange]
+        df = df.reindex(columns = self.colschange + self.colsnew + colsleft)
 
-        df.rename(lambda col: col + postfix if col in cols_star else col, axis =1 ,inplace = True)
+        def rename(col):
+            if col in self.colschange:
+                return col + "*" + postfix
+            elif col in self.colsnew:
+                return col + "+" + postfix
+            return col
+
+        df.rename(rename, axis =1 ,inplace = True)
 
         # print(self.markers)
         return json.loads(df.to_json())
