@@ -157,14 +157,11 @@ class LibDecorator(object):
         pd.Series.fillna = self.fillna_decorator(pd.Series.fillna)
         pd.DataFrame.fillna = self.fillna_decorator(pd.DataFrame.fillna)
         pd.Series.map  = self.map_decorator(pd.Series.map)
+        pd.Series.apply  = self.map_decorator(pd.Series.apply)
         pd.Series.str.split = self.str_split_decorator(pd.Series.str.split)
     
     def replace_decorator(self, wrapped_method):
         def f(x, key, value, regex):
-            # try:
-            #     f.cnt = (f.cnt + 1) % maxrow
-            # except:
-            #     f.cnt = 0
             pathTracker.next_iter()
             if regex:
                 try:
@@ -195,10 +192,6 @@ class LibDecorator(object):
 
     def fillna_decorator(self, wrapped_method):
         def f(x, value):
-            # try:
-            #     f.cnt = (f.cnt + 1) % maxrow
-            # except:
-            #     f.cnt = 0
             pathTracker.next_iter()
             if pd.api.types.is_numeric_dtype(type(x)) and np.isnan(x):
                 pathTracker.update(1)
@@ -218,10 +211,6 @@ class LibDecorator(object):
 
     def str_split_decorator(self, wrapped_method):
         def f(x, pat, n):
-            # try:
-            #     f.cnt = (f.cnt + 1) % maxrow
-            # except:
-            #     f.cnt = 0
             pathTracker.next_iter()
             try:
                 ret = x.split(pat, n)
@@ -235,10 +224,6 @@ class LibDecorator(object):
 
     def map_decorator(self, wrapped_method):
         def f(x, d):
-            # try:
-            #     f.cnt = (f.cnt + 1) % maxrow
-            # except:
-            #     f.cnt = 0
             pathTracker.next_iter()
             pathTracker.update(list(d).index(x) if x in d else -1)
         def decorate(self, arg, na_action=None):
