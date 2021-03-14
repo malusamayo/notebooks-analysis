@@ -5,6 +5,8 @@ import numpy as np
 import copy as lib_copy
 import inspect, collections, functools
 import matplotlib, pickle, json
+
+from pandas.core.series import Series
 # my_labels = []
 my_dir_path = os.path.dirname(os.path.realpath(__file__))
 ignore_types = [
@@ -24,6 +26,7 @@ cur_cell = 0
 cur_exe = []
 get__keys = collections.defaultdict(list)
 set__keys = collections.defaultdict(list)
+id2name = {}
 # noop = lambda *args, **kwargs: None
 
 # def ddict():
@@ -42,6 +45,8 @@ set__keys = collections.defaultdict(list)
 def my_store_info(info, var):
     if str(type(var)) in ignore_types:
         return
+    if type(var) in [pd.DataFrame]:
+        id2name[id(var.index)] = info[2]
     store_vars[info[0]].append((wrap_copy(var), info))
 
 
@@ -273,12 +278,16 @@ class LibDecorator(object):
 class PathTracker(object):
     def __init__(self) -> None:
         super().__init__()
-        self.paths = collections.defaultdict(list)
+        self.paths = {}
         self.partitions = {}
         sys.settrace(self.trace_calls)
 
     def reset(self, index):
         self.index = index
+        self.id = id(index)
+        if self.id in id2name:
+            self.id = id2name[self.id]
+        self.paths[self.id] = collections.defaultdict(list)
         self.iter = iter(index)
         self.cur_idx = -1
 
@@ -289,17 +298,19 @@ class PathTracker(object):
         #     self.cur_idx = next(iter(self.index))
 
     def update(self, new_path):
-        self.paths[self.cur_idx].append(new_path)
+        self.paths[self.id][self.cur_idx].append(new_path)
 
     def update_ls(self, new_paths):
-        self.paths[self.cur_idx] += new_paths
+        self.paths[self.id][self.cur_idx] += new_paths
 
     def to_partition(self):
         if not self.paths:
             return
-        row_eq = collections.defaultdict(list)
-        for k, v in self.paths.items():
-            row_eq[str(tuple(v))].append(k)
+        row_eq = {}
+        for i, path in self.paths.items():
+            row_eq[i] = collections.defaultdict(list)
+            for k, v in path.items():
+                row_eq[i][str(tuple(v))].append(k)
         self.partitions[cur_cell] = row_eq
         self.paths.clear()
 
