@@ -38,7 +38,7 @@ for idx, vars in store_vars.items():
 # with open(os.path.join(tmp_dir_path, "${filename_no_suffix}_f.dat"), "wb") as f:
 #     pickle.dump(ddict2dict(funcs), f)
 with open(os.path.join(tmp_dir_path, "info.json"), "w") as f:
-    f.write(json.dumps({"get": get__keys, "set": set__keys, "par": pathTracker.partitions}))
+    f.write(json.dumps({"get": get__keys, "set": set__keys, "graph": graph, "par": pathTracker.partitions}))
 `
 
 function init_lineToCell() {
@@ -218,9 +218,20 @@ function static_analyzer(tree) {
         }
     }
 
+    function build_flow_graph(stmt) {
+        if (stmt.type == "assign" && stmt.targets.length == stmt.sources.length) {
+            let src_cols = new Set();
+            stmt.sources.forEach(x => src_cols.add(collect_cols(x, pyTypeof)));
+            let des_cols = new Set();
+            stmt.targets.forEach(x => des_cols.add(collect_cols(x, pyTypeof)));
+            console.log(src_cols, des_cols);
+        }
+    }
+
     for (let [_, stmt] of tree.code.entries()) {
         // console.log(printNode(stmt));
         infer_types(stmt);
+        // build_flow_graph(stmt)
         let cols = collect_cols(stmt, pyTypeof);
         cols.forEach(value => cell_cols.add(value.replace(/['"]+/g, '')));
 
@@ -470,5 +481,5 @@ head_str = head_str.join("\n") + "\n"
 // insert save stmt
 let modified_text = insert_print_stmt(text);
 // save static comment
-fs.writeFileSync(dir + filename_no_suffix + "_comment.json", JSON.stringify([...comments]));
+// fs.writeFileSync(dir + filename_no_suffix + "_comment.json", JSON.stringify([...comments]));
 fs.writeFileSync(dir + filename_no_suffix + "_m" + suffix, modified_text);
