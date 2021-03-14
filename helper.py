@@ -13,7 +13,8 @@ ignore_types = [
     "<class 'module'>", "<class 'type'>", "<class 'function'>",
     "<class 'matplotlib.figure.Figure'>"
 ]
-TRACE_INTO = []
+TRACE_INTO = ['lambda_0']
+
 
 # TYPE_1_FUN = ["capitalize", "casefold", "lower", "replace", "title", "upper"]
 # TYPE_2_FUN = ["rsplit", "split", "splitlines"]
@@ -27,6 +28,8 @@ cur_exe = []
 get__keys = collections.defaultdict(list)
 set__keys = collections.defaultdict(list)
 id2name = {}
+cur_get = []
+graph = collections.defaultdict(list)
 # noop = lambda *args, **kwargs: None
 
 # def ddict():
@@ -153,6 +156,8 @@ class LibDecorator(object):
         super().__init__()
         pd.DataFrame.__getitem__ = self.get_decorator(pd.DataFrame.__getitem__)
         pd.DataFrame.__setitem__ = self.set_decorator(pd.DataFrame.__setitem__)
+        pd.core.indexing._LocationIndexer.__setitem__ = self.index_set_decorator(pd.core.indexing._LocationIndexer.__setitem__)
+        pd.core.indexing._ScalarAccessIndexer.__setitem__ = self.index_set_decorator(pd.core.indexing._ScalarAccessIndexer.__setitem__)
         pd.Series.replace = self.replace_decorator(pd.Series.replace)
         pd.Series.fillna = self.fillna_decorator(pd.Series.fillna)
         pd.DataFrame.fillna = self.fillna_decorator(pd.DataFrame.fillna)
@@ -206,6 +211,8 @@ class LibDecorator(object):
                     pathTracker.update(v)
             else:
                 self.map(lambda x: f(x, value))
+            if inplace:
+                cur_get.clear()
             return wrapped_method(self, value, method, axis, inplace, limit, downcast)
         return decorate
 
@@ -243,8 +250,10 @@ class LibDecorator(object):
             if type(key) == list:
                 for item in key:
                     append(item, get__keys[cur_cell])
+                    append(item, cur_get)
             else:
                 append(key, get__keys[cur_cell])
+                append(key, cur_get)
             return method(self, key)
         return decorate
     def set_decorator(self, method):
@@ -255,8 +264,22 @@ class LibDecorator(object):
             if type(key) == list:
                 for item in key:
                     append(item, set__keys[cur_cell])
+                    graph[item] += cur_get
             else:
                 append(key, set__keys[cur_cell])
+                graph[key] += cur_get
+            cur_get.clear()
+            return method(self, key, value)
+        return decorate
+    def index_set_decorator(self, method):
+        def append(key, ls):
+            if pd.core.dtypes.common.is_hashable(key) and key not in ls:
+                ls.append(key)
+        def decorate(self, key, value):
+            if hasattr(self, "obj") and type(self.obj) == pd.Series:
+                append(self.obj.name, set__keys[cur_cell])
+                graph[self.obj.name] += cur_get
+            cur_get.clear()
             return method(self, key, value)
         return decorate
 
@@ -298,6 +321,7 @@ class PathTracker(object):
                 row_eq[i][str(tuple(v))].append(k)
         self.partitions[cur_cell] = row_eq
         self.paths.clear()
+        cur_get.clear()
 
     def trace_lines(self, frame, event, arg):
         if event != 'line':
@@ -321,11 +345,6 @@ class PathTracker(object):
             print(func_name, TRACE_INTO)
         line_no = frame.f_lineno
         return self.trace_lines
-
-# we now update maxrow before each map/apply
-# def update_maxrow(l):
-#     global maxrow
-#     maxrow = l
 
 libDec = LibDecorator()
 pathTracker = PathTracker()
