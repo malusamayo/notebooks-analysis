@@ -13,7 +13,8 @@ ignore_types = [
     "<class 'module'>", "<class 'type'>", "<class 'function'>",
     "<class 'matplotlib.figure.Figure'>"
 ]
-TRACE_INTO = ['lambda_0']
+TRACE_INTO = ['lambda_0','lambda_1','lambda_2','lambda_3','lambda_4','lambda_5']
+
 
 
 # TYPE_1_FUN = ["capitalize", "casefold", "lower", "replace", "title", "upper"]
@@ -162,8 +163,13 @@ class LibDecorator(object):
         pd.Series.fillna = self.fillna_decorator(pd.Series.fillna)
         pd.DataFrame.fillna = self.fillna_decorator(pd.DataFrame.fillna)
         pd.Series.map  = self.map_decorator(pd.Series.map)
-        pd.Series.apply  = self.map_decorator(pd.Series.apply)
+        pd.Series.apply  = self.apply_decorator(pd.Series.apply)
+        pd.DataFrame.apply  = self.df_apply_decorator(pd.DataFrame.apply)
         pd.Series.str.split = self.str_split_decorator(pd.Series.str.split)
+
+        # reset index when appending rows
+        pd.concat = self.concat_decorator(pd.concat)
+        pd.DataFrame.merge = self.merge_decorator(pd.DataFrame.merge)
     
     def replace_decorator(self, wrapped_method):
         def f(x, key, value, regex):
@@ -241,6 +247,37 @@ class LibDecorator(object):
             return wrapped_method(self, arg, na_action)
         return decorate
 
+    def apply_decorator(self, wrapped_method):
+        def decorate(self, func, convert_dtype=True, args=(), **kwds):
+            pathTracker.reset(self.index)
+            if kwds:
+                return wrapped_method(self, func, convert_dtype, args, kwds=kwds)
+            else:
+                return wrapped_method(self, func, convert_dtype, args)
+        return decorate
+
+
+    def df_apply_decorator(self, wrapped_method):
+        def decorate(self, func, axis=0, raw=False, result_type=None, args=(), **kwds):
+            pathTracker.reset(self.index)
+            if kwds:
+                return wrapped_method(self, func, axis, raw, result_type, args, kwds=kwds)
+            else:
+                return wrapped_method(self, func, axis, raw, result_type, args)
+        return decorate
+
+    def concat_decorator(self, wrapped_method):
+        def decorate(objs, axis=0, join="outer", ignore_index = False, keys=None, levels=None, names=None, verify_integrity = False, sort = False, copy = True):
+            if axis == 0:
+                ignore_index = True
+            return wrapped_method(objs, axis, join, ignore_index, keys, levels, names, verify_integrity, sort, copy)
+        return decorate
+
+    def merge_decorator(self, wrapped_method):
+        def decorate(other, ignore_index=False, verify_integrity=False, sort=False):
+            ignore_index = True
+            return wrapped_method(other, ignore_index, verify_integrity, sort)
+        return decorate
 
     def get_decorator(self, method):     
         def append(key, ls):
@@ -286,16 +323,15 @@ class LibDecorator(object):
 class PathTracker(object):
     def __init__(self) -> None:
         super().__init__()
-        self.paths = {}
+        self.paths = collections.defaultdict(lambda: collections.defaultdict(list))
         self.partitions = {}
-        sys.settrace(self.trace_calls)
+        # sys.settrace(self.trace_calls)
 
     def reset(self, index):
         self.index = index
         self.id = id(index)
         if self.id in id2name:
             self.id = id2name[self.id]
-        self.paths[self.id] = collections.defaultdict(list)
         self.iter = iter(index)
         self.cur_idx = -1
 
