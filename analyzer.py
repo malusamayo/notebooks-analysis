@@ -8,7 +8,7 @@ import torch
 import random
 import collections
 from nbconvert import PythonExporter
-import json
+import json, copy
 import itertools
 pd.set_option('display.max_columns', None)
 pd.set_option('precision', 4)
@@ -28,6 +28,7 @@ json_out_path = os.path.join(data_path, "result.json")
 
 blanks = "\t- "
 postfix = "[auto]"
+graph = collections.defaultdict(list)
 
 ### sample
 '''
@@ -451,14 +452,18 @@ class PatternSynthesizer(object):
     '''
     df1: before, df2: after, col: the target column
     '''
-    def __init__(self, df1, df2, info):
-        self.df1 = df1
-        self.df2 = df2
-        self.cols1 = list(df1.columns)
-        self.cols2 = list(df2.columns)
+    def __init__(self, DF1, DF2, info):
+        self.df1 = DF1.var
+        self.df2 = DF2.var
+        self.df1_name = DF1.name
+        self.df2_name = DF2.name
+        self.cols1 = list(self.df1.columns)
+        self.cols2 = list(self.df2.columns)
         self.srccols = [col for col in info.get if col in self.cols1] 
         self.descols = [col for col in info.set if col in self.cols1] 
-        self.partition = info.par
+        self.partition = collections.defaultdict(list)
+        if self.df1_name in info.par:
+            self.partition = copy.deepcopy(info.par[self.df1_name])
         self.syn_stack = []
         self.summary = collections.defaultdict(list)
         self.markers = {}
@@ -503,10 +508,14 @@ class PatternSynthesizer(object):
             except:
                 pass
                 # print_error("error when check transform: " + str(df1[from_col].dtype) + "->" + str(df2[to_col].dtype))
-            if self.check_num(df1, from_col):
+            if df1[from_col].nunique() > df2[to_col].nunique():
+                self.synthesis_append("merge", [from_col], [to_col])
+            elif self.check_num(df1, from_col):
                 self.synthesis_append("num_transform", [from_col], [to_col])
             elif self.check_str(df1, from_col):
                 self.synthesis_append("str_transform", [from_col], [to_col])
+            else:
+                self.synthesis_append("map", [from_col], [to_col])  
 
         # converted to str to avoid bugs when dtype == Categorical
         if str(df1[from_col].dtype) != str(df2[to_col].dtype):
@@ -522,6 +531,9 @@ class PatternSynthesizer(object):
                 else:
                     self.synthesis_append("int", [from_col], [to_col])
                     check_transform(int)
+            elif self.check_str(df2, to_col):
+                self.synthesis_append("str", [from_col], [to_col])
+                check_transform(str)
             else:
                 self.synthesis_append("type_convert", [from_col], [to_col])
             return True
@@ -529,12 +541,11 @@ class PatternSynthesizer(object):
 
     def check_column(self, df1, df2, from_col, to_col):
         
-        # check the case when only different values are null values
-        if self.check_fillna_only(df1, df2, from_col, to_col):
-            self.synthesis_append("fillna", [from_col], [to_col])
-            return
-
         if not self.check_typeconvert(df1, df2, from_col, to_col):
+            # check the case when only different values are null values
+            if self.check_fillna_only(df1, df2, from_col, to_col):
+                self.synthesis_append("fillna", [from_col], [to_col])
+                return
             if df1[from_col].nunique() > df2[to_col].nunique():
                 self.synthesis_append("merge", [from_col], [to_col])
             elif self.check_num(df1, from_col):
@@ -542,16 +553,16 @@ class PatternSynthesizer(object):
             elif self.check_str(df1, from_col):
                 self.synthesis_append("str_transform", [from_col], [to_col])
             else:
-                self.synthesis_append("map", [from_col], [to_col])
+                self.synthesis_append("map", [from_col], [to_col])  
         
         if self.check_fillna(df1, df2, from_col, to_col):
             self.synthesis_append("fillna", [from_col], [to_col])
 
     def check_removecol(self, df1, df2):
-        removed = [x for x in self.cols1 if x not in self.cols2]
-        if removed:        
+        self.removedcols = [x for x in self.cols1 if x not in self.cols2]
+        if self.removedcols:        
             self.cols1 = [x for x in self.cols1 if x in self.cols2]
-            self.synthesis_append("removecol", removed, [])
+            self.synthesis_append("removecol", self.removedcols, [])
             return True
         return False
     
@@ -589,14 +600,18 @@ class PatternSynthesizer(object):
             # should check whether dummies are true
             self.synthesis_append("one_hot_encoding", self.srccols, cols_dummy)
         for col in cols_left:
-            if len(self.srccols) == 1:
-                self.check_column(df1, df2, self.srccols[0], col)
-            elif self.check_num(df2, col):
-                self.synthesis_append("num_transform", self.srccols, [col])
-            elif self.check_str(df2, col):
-                self.synthesis_append("str_transform", self.srccols, [col])
+            if col in graph:
+                src = list(set(self.srccols) & set(graph[col]))
             else:
-                self.synthesis_append("create", self.srccols, [col])
+                src = self.srccols
+            if len(src) == 1:
+                self.check_column(df1, df2, src[0], col)
+            elif self.check_num(df2, col):
+                self.synthesis_append("num_transform", src, [col])
+            elif self.check_str(df2, col):
+                self.synthesis_append("str_transform", src, [col])
+            else:
+                self.synthesis_append("create", src, [col])
 
         for col in self.colschange:
             self.check_column(df1, df2, col, col)
@@ -611,7 +626,8 @@ class PatternSynthesizer(object):
                 for i in df2.index:
                     paths[i].append(str(df2[col].at[i]))
             for col in self.colschange:
-                if df2[col].nunique() > MAGIC_BOUND:
+                # look at diff
+                if df2[col].compare(df1[col])["self"].nunique() > MAGIC_BOUND:
                     continue
                 for i in df2.index:
                     if df2[col].at[i] == df1[col].at[i]:
@@ -629,6 +645,7 @@ class PatternSynthesizer(object):
         if len(df1) < len(df2):
             return
         if self.check_removerow(df1, df2):
+            # if index is reset this might lead to error?
             df1 = df1.loc[df2.index]
         # rows not removed -> index not subset -> irrelevant dfs
         if len(df1) > len(df2):
@@ -637,7 +654,7 @@ class PatternSynthesizer(object):
         self.check_rearrange(df1, df2)
         self.colsnew = [col for col in self.cols2 if col not in self.cols1] # set(self.cols2).difference(set(self.cols1))
         self.colschange = [col for col in self.cols1 if not df1[col].equals(df2[col])]
-        print(self.colsnew, self.colschange)
+        # print(self.colsnew, self.colschange)
         if self.colsnew or self.colschange:
             self.search(df1, df2)
         if self.syn_stack:
@@ -647,6 +664,11 @@ class PatternSynthesizer(object):
     def gen_table(self, df1, df2):
         df = df2.copy()
 
+        
+        # [TODO] special info for removed col & src cols
+        for col in self.removedcols:
+            df[col] = df1[col]
+
         # generate extra info
         def get_range(col):
             if str(col.dtype) == "category":
@@ -655,14 +677,15 @@ class PatternSynthesizer(object):
                 return [np.min(col), np.max(col)]
             else:
                 return len(col.unique())
-        _type = {col:str(df[col].dtype) for col in df}
-        _range = {col: str(get_range(df[col])) for col in df}
+        _type = {col:str(df[col].dtype) for col in df if col not in self.colschange}
+        _range = {col: str(get_range(df[col])) for col in df if col not in self.colschange}
 
         # build data flow
         for col in self.colschange:
+            _type[col] = str(df1[col].dtype) + "->" + str(df[col].dtype)
+            _range[col] = str(get_range(df1[col])) + "->" + str(get_range(df[col]))
             df[col] = df1[col].astype(str) + ['->']*len(df1) +  df[col].astype(str)
 
-        # [TODO] special info for removed col & src cols
         
         # sort examples 
         new_df = pd.DataFrame()
@@ -678,14 +701,20 @@ class PatternSynthesizer(object):
         df = pd.concat([pd.DataFrame([_type, _range]), new_df], ignore_index=True)
 
         # rearrange cols to make changed/new cols first
-        colsleft = [col for col in df.columns if col not in self.colsnew + self.colschange]
-        df = df.reindex(columns = self.colschange + self.colsnew + colsleft)
+        colsleft = [col for col in df.columns if col not in self.colsnew + self.colschange + self.removedcols]
+        colssrc = [col for col in colsleft if col in self.srccols]
+        colsleft = [col for col in colsleft if col not in self.srccols]
+        df = df.reindex(columns = self.removedcols + self.colschange + self.colsnew + colssrc + colsleft)
 
         def rename(col):
             if col in self.colschange:
                 return col + "*" + postfix
             elif col in self.colsnew:
                 return col + "+" + postfix
+            elif col in self.removedcols:
+                return col + "-" + postfix
+            elif col in self.srccols:
+                return col + ">" + postfix
             return col
 
         df.rename(rename, axis =1 ,inplace = True)
@@ -699,7 +728,7 @@ class Info(object):
         super().__init__()
         self.get = []
         self.set = []
-        self.par = collections.defaultdict(list)
+        self.par = collections.defaultdict(lambda : collections.defaultdict(list))
         if info == None:
             return
         if str(cellnum) in info["get"]:
@@ -713,7 +742,6 @@ class Info(object):
 def handlecell(myvars, st, ed, info):
     # comments = ["\'\'\'"]
     comments = []
-    cell_num = myvars[st].cellnum
 
     # find the first input and output
     flags = [var.outflag for var in myvars[st:ed+1]]
@@ -741,7 +769,7 @@ def handlecell(myvars, st, ed, info):
                 # print(myvars[i].name, myvars[j].name, score)
                 if type(myvars[i].var) == pd.core.frame.DataFrame:
                     if type(myvars[j].var) == pd.core.frame.DataFrame:
-                        checker = PatternSynthesizer(myvars[j].var, myvars[i].var, info)
+                        checker = PatternSynthesizer(myvars[j], myvars[i], info)
                         result = checker.check(myvars[j].var, myvars[i].var)
                         if result:
                             flow = ' '.join([myvars[j].name, "->", myvars[i].name])
@@ -749,7 +777,7 @@ def handlecell(myvars, st, ed, info):
                             json_map["partition"][flow] = checker.markers
                             json_map["table"][flow] = result
                             print(myvars[i].cellnum, ":", flow, "\033[96m", 
-                                dict(checker.summary), "\033[0m")
+                                dict(checker.summary), len(checker.markers), "\033[0m")
                 
     # comments.append("\'\'\'\n")
 
@@ -851,17 +879,19 @@ if __name__ == "__main__":
     #     for j in range(l):
     #         line_to_idx[idx + j] = (code_indices[i], j)
 
-    static_comments = {}
-    with open(json_path) as f:
-        json_tmp_list = json.load(f)
-        for [idx, content] in json_tmp_list:
-            static_comments[idx] = content
+    # load static comments
+    # static_comments = {}
+    # with open(json_path) as f:
+    #     json_tmp_list = json.load(f)
+    #     for [idx, content] in json_tmp_list:
+    #         static_comments[idx] = content
 
     json_map = {}
     info = {}
     # funcs = {}
     with open(os.path.join(data_path, "info.json"), 'r') as j:
         info = json.loads(j.read())
+    graph = info["graph"]
 
 
     for file in os.listdir(data_path):

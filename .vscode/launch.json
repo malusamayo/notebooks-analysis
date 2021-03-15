@@ -19,7 +19,7 @@
       "request": "launch",
       "program": "${file}",
       "args": [
-        ".\\notebooks\\debug_example.ipynb"
+        ".\\notebooks\\how-to-get-high-rating-on-play-store.ipynb"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
@@ -30,7 +30,7 @@
       "request": "launch",
       "program": "${workspaceRoot}/instrumenter.js",
       "args": [
-        "./notebooks/debug_example.py"
+        ".\\notebooks\\debug_example.py"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
