@@ -116,6 +116,7 @@ def analyze():
 
 def clean():
     os.system("rm " + os.path.join(path, filename_no_suffix, "*.dat"))
+    os.system("rm " + os.path.join(path, filename_no_suffix, "*.json"))
     subprocess.run(["rmdir", os.path.join(path, filename_no_suffix)])
     if not args.clean:
         return
@@ -123,7 +124,7 @@ def clean():
     subprocess.run(["rm", os.path.join(path, filename_no_suffix + "_m.py")])
     subprocess.run(["rm", os.path.join(path, filename_no_suffix + "_comment.json")])
 
-
+clean()
 os.system("jupyter nbconvert --to python " + args.notebook)
 execute_script()
 static_analysis()
