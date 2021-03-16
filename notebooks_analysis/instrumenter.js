@@ -1,8 +1,8 @@
 "use strict";
-var py = require("../../python-program-analysis");
+var py = require("../../notebooks-analysis");
 var fs = require('fs');
 const PATH = require('path')
-const { printNode, RefSet } = require("../../python-program-analysis");
+const { printNode, RefSet } = require("../../notebooks-analysis");
 const { assert } = require("console");
 const { wrap_methods, collect_defs, collect_cols } = require('./method-wrapper');
 
