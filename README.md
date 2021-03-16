@@ -1,7 +1,6 @@
-# python-program-analysis
+# notebooks-analysis
 
-A Typescript library for parsing Python 3 and doing basic program analysis, 
-like forming control-flow graphs and def-use chains.
+A tool for generating documentation information for jupyter notebooks via program analysis & synthesis. 
 
 ## How to use the tool
 1. Run `npm install` and `npm run build`
