@@ -634,6 +634,16 @@ class ApiCallAnalysis extends AnalysisWalker {
           location: node.location,
           node: this._statement
         });
+      } else if (node.func.type === ast.DOT && node.func.value.type == ast.INDEX) {
+        // deal with the case x['field'].func(), x might be changed!
+        const name = printNode(node.func.value).split('[')[0];
+        this.defs.add({
+          type: SymbolType.MUTATION,
+          level: ReferenceType.UPDATE,
+          name: name,
+          location: node.location,
+          node: this._statement
+        });
       }
     }
   }
