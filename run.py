@@ -13,6 +13,7 @@ parser.add_argument('-k', '--keep', help='keep output of scripts', action="store
 
 args = parser.parse_args()
 
+SRC_PATH = "notebooks_analysis"
 filename = args.notebook.split('\\')[-1].split('/')[-1]
 path = args.notebook.replace(filename, "")
 filename_no_suffix = filename[:filename.rfind(".")]
@@ -65,7 +66,7 @@ def static_analysis():
         "Starting static analysis of the notebook..."))
     st = time.time()
     result = subprocess.run(
-        ["node", "instrumenter.js", path + filename_no_suffix + ".py"])
+        ["node", os.path.join(SRC_PATH, "instrumenter.js"), path + filename_no_suffix + ".py"])
     ed1 = time.time()
     t[1] = ed1 - st
     if result.returncode:
@@ -98,7 +99,7 @@ def analyze():
     print("\033[96m {}\033[00m".format('-'*40))
     print("\033[96m {}\033[00m".format("Starting generating documentation..."))
     st = time.time()
-    result = subprocess.run(["python", "analyzer.py", args.notebook])
+    result = subprocess.run(["python", os.path.join(SRC_PATH, "analyzer.py"), args.notebook])
     ed3 = time.time()
     t[3] = ed3 - st
     if result.returncode:
@@ -118,8 +119,9 @@ def analyze():
 def clean():
     try:
         shutil.rmtree(os.path.join(path, filename_no_suffix))
+        my_print("removing folders")
     except FileNotFoundError:
-        print("no previous folder")
+        my_print("no previous folder")
     # os.system("rm " + os.path.join(path, filename_no_suffix, "\*.json"))
     # os.system("rm " + os.path.join(path, filename_no_suffix, ".json"))
     # subprocess.run(["rmdir", os.path.join(path, filename_no_suffix)])

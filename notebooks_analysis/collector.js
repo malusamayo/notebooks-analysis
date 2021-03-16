@@ -1,6 +1,6 @@
 "use strict";
 
-const testFolder = './notebooks/titanic_notebooks/';
+const testFolder = '../notebooks/titanic_notebooks/';
 const fs = require('fs');
 const { createImportSpecifier } = require('typescript');
 

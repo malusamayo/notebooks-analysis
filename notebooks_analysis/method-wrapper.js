@@ -1,7 +1,7 @@
 "use strict";
-var py = require("../python-program-analysis");
+var py = require("../../python-program-analysis");
 var fs = require('fs');
-const { printNode, RefSet } = require("../python-program-analysis");
+const { printNode, RefSet } = require("../../python-program-analysis");
 
 let replace_strs = [];
 

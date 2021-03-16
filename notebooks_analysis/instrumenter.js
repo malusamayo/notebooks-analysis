@@ -1,13 +1,10 @@
 "use strict";
-var py = require("../python-program-analysis");
+var py = require("../../python-program-analysis");
 var fs = require('fs');
-const { printNode, RefSet } = require("../python-program-analysis");
-const { matchesProperty, map, head } = require("lodash");
-const { printArg } = require("./dist/es5/printNode");
-const { ADDRCONFIG } = require("dns");
+const PATH = require('path')
+const { printNode, RefSet } = require("../../python-program-analysis");
 const { assert } = require("console");
-const { collapseTextChangeRangesAcrossMultipleVersions } = require("typescript");
-const { wrap_methods, collect_defs, collect_cols } = require('../python-program-analysis/method-wrapper');
+const { wrap_methods, collect_defs, collect_cols } = require('./method-wrapper');
 
 let args = process.argv.slice(2);
 let path = args[0];
@@ -21,7 +18,7 @@ let lineToCell = new Map();
 let ins = new Map();
 let outs = new Map();
 let replace_strs = [];
-let head_str = fs.readFileSync("helper.py").toString();
+let head_str = fs.readFileSync(PATH.join("notebooks_analysis", "helper.py")).toString();
 let def_list = [];
 
 let pyTypeof = new Map();

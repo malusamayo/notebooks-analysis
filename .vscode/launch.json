@@ -28,7 +28,7 @@
       "name": "Debug instrumenter",
       "type": "node",
       "request": "launch",
-      "program": "${workspaceRoot}/instrumenter.js",
+      "program": "${workspaceRoot}/notebooks_analysis/instrumenter.js",
       "args": [
         ".\\notebooks\\debug-task2.py"
       ],
