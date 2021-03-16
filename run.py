@@ -3,6 +3,7 @@ import os
 import time
 import subprocess
 import argparse
+import shutil
 
 parser = argparse.ArgumentParser(description='Generate documentation for notebooks')
 parser.add_argument('notebook', help='the notebook to be analyzed')
@@ -115,9 +116,13 @@ def analyze():
     log.close()
 
 def clean():
-    os.system("rm " + os.path.join(path, filename_no_suffix, "*.dat"))
-    os.system("rm " + os.path.join(path, filename_no_suffix, "*.json"))
-    subprocess.run(["rmdir", os.path.join(path, filename_no_suffix)])
+    try:
+        shutil.rmtree(os.path.join(path, filename_no_suffix))
+    except FileNotFoundError:
+        print("no previous folder")
+    # os.system("rm " + os.path.join(path, filename_no_suffix, "\*.json"))
+    # os.system("rm " + os.path.join(path, filename_no_suffix, ".json"))
+    # subprocess.run(["rmdir", os.path.join(path, filename_no_suffix)])
     if not args.clean:
         return
     subprocess.run(["rm", os.path.join(path, filename_no_suffix + ".py")])
@@ -130,4 +135,3 @@ execute_script()
 static_analysis()
 dynamic_analysis()
 analyze()
-# clean()
