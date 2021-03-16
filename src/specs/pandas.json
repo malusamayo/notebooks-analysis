@@ -129,8 +129,18 @@
           "all",
           "any",
           "append",
-          "apply",
-          "applymap",
+          {
+            "name": "apply",
+            "updates": [
+              0
+            ]
+          },
+          {
+            "name": "applymap",
+            "updates": [
+              0
+            ]
+          },
           "as_blocks",
           "as_matrix",
           "asfreq",
@@ -163,10 +173,25 @@
           "div",
           "divide",
           "dot",
-          "drop",
-          "drop_duplicates",
+          {
+            "name": "drop",
+            "updates": [
+              0
+            ]
+          },
+          {
+            "name": "drop_duplicates",
+            "updates": [
+              0
+            ]
+          },
           "droplevel",
-          "dropna",
+          {
+            "name": "dropna",
+            "updates": [
+              0
+            ]
+          },
           "duplicated",
           "eq",
           "equals",
@@ -174,7 +199,12 @@
           "ewm",
           "expanding",
           "ffill",
-          "fillna",
+          {
+            "name": "fillna",
+            "updates": [
+              0
+            ]
+          },
           "filter",
           "first",
           "first_valid_index",
@@ -264,7 +294,12 @@
           "rename",
           "rename_axis",
           "reorder_levels",
-          "replace",
+          {
+            "name": "replace",
+            "updates": [
+              0
+            ]
+          },
           "resample",
           "reset_index",
           "rfloordiv",
