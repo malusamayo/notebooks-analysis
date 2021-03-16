@@ -385,9 +385,12 @@ export class DataflowAnalyzer {
         };
       })
     );
-    return sources.union(targets);
-    // problems here: x.loc[some_data] = y will be mishandled!
-    // return sources.union(assign.op ? targets : new RefSet());
+    if (assign.targets.some(x => x.type == ast.INDEX && x.value.type == ast.DOT && ["at", "iat", "loc", "iloc"].indexOf(x.value.name) >= 0))
+      return sources.union(targets);
+    else {
+      // problems here: x.loc[some_data] = y will be mishandled!
+      return sources.union(assign.op ? targets : new RefSet());
+    }
   }
 
   private _symbolTable: SymbolTable;
