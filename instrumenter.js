@@ -324,6 +324,12 @@ function compute_flow_vars(code) {
     // console.log(cfg.blocks);
     const analyzer = new py.DataflowAnalyzer();
     const flows = analyzer.analyze(cfg).dataflows;
+    // let i = flows.items.filter(x => x.fromRef.name == "data")
+    // for (let flow of i) {
+    //     let fromLine = flow.fromNode.location.first_line;
+    //     let toLine = flow.toNode.location.first_line;
+    //     console.log(fromLine + "->" + toLine + " " + flow.fromNode.type + " " + flow.toNode.type + " " + flow.fromRef.name);
+    // }
     let line_in = new Map();
     let line_out = new Map();
     for (let flow of flows.items) {
