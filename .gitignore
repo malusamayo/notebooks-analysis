@@ -5,3 +5,4 @@ data
 input
 __pycache__
 .vscode
+test.dat
