@@ -385,7 +385,9 @@ export class DataflowAnalyzer {
         };
       })
     );
-    return sources.union(assign.op ? targets : new RefSet());
+    return sources.union(targets);
+    // problems here: x.loc[some_data] = y will be mishandled!
+    // return sources.union(assign.op ? targets : new RefSet());
   }
 
   private _symbolTable: SymbolTable;
