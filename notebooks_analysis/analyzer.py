@@ -513,42 +513,6 @@ class PatternSynthesizer(object):
         else:
             self.summary["other_patterns"].append({pattern: ','.join(from_col)})
 
-    def prune_DSL(self, df1, df2, from_col, to_col):
-        res = ["compute"]
-        hint = {"convert": False, "fillna":False}
-        if str(df1[from_col].dtype) != str(df2[to_col].dtype):
-            hint["convert"] = True
-            if self.check_float(df2, to_col):
-                res.append("float")
-            elif self.check_cat(df2, to_col):
-                res.append("category")
-            elif self.check_int(df2, to_col):
-                l = sorted(df2[to_col].unique())
-                if len(l) == max(l) + 1 - min(l):
-                    if len(l) <= 2:
-                        res.append("one_hot_encoding")
-                    else:
-                        res.append("encode")
-                else:
-                    res.append("int")
-            elif self.check_str(df2, to_col):
-                res.append("str")
-            else:
-                res.append("typeconvert")
-
-        if df1[from_col].nunique() > df2[to_col].nunique():
-            res.append("merge")
-        elif self.check_num(df1, from_col):
-            res.append("num_transform")
-        elif self.check_str(df1, from_col):
-            res.append("str_transform")
-        
-        if self.check_fillna(df1, df2, from_col, to_col):
-            hint["fillna"] = True
-            res.append("fillna")
-
-        return res, hint
-
     def check_fillna_only(self, df1, df2, from_col, to_col):
         cmp_df = df2[to_col].compare(df1[from_col])
         return cmp_df["other"].isnull().all()
@@ -609,6 +573,41 @@ class PatternSynthesizer(object):
     #             self.synthesis_append("type_convert", [from_col], [to_col])
     #         return True
     #     return False
+    def prune_DSL(self, df1, df2, from_col, to_col):
+        res = ["compute"]
+        hint = {"convert": False, "fillna":False}
+        if str(df1[from_col].dtype) != str(df2[to_col].dtype):
+            hint["convert"] = True
+            if self.check_float(df2, to_col):
+                res.append("float")
+            elif self.check_cat(df2, to_col):
+                res.append("category")
+            elif self.check_int(df2, to_col):
+                l = sorted(df2[to_col].unique())
+                if len(l) == max(l) + 1 - min(l):
+                    if len(l) <= 2:
+                        res.append("one_hot_encoding")
+                    else:
+                        res.append("encode")
+                else:
+                    res.append("int")
+            elif self.check_str(df2, to_col):
+                res.append("str")
+            else:
+                res.append("typeconvert")
+
+        if df1[from_col].nunique() > df2[to_col].nunique():
+            res.append("merge")
+        elif self.check_num(df1, from_col):
+            res.append("num_transform")
+        elif self.check_str(df1, from_col):
+            res.append("str_transform")
+        
+        if self.check_fillna(df1, df2, from_col, to_col):
+            hint["fillna"] = True
+            res.append("fillna")
+
+        return res, hint
 
     def validate(self, df1, df2, from_col, to_col, patterns, hint):
         CONVERT = {"typeconvert", "float", "str", "category", "int", "encode", "one_hot_encoding"}
@@ -646,6 +645,7 @@ class PatternSynthesizer(object):
             return 1
         
 
+    # per column searching
     def check_column(self, df1, df2, from_col, to_col):
         worklist = queue.PriorityQueue()
         cur_DSL, hint = self.prune_DSL(df1, df2, from_col, to_col)
@@ -706,7 +706,7 @@ class PatternSynthesizer(object):
         return False
 
     def check_removerow(self, df1, df2):
-        # [TODO] add other cases: duplicates/etc.
+        # [TODO] add other cases
         # use index to track row mappings
         if len(df2) < len(df1) and set(df2.index).issubset(set(df1.index)):
             removed = df1.loc[~df1.index.isin(df2.index)]
@@ -726,14 +726,31 @@ class PatternSynthesizer(object):
             return True
         return False
 
-    def search(self, df1, df2):
-        # cols_dummy = [col for col in self.colsnew if set(df2[col].unique()).issubset({0, 1})]
-        # cols_left = [col for col in self.colsnew if col not in cols_dummy]
-        # if cols_dummy:
-        #     # should check whether dummies are true
-        #     self.synthesis_append("one_hot_encoding", self.srccols, cols_dummy)
+    def gen_defaut_partition(self, df1, df2):
+        MAGIC_BOUND = 25
+        paths = collections.defaultdict(list)
         for col in self.colsnew:
-            # graph pruning disable
+            if df2[col].nunique() > MAGIC_BOUND:
+                continue
+            for i in df2.index:
+                paths[i].append(str(df2[col].at[i]))
+        for col in self.colschange:
+            # look at diff
+            if df2[col].compare(df1[col])["self"].nunique() > MAGIC_BOUND:
+                continue
+            for i in df2.index:
+                if df2[col].at[i] == df1[col].at[i]:
+                    paths[i].append("DUMMY")
+                else:
+                    paths[i].append(str(df2[col].at[i]))
+        for k, v in paths.items():
+            self.partition[str(tuple(v))].append(k)
+        # print(self.partition.keys())
+
+
+    def search(self, df1, df2):
+        for col in self.colsnew:
+            # graph pruning disabled now
 
             # if col in graph:
             #     src = list(set(self.srccols) & set(graph[col]))
@@ -741,44 +758,31 @@ class PatternSynthesizer(object):
             src = self.srccols
             if len(src) == 1:
                 self.check_column(df1, df2, src[0], col)
-            elif self.check_num(df2, col):
-                self.synthesis_append("num_transform", src, [col])
-            elif self.check_str(df2, col):
-                self.synthesis_append("str_transform", src, [col])
+            # disable pattern for multi src cols
+            # elif self.check_num(df2, col):
+            #     self.synthesis_append("num_transform", src, [col])
+            # elif self.check_str(df2, col):
+            #     self.synthesis_append("str_transform", src, [col])
             else:
-                self.synthesis_append("create", src, [col])
+                self.synthesis_append("compute", src, [col])
 
         for col in self.colschange:
             self.check_column(df1, df2, col, col)
         
         # generate default partition
-        MAGIC_BOUND = 25
         if not self.partition:
-            paths = collections.defaultdict(list)
-            for col in self.colsnew:
-                if df2[col].nunique() > MAGIC_BOUND:
-                    continue
-                for i in df2.index:
-                    paths[i].append(str(df2[col].at[i]))
-            for col in self.colschange:
-                # look at diff
-                if df2[col].compare(df1[col])["self"].nunique() > MAGIC_BOUND:
-                    continue
-                for i in df2.index:
-                    if df2[col].at[i] == df1[col].at[i]:
-                        paths[i].append("DUMMY")
-                    else:
-                        paths[i].append(str(df2[col].at[i]))
-            for k, v in paths.items():
-                self.partition[str(tuple(v))].append(k)
-            # print(self.partition.keys())
+            self.gen_defaut_partition(df1, df2)
 
 
     def check(self, df1, df2):
+        # ignore irrelevant dfs
         if set(self.cols1).isdisjoint(set(self.cols2)):
             return
+        # ignore adding rows
         if len(df1) < len(df2):
             return
+
+        # handle easy op: removerow, removecol, rearrange
         if self.check_removerow(df1, df2):
             # if index is reset this might lead to error?
             df1 = df1.loc[df2.index]
@@ -786,11 +790,13 @@ class PatternSynthesizer(object):
         if len(df1) > len(df2):
             return
         if not df1.index.equals(df2.index):
-            print("mismatched index for " + self.df1_name + " and " + self.df2_name)
+            print_error("mismatched index for " + self.df1_name + " and " + self.df2_name)
             return
         self.check_removecol(df1, df2)
         self.check_rearrange(df1, df2)
-        self.colsnew = [col for col in self.cols2 if col not in self.cols1] # set(self.cols2).difference(set(self.cols1))
+
+        # locate created/changed columns
+        self.colsnew = [col for col in self.cols2 if col not in self.cols1]
         self.colschange = [col for col in self.cols1 if not df1[col].equals(df2[col])]
         # print(self.colsnew, self.colschange)
         if self.colsnew or self.colschange:
@@ -803,7 +809,6 @@ class PatternSynthesizer(object):
         df = df2.copy()
 
         
-        # [TODO] special info for removed col & src cols
         for col in self.removedcols:
             df[col] = df1[col]
 
@@ -818,7 +823,7 @@ class PatternSynthesizer(object):
         _type = {col:str(df[col].dtype) for col in df if col not in self.colschange}
         _range = {col: str(get_range(df[col])) for col in df if col not in self.colschange}
 
-        # build data flow
+        # build data changes for columns
         for col in self.colschange:
             _type[col] = str(df1[col].dtype) + "->" + str(df[col].dtype)
             _range[col] = str(get_range(df1[col])) + "->" + str(get_range(df[col]))
