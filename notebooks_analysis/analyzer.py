@@ -671,8 +671,7 @@ class PatternSynthesizer(object):
                     p.add(pattern)
                     worklist.put(p)
         
-        for p in top.patterns:
-            self.synthesis_append(p, [from_col], [to_col])
+        return top
 
         # if not self.check_typeconvert(df1, df2, from_col, to_col):
         #     # check the case when only different values are null values
@@ -756,18 +755,26 @@ class PatternSynthesizer(object):
             #     src = list(set(self.srccols) & set(graph[col]))
             # else:
             src = self.srccols
-            if len(src) == 1:
-                self.check_column(df1, df2, src[0], col)
-            # disable pattern for multi src cols
-            # elif self.check_num(df2, col):
-            #     self.synthesis_append("num_transform", src, [col])
-            # elif self.check_str(df2, col):
-            #     self.synthesis_append("str_transform", src, [col])
-            else:
-                self.synthesis_append("compute", src, [col])
+            patterns = []
+            for src_col in src:
+                top = self.check_column(df1, df2, src_col, col)
+                patterns += [p for p in top.patterns if p not in patterns]
+            for p in patterns:
+                self.synthesis_append(p, src, [col])
+            # if len(src) == 1:
+            #     self.check_column(df1, df2, src[0], col)
+            # # disable pattern for multi src cols
+            # # elif self.check_num(df2, col):
+            # #     self.synthesis_append("num_transform", src, [col])
+            # # elif self.check_str(df2, col):
+            # #     self.synthesis_append("str_transform", src, [col])
+            # else:
+            #     self.synthesis_append("compute", src, [col])
 
         for col in self.colschange:
-            self.check_column(df1, df2, col, col)
+            top = self.check_column(df1, df2, col, col)    
+            for p in top.patterns:
+                self.synthesis_append(p, [col], [col])
         
         # generate default partition
         if not self.partition:
@@ -803,6 +810,8 @@ class PatternSynthesizer(object):
             self.search(df1, df2)
         if self.syn_stack:
             return self.gen_table(df1, df2)
+        else:
+            self.synthesis_append("copy", [], [])
         return
 
     def gen_table(self, df1, df2):
