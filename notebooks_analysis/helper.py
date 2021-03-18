@@ -13,7 +13,7 @@ ignore_types = [
     "<class 'module'>", "<class 'type'>", "<class 'function'>",
     "<class 'matplotlib.figure.Figure'>"
 ]
-TRACE_INTO = ['lambda_0','lambda_1','lambda_2','lambda_3','lambda_4','lambda_5']
+TRACE_INTO = []
 
 
 
@@ -69,14 +69,9 @@ def func_info_saver(line):
     def inner_decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            if func.__name__ not in TRACE_INTO:
+            if func.__name__ not in TRACE_INTO and func.__name__ != '<lambda>':
                 return func(*args, **kwargs)
             pathTracker.next_iter()
-            # try:
-            #     wrapper.cnt = (wrapper.cnt + 1) % maxrow
-            # except:
-            #     wrapper.cnt = 0
-            # MyStr.cnt = wrapper.cnt
 
             # name = func.__name__ + "_" + str(line)
             # args_name = tuple(inspect.signature(func).parameters)
@@ -151,6 +146,10 @@ class MyStr(str):
         ret = super().upper()
         pathTracker.update(int(self != ret))
         return MyStr(ret)
+
+def if_expr_wrapper(expr):
+    pathTracker.update(int(expr))
+    return expr
 
 class LibDecorator(object):
     def __init__(self):
@@ -325,7 +324,7 @@ class PathTracker(object):
         super().__init__()
         self.paths = collections.defaultdict(lambda: collections.defaultdict(list))
         self.partitions = {}
-        # sys.settrace(self.trace_calls)
+        sys.settrace(self.trace_calls)
 
     def reset(self, index):
         self.index = index

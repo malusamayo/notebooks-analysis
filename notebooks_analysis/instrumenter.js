@@ -5,6 +5,7 @@ const PATH = require('path')
 const { printNode, RefSet } = require("../../notebooks-analysis");
 const { assert } = require("console");
 const { wrap_methods, collect_defs, collect_cols } = require('./method-wrapper');
+const { createExportDeclaration } = require("typescript");
 
 let args = process.argv.slice(2);
 let path = args[0];
@@ -131,7 +132,7 @@ function static_analyzer(tree) {
     let df_construct = ["DataFrame", "read_csv"];
     let df_funcs = ["append", "concat", "copy", "drop", "get_dummies"];
     let old_key = -1;
-    let lambda_id = 0;
+    // let lambda_id = 0;
     let cell_cols = new Set();
 
     // simple type inference
@@ -191,23 +192,41 @@ function static_analyzer(tree) {
                 comment += " with dict"
             if (src.args[0].actual.type == 'lambda') {
                 // console.log(printNode(src.args[0].actual));
-                let args = src.args[0].actual.args.map(x => x.name);
+                // let args = src.args[0].actual.args.map(x => x.name);
                 let code = src.args[0].actual.code;
-                let def_code = "";
+                // let def_code = "";
                 if (code.type == "ifexpr") {
-                    let testcode = printNode(code.test).replace(/[\(\)]/g, "");
-                    def_code = ["def lambda_" + lambda_id + "(" + args.join(", ") + "):",
-                    "if " + testcode + ":", "\treturn " + printNode(code.then),
-                        "else:", "\treturn " + printNode(code.else)];
-                } else {
-                    def_code = ["def lambda_" + lambda_id + "(" + args.join(", ") + "):", "return " + printNode(code)];
+                    code.test = {
+                        type: 'name',
+                        id: "if_expr_wrapper(" + printNode(code.test).replace(/[\(\)]/g, "") + ")",
+                        location: code.test.location
+                    }
+                    // def_code = ["def lambda_" + lambda_id + "(" + args.join(", ") + "):",
+                    // "if " + testcode + ":", "\treturn " + printNode(code.then),
+                    //     "else:", "\treturn " + printNode(code.else)];
                 }
-                // console.log(def_code.join("\n\t"));
 
-                src.args[0].actual = { id: "lambda_" + lambda_id, location: src.args[0].actual.location, type: "name" };
-                replace_strs.push([stmt.location.first_line, stmt.location.last_line, [def_code.join("\n\t") + "\n" + printNode(stmt)]]);
-                def_list.push("lambda_" + lambda_id)
-                lambda_id++;
+                let info_saver = {
+                    type: 'call',
+                    func: {
+                        type: 'name',
+                        id: `func_info_saver(${src.args[0].actual.location.first_line})`,
+                        location: src.args[0].actual.location
+                    },
+                    args: [{ type: 'arg', location: src.args[0].actual.location, actual: src.args[0].actual }],
+                    location: { location: src.args[0].actual.location }
+                }
+                src.args[0].actual = info_saver;
+
+                // else {
+                //     def_code = ["def lambda_" + lambda_id + "(" + args.join(", ") + "):", "return " + printNode(code)];
+                // }
+                // console.log(printNode(stmt))
+
+                // src.args[0].actual = { id: "lambda_" + lambda_id, location: src.args[0].actual.location, type: "name" };
+                replace_strs.push([stmt.location.first_line, stmt.location.last_line, [printNode(stmt)]]);
+                // def_list.push("lambda_" + lambda_id)
+                // lambda_id++;
             } else if (src.args[0].actual.type == 'name') {
                 def_list.push(src.args[0].actual.id);
             }
