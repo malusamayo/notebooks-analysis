@@ -148,17 +148,15 @@ class LibDecorator(object):
                     if type(key) == list:
                         for i, pat in enumerate(key):
                             if bool(re.search(pat, x)):
-                                pathTracker.update(i, "replace")
+                                pathTracker.update(i, "replace_ls")
                                 return
-                        pathTracker.update(-1, "replace")
-                    elif bool(re.search(key, x)):
-                        pathTracker.update(1, "replace")
+                        pathTracker.update(-1, "replace_ls")
                     else:
-                        pathTracker.update(0, "replace")
+                        pathTracker.update(int(re.search(key, x)), "replace")
                 except:
                     pathTracker.update(-2, "replace") # error
             elif type(key) == list:
-                pathTracker.update(key.index(x) if x in key else -1, "replace")
+                pathTracker.update(key.index(x) if x in key else -1, "replace_ls")
             else:
                 pathTracker.update(int(x != key), "replace")
         def decorate(self, to_replace=None, value=None, inplace=False, limit=None, regex=False, method="pad"):

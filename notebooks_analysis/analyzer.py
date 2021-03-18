@@ -732,16 +732,16 @@ class PatternSynthesizer(object):
             if df2[col].nunique() > MAGIC_BOUND:
                 continue
             for i in df2.index:
-                paths[i].append((str(df2[col].at[i]),"default"))
+                paths[i].append((str(df2[col].at[i]), "default_"+ col))
         for col in self.colschange:
             # look at diff
             if df2[col].compare(df1[col])["self"].nunique() > MAGIC_BOUND:
                 continue
             for i in df2.index:
                 if df2[col].at[i] == df1[col].at[i]:
-                    paths[i].append(("DUMMY", "default"))
+                    paths[i].append(("DUMMY", "default_"+ col))
                 else:
-                    paths[i].append((str(df2[col].at[i]), "default"))
+                    paths[i].append((str(df2[col].at[i]), "default_"+ col))
         for k, v in paths.items():
             self.partition[str(tuple(v))].append(k)
         # print(self.partition.keys())
