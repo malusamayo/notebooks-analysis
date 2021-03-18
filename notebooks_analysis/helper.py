@@ -7,7 +7,6 @@ import inspect, collections, functools
 import matplotlib, pickle, json
 
 from pandas.core.series import Series
-# my_labels = []
 my_dir_path = os.path.dirname(os.path.realpath(__file__))
 ignore_types = [
     "<class 'module'>", "<class 'type'>", "<class 'function'>",
@@ -16,9 +15,6 @@ ignore_types = [
 TRACE_INTO = []
 
 
-
-# TYPE_1_FUN = ["capitalize", "casefold", "lower", "replace", "title", "upper"]
-# TYPE_2_FUN = ["rsplit", "split", "splitlines"]
 
 matplotlib.use('Agg')
 
@@ -32,19 +28,6 @@ id2name = {}
 cur_get = []
 graph = collections.defaultdict(list)
 # noop = lambda *args, **kwargs: None
-
-# def ddict():
-#     return collections.defaultdict(ddict)
-
-
-# def ddict2dict(d):
-#     for k, v in d.items():
-#         if isinstance(v, dict):
-#             d[k] = ddict2dict(v)
-#     return dict(d)
-
-
-# funcs = ddict()
 
 def my_store_info(info, var):
     if str(type(var)) in ignore_types:
@@ -95,17 +78,6 @@ def func_info_saver(line):
                 rets = str(rets)
             
             pathTracker.update_ls(cur_exe)
-            # path_per_row[wrapper.cnt] += cur_exe
-
-            # if tuple(cur_exe) not in funcs[name].keys():
-            #     funcs[name][tuple(cur_exe)]["count"] = 0
-            #     funcs[name][tuple(cur_exe)]["args"] = []
-            #     funcs[name][tuple(cur_exe)]["rets"] = []
-
-            # funcs[name][tuple(cur_exe)]["count"] += 1
-            # if funcs[name][tuple(cur_exe)]["count"] <= 10:
-            #     funcs[name][tuple(cur_exe)]["args"].append(wrap_copy(arg_dict))
-            #     funcs[name][tuple(cur_exe)]["rets"].append([wrap_copy(rets)])
             cur_exe.clear()
             return rets
 
