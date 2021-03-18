@@ -77,7 +77,8 @@ def func_info_saver(line):
             if type(rets) == MyStr:
                 rets = str(rets)
             
-            pathTracker.update_ls(cur_exe)
+            if cur_exe:
+                pathTracker.update(tuple(cur_exe), func.__name__)
             cur_exe.clear()
             return rets
 
@@ -93,34 +94,31 @@ class MyStr(str):
     
     def replace(self, __old: str, __new: str, __count=-1) -> str:
         ret = super().replace(__old, __new, __count)
-        if self == ret:
-            pathTracker.update(0)
-        else:
-            pathTracker.update(1)
+        pathTracker.update(int(self != ret), "replace")
         return MyStr(ret)
     
     def split(self, sep=None, maxsplit=-1):
         ret = super().split(sep, maxsplit)
-        pathTracker.update(len(ret))
+        pathTracker.update(len(ret), "split")
         return [MyStr(x) for x in ret]
 
     def strip(self, __chars=None) :
         ret = super().strip(__chars)
-        pathTracker.update(int(self != ret))
+        pathTracker.update(int(self != ret), "strip")
         return MyStr(ret)
     
     def lower(self):
         ret = super().lower()
-        pathTracker.update(int(self != ret))
+        pathTracker.update(int(self != ret), "lower")
         return MyStr(ret)
 
     def upper(self):
         ret = super().upper()
-        pathTracker.update(int(self != ret))
+        pathTracker.update(int(self != ret), "upper")
         return MyStr(ret)
 
 def if_expr_wrapper(expr):
-    pathTracker.update(int(expr))
+    pathTracker.update(int(expr), "lambda_if")
     return expr
 
 class LibDecorator(object):
@@ -150,22 +148,19 @@ class LibDecorator(object):
                     if type(key) == list:
                         for i, pat in enumerate(key):
                             if bool(re.search(pat, x)):
-                                pathTracker.update(i)
+                                pathTracker.update(i, "replace")
                                 return
-                        pathTracker.update(-1)
+                        pathTracker.update(-1, "replace")
                     elif bool(re.search(key, x)):
-                        pathTracker.update(1)
+                        pathTracker.update(1, "replace")
                     else:
-                        pathTracker.update(0)
+                        pathTracker.update(0, "replace")
                 except:
-                    pathTracker.update(-2) # error
+                    pathTracker.update(-2, "replace") # error
             elif type(key) == list:
-                pathTracker.update(key.index(x) if x in key else -1)
+                pathTracker.update(key.index(x) if x in key else -1, "replace")
             else:
-                if x == key:
-                    pathTracker.update(1)
-                else:
-                    pathTracker.update(0)
+                pathTracker.update(int(x != key), "replace")
         def decorate(self, to_replace=None, value=None, inplace=False, limit=None, regex=False, method="pad"):
             if to_replace != None:
                 self.map(lambda x: f(x, to_replace, value, regex))
@@ -176,16 +171,16 @@ class LibDecorator(object):
         def f(x, value):
             pathTracker.next_iter()
             if pd.api.types.is_numeric_dtype(type(x)) and np.isnan(x):
-                pathTracker.update(1)
+                pathTracker.update(1, "fillna")
             else:
-                pathTracker.update(0)
+                pathTracker.update(0, "fillna")
 
         def decorate(self, value=None, method=None, axis=None, inplace=False, limit=None, downcast=None):
             if type(self) == pd.DataFrame:
                 pathTracker.reset(self.index)
                 for i, v in enumerate(self.isnull().sum(axis=1)):
                     pathTracker.next_iter()
-                    pathTracker.update(v)
+                    pathTracker.update(int(v), "fillna")
             else:
                 self.map(lambda x: f(x, value))
             if inplace:
@@ -198,9 +193,9 @@ class LibDecorator(object):
             pathTracker.next_iter()
             try:
                 ret = x.split(pat, n)
-                pathTracker.update(len(ret))
+                pathTracker.update(len(ret), "split")
             except AttributeError:
-                pathTracker.update(-2) # x not str
+                pathTracker.update(-2, "split") # x not str
         def decorate(self, pat=None, n=-1, expand=False):
             self._parent.map(lambda x: f(x, pat, n))
             return wrapped_method(self, pat, n, expand)
@@ -209,7 +204,7 @@ class LibDecorator(object):
     def map_decorator(self, wrapped_method):
         def f(x, d):
             pathTracker.next_iter()
-            pathTracker.update(list(d).index(x) if x in d else -1)
+            pathTracker.update(list(d).index(x) if x in d else -1, "map_dict")
         def decorate(self, arg, na_action=None):
             # should do init work here
             pathTracker.reset(self.index)
@@ -312,11 +307,8 @@ class PathTracker(object):
         # except StopIteration:
         #     self.cur_idx = next(iter(self.index))
 
-    def update(self, new_path):
-        self.paths[self.id][self.cur_idx].append(new_path)
-
-    def update_ls(self, new_paths):
-        self.paths[self.id][self.cur_idx] += new_paths
+    def update(self, new_path, func_name):
+        self.paths[self.id][self.cur_idx].append((new_path, func_name))
 
     def to_partition(self):
         if not self.paths:

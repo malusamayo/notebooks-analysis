@@ -30,7 +30,7 @@
       "request": "launch",
       "program": "${workspaceRoot}/notebooks_analysis/instrumenter.js",
       "args": [
-        ".\\notebooks\\debug-task2.py"
+        ".\\notebooks\\debug-task1.py"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
