@@ -56,7 +56,7 @@ def execute_script():
         print("\033[91m {}\033[00m".format("Original execution failed!"))
         log.write(filename + "\t" + "Script failed\n")
         log.close()
-        exit()
+        sys.exit(-1)
     print("\033[96m {}\033[00m".format(
         "Original execution completed in {:.2f} seconds.".format(t[0])))
 
@@ -73,7 +73,7 @@ def static_analysis():
         print("\033[91m {}\033[00m".format("Static analysis failed!"))
         log.write(filename + "\t" + "Static analysis failed\n")
         log.close()
-        exit()
+        sys.exit(-2)
     print("\033[96m {}\033[00m".format(
         "Static analysis completed in {:.2f} seconds.".format(t[1])))
 
@@ -91,7 +91,7 @@ def dynamic_analysis():
         print("\033[91m {}\033[00m".format("Dynamic analysis failed!"))
         log.write(filename + "\t" + "Dynamic analysis failed\n")
         log.close()
-        exit()
+        sys.exit(-3)
     print("\033[96m {}\033[00m".format(
         "Dynamic analysis completed in {:.2f} seconds.".format(t[2])))
 
@@ -106,7 +106,7 @@ def analyze():
         print("\033[91m {}\033[00m".format("Doc gen failed!"))
         log.write(filename + "\t" + "Doc gen failed\n")
         log.close()
-        exit()
+        sys.exit(-4)
     print("\033[96m {}\033[00m".format(
     '''Generation completed in {:.2f} seconds.
     Script completed in {:.2f} seconds.
