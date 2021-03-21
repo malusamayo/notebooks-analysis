@@ -135,6 +135,7 @@ function static_analyzer(tree) {
     let old_key = -1;
     // let lambda_id = 0;
     let cell_cols = new Set();
+    let var2cols = {}
 
     // simple type inference
     function infer_types(stmt) {
@@ -237,11 +238,14 @@ function static_analyzer(tree) {
 
     function build_flow_graph(stmt) {
         if (stmt.type == "assign" && stmt.targets.length == stmt.sources.length) {
-            let src_cols = new Set();
-            stmt.sources.forEach(x => src_cols.add(collect_cols(x, pyTypeof)));
-            let des_cols = new Set();
-            stmt.targets.forEach(x => des_cols.add(collect_cols(x, pyTypeof)));
-            console.log(src_cols, des_cols);
+            var2cols
+            for (let [i, src] of stmt.sources.entries()) {
+                let src_cols = new Set();
+                stmt.sources.forEach(x => src_cols.add(collect_cols(x, pyTypeof)));
+                let des_cols = new Set();
+                stmt.targets.forEach(x => des_cols.add(collect_cols(x, pyTypeof)));
+                console.log(src_cols, des_cols);
+            }
         }
     }
 

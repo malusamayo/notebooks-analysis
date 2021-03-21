@@ -53,7 +53,7 @@ function find_col(node) {
         case 'dot': {
             find_col(node.value);
             if (node.value.type == "name" &&
-                find_col.pyTypeof.get(node.value.id) != undefined)
+                find_col.pyTypeof.get(node.value.id) == "dataframe")
                 find_col.cols.add(node.name)
             break;
         }
@@ -89,7 +89,7 @@ function find_col(node) {
             find_col(node.value);
             node.args.forEach(x => find_col(x));
             if (node.value.type == "name" &&
-                find_col.pyTypeof.get(node.value.id) != undefined &&
+                find_col.pyTypeof.get(node.value.id) == "dataframe" &&
                 node.args.length == 1 &&
                 node.args[0].type == "literal")
                 find_col.cols.add(node.args[0].value)

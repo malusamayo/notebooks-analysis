@@ -10,16 +10,16 @@
       "type": "python",
       "request": "launch",
       "program": "${file}",
-      "cwd": "${workspaceRoot}/notebooks/",
+      "cwd": "${fileDirname}",
       "console": "integratedTerminal"
     },
     {
       "name": "Debug analyzer/tests",
       "type": "python",
       "request": "launch",
-      "program": "${file}",
+      "program": "${workspaceRoot}/notebooks_analysis/analyzer.py",
       "args": [
-        ".\\notebooks\\debug-task2.ipynb"
+        "${file}"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
@@ -30,7 +30,7 @@
       "request": "launch",
       "program": "${workspaceRoot}/notebooks_analysis/instrumenter.js",
       "args": [
-        ".\\notebooks\\debug-task1.py"
+        "${file}"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
