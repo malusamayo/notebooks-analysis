@@ -15,7 +15,7 @@ pd.set_option('display.max_columns', None)
 pd.set_option('precision', 4)
 np.set_printoptions(precision=4)
 
-sys.argv.append("notebooks/debug_example.ipynb")
+# sys.argv.append("notebooks/debug_example.ipynb")
 
 dir_path = os.path.dirname(os.path.realpath(sys.argv[1]))
 filename = sys.argv[1].split('\\')[-1].split('/')[-1]
@@ -24,7 +24,8 @@ suffix = filename[filename.rfind("."):]
 
 data_path = os.path.join(dir_path, filename_no_suffix)
 output_path = os.path.join(dir_path, filename_no_suffix + "_m" + suffix)
-json_path = os.path.join(dir_path, filename_no_suffix + "_comment.json")
+nb_path = os.path.join(dir_path, filename_no_suffix + ".ipynb")
+comment_path = os.path.join(dir_path, filename_no_suffix + "_comment.json")
 json_out_path = os.path.join(data_path, "result.json")
 
 blanks = "\t- "
@@ -764,15 +765,9 @@ class PatternSynthesizer(object):
                 patterns += [p for p in top.patterns if p not in patterns]
             for p in patterns:
                 self.synthesis_append(p, src, [col])
-            # if len(src) == 1:
-            #     self.check_column(df1, df2, src[0], col)
-            # # disable pattern for multi src cols
-            # # elif self.check_num(df2, col):
-            # #     self.synthesis_append("num_transform", src, [col])
-            # # elif self.check_str(df2, col):
-            # #     self.synthesis_append("str_transform", src, [col])
-            # else:
-            #     self.synthesis_append("compute", src, [col])
+            # no src col
+            if not patterns:
+                self.synthesis_append("compute", [self.df1_name], [col])
 
         for col in self.colschange:
             top = self.check_column(df1, df2, col, col)    
@@ -954,7 +949,7 @@ def dispatch_gen(var, name, cellnum, outflag):
         return Variable(var, name, cellnum, outflag)
 
 if __name__ == "__main__":
-    with open(sys.argv[1], encoding="UTF-8") as f:
+    with open(nb_path, encoding="UTF-8") as f:
         file_content = f.read()
     notebook = nbformat.reads(file_content, as_version=4)
 
