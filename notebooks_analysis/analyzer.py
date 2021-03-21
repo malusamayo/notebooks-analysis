@@ -813,7 +813,7 @@ class PatternSynthesizer(object):
             self.search(df1, df2)
         if self.syn_stack:
             self.gen_table(df1, df2)
-        else:
+        elif not self.colsnew and not self.colschange:
             self.synthesis_append("copy", [], [])
         return self.summary
 
@@ -937,29 +937,10 @@ def handlecell(myvars, st, ed, info):
                                 json_map["partition"][flow] = checker.markers
                                 json_map["table"][flow] = checker.table
                             print(myvars[i].cellnum, ":", flow, "\033[96m", 
-                                dict(checker.summary), len(checker.markers), "\033[0m")
-                
-    # comments.append("\'\'\'\n")
-
+                                dict(checker.summary), len(checker.markers), "\033[0m")               
+    
     return "\n".join(comments), json_map
 
-
-# def gen_comments(labels, tmpvars):
-#     comment_str = {}
-#     max_len = len(labels)
-#     intervals = {}
-#     for i in range(max_len):
-#         curcell = labels[i][0]
-#         if curcell not in intervals.keys():
-#             intervals[curcell] = (i, i)
-#         else:
-#             intervals[curcell] = (intervals[curcell][0], i)
-#     json_map = {}
-#     for key in intervals:
-#         comment_str[key], inner_json_map = handlecell(key, intervals[key][0],
-#                                                       intervals[key][1])
-#         json_map[code_indices[key - 1]] = inner_json_map
-#     return comment_str, json_map
 
 
 def dispatch_gen(var, name, cellnum, outflag):
@@ -971,52 +952,6 @@ def dispatch_gen(var, name, cellnum, outflag):
         return DataFrame(var, name, cellnum, outflag)
     else:
         return Variable(var, name, cellnum, outflag)
-
-
-# def gen_func_comment(fun_name, fun_map):
-#     # not considering multiple return types from branches
-
-#     _type = []
-#     for k, path_map in fun_map.items():
-#         if k == "loc":
-#             continue
-#         _type = [
-#             k + ": " + str(type(v)) for k, v in path_map["args"][0].items()
-#         ] + [str(type(x)) for x in path_map["rets"][0]]
-#         break
-
-#     total = sum([path_map["count"] for path_map in list(fun_map.values())[1:]])
-
-#     args_len, rets_len = 0, 0
-#     examples = []
-#     for k, path_map in fun_map.items():
-#         if k == "loc":
-#             continue
-#         args_len = max(args_len, len(path_map["args"][0]))
-#         rets_len = max(rets_len, len(path_map["rets"][0]))
-#         args_list = [[v for k, v in args.items()] for args in path_map["args"]]
-#         args = [[args[i] for args in args_list] for i in range(args_len)]
-#         rets = [[rets[i] for rets in path_map["rets"]]
-#                 for i in range(rets_len)]
-#         examples.append(args + rets +
-#                         ['{:.2g}'.format(path_map["count"] / total)] +
-#                         [path_map["count"]])
-
-#     _columns = ["args[{:d}]".format(i) for i in range(args_len)
-#                 ] + ["rets[{:d}]".format(i)
-#                      for i in range(rets_len)] + ["frequency", "counts"]
-
-#     table = pd.DataFrame([_type] +
-#                          sorted(examples, key=lambda x: x[-1], reverse=True),
-#                          columns=_columns)
-
-#     table.insert(0, fun_name + postfix, ["type"] +
-#                  ["example_" + str(i) for i in range(len(fun_map.keys()) - 1)])
-
-#     # comment = "'''\n[function table]\n" + str(table) + "\n'''\n"
-#     comment = ""
-#     json_map = json.loads(table.to_json())
-#     return comment, json_map
 
 if __name__ == "__main__":
     with open(sys.argv[1], encoding="UTF-8") as f:
@@ -1104,47 +1039,7 @@ if __name__ == "__main__":
     #     else:
     #         json_map[cell_num][cat][name] = value
 
-    # # add function info
-    # insert_map = collections.defaultdict(list)
-    # for fun_name, fun_map in funcs.items():
-    #     # print(lines[fun_map["loc"] - 1])
-    #     # affected by "-s"
-    #     # (i, j) = line_to_idx[fun_map["loc"] -3]
-    #     fun_name_no_idx = fun_name[:fun_name.rfind("_")]
-    #     cell_num = [v for k, v in static_comments.items() if k == fun_name_no_idx]
-    #     assert(len(cell_num) == 1)
-    #     comment, func_json_map = gen_func_comment(fun_name, fun_map)
-    #     insert_to_map(json_map, cell_num[0], "function", fun_name, func_json_map)
-    #     # insert_map[i].append((j, comment))
-
     # for comment in static_comments:
     #     (i, j) = line_to_idx[comment[0] - 3]
     #     insert_to_map(json_map, i, "comment", j, comment[1])
     #     insert_map[i].append((j, "# [autodocs] " + comment[1] + "\n"))
-
-    
-
-    # for key, value in insert_map.items():
-    #     code = notebook.cells[key].source.split("\n")
-    #     for (j, comment) in value:
-    #         code[j] = comment + code[j]
-    #     notebook.cells[key].source = "\n".join(code)
-
-    # write comments to new notebooks
-    # cur_cell = 0
-    # cur_idx = 0
-    # insert_list = []
-    # for cell in notebook.cells:
-    #     if cell["cell_type"] == "code":
-    #         cur_cell += 1
-    #         if cur_cell in comment_str.keys():
-    #             comment_cell = nbformat.v4.new_markdown_cell(
-    #                 comment_str[cur_cell])
-    #             insert_list.append((cur_idx, comment_cell))
-    #             cur_idx += 1
-    #     cur_idx += 1
-
-    # for item in insert_list:
-    #     notebook.cells.insert(item[0], item[1])
-
-    # nbformat.write(notebook, output_path)
