@@ -143,22 +143,35 @@ class LibDecorator(object):
     def replace_decorator(self, wrapped_method):
         def f(x, key, value, regex):
             pathTracker.next_iter()
-            if regex:
-                try:
-                    if type(key) == list:
-                        for i, pat in enumerate(key):
+            if type(value) == list:
+                if regex:
+                    for i, pat in enumerate(key):
+                        try:
                             if bool(re.search(pat, x)):
                                 pathTracker.update(i, "replace_ls")
                                 return
-                        pathTracker.update(-1, "replace_ls")
-                    else:
-                        pathTracker.update(int(re.search(key, x)), "replace")
-                except:
-                    pathTracker.update(-2, "replace") # error
+                        except:
+                            pathTracker.update(-2, "replace") # error
+                            return
+                    pathTracker.update(-1, "replace_ls")
+                else:
+                    pathTracker.update(key.index(x) if x in key else -1, "replace_ls")
             elif type(key) == list:
-                pathTracker.update(key.index(x) if x in key else -1, "replace_ls")
+                if regex:
+                    try:
+                        pathTracker.update(int(any(re.search(item, x) for item in key)), "replace")
+                    except:
+                        pathTracker.update(-2, "replace") # error
+                else:
+                    pathTracker.update(int(x in key), "replace")
             else:
-                pathTracker.update(int(x != key), "replace")
+                if regex:
+                    try:
+                        pathTracker.update(int(re.search(key, x)), "replace")
+                    except:
+                        pathTracker.update(-2, "replace") # error
+                else:
+                    pathTracker.update(int(x != key), "replace")
         def decorate(self, to_replace=None, value=None, inplace=False, limit=None, regex=False, method="pad"):
             if to_replace != None:
                 self.map(lambda x: f(x, to_replace, value, regex))
