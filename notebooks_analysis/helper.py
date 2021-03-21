@@ -143,7 +143,7 @@ class LibDecorator(object):
     def replace_decorator(self, wrapped_method):
         def f(x, key, value, regex):
             pathTracker.next_iter()
-            if type(value) == list:
+            if type(value) == list or type(key) == tuple:
                 if regex:
                     for i, pat in enumerate(key):
                         try:
@@ -173,7 +173,7 @@ class LibDecorator(object):
                 else:
                     pathTracker.update(int(x != key), "replace")
         def decorate(self, to_replace=None, value=None, inplace=False, limit=None, regex=False, method="pad"):
-            if to_replace != None:
+            if to_replace != None and type(to_replace) != dict:
                 self.map(lambda x: f(x, to_replace, value, regex))
             return wrapped_method(self, to_replace, value, inplace, limit, regex, method)
         return decorate
