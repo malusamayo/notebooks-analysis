@@ -502,6 +502,7 @@ class PatternSynthesizer(object):
         self.syn_stack = []
         self.summary = collections.defaultdict(list)
         self.markers = {}
+        self.table = {}
     
     def synthesis_append(self, pattern, from_col, to_col):
         self.syn_stack.append((pattern, from_col, to_col))
@@ -706,9 +707,11 @@ class PatternSynthesizer(object):
 
     def check_removerow(self, df1, df2):
         # [TODO] add other cases
+        self.removedrow = pd.DataFrame()
         # use index to track row mappings
         if len(df2) < len(df1) and set(df2.index).issubset(set(df1.index)):
             removed = df1.loc[~df1.index.isin(df2.index)]
+            self.removedrow = removed
             left = df1.loc[df1.index.isin(df2.index)]
             removed_null = removed.isnull()
             left_null = left.isnull()
@@ -809,14 +812,13 @@ class PatternSynthesizer(object):
         if self.colsnew or self.colschange:
             self.search(df1, df2)
         if self.syn_stack:
-            return self.gen_table(df1, df2)
+            self.gen_table(df1, df2)
         else:
             self.synthesis_append("copy", [], [])
-        return
+        return self.summary
 
     def gen_table(self, df1, df2):
         df = df2.copy()
-
         
         for col in self.removedcols:
             df[col] = df1[col]
@@ -848,7 +850,12 @@ class PatternSynthesizer(object):
                 self.markers[k] = len(new_df)
                 new_df = new_df.append(df.loc[l])
         else:
+            self.markers["((0, 'empty'))"] = len(new_df)
             new_df = df
+
+        if not self.removedrow.empty:
+            self.markers["((0, 'removed'))"] = len(new_df)
+            new_df = new_df.append(self.removedrow[df.columns])
         
         df = pd.concat([pd.DataFrame([_type, _range]), new_df], ignore_index=True)
 
@@ -872,7 +879,7 @@ class PatternSynthesizer(object):
         df.rename(rename, axis =1 ,inplace = True)
 
         # print(self.markers)
-        return json.loads(df.to_json())
+        self.table = json.loads(df.to_json())
         
 
 class Info(object):
@@ -923,11 +930,12 @@ def handlecell(myvars, st, ed, info):
                     if type(myvars[j].var) == pd.core.frame.DataFrame:
                         checker = PatternSynthesizer(myvars[j], myvars[i], info)
                         result = checker.check(myvars[j].var, myvars[i].var)
-                        if result:
+                        if checker.summary:
                             flow = ' '.join([myvars[j].name, "->", myvars[i].name])
                             json_map["summary"][flow] = dict(checker.summary)
-                            json_map["partition"][flow] = checker.markers
-                            json_map["table"][flow] = result
+                            if checker.table:
+                                json_map["partition"][flow] = checker.markers
+                                json_map["table"][flow] = checker.table
                             print(myvars[i].cellnum, ":", flow, "\033[96m", 
                                 dict(checker.summary), len(checker.markers), "\033[0m")
                 
