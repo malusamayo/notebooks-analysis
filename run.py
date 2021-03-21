@@ -27,6 +27,14 @@ t = [0, 0, 0, 0]
 def my_print(msg):
     print("\033[96m {}\033[00m".format(msg))
 
+def convert():
+    result = subprocess.run(["jupyter", "nbconvert", "--to", "python", args.notebook]) 
+    if result.returncode:
+        print("\033[91m {}\033[00m".format("Notebook conversion failed!"))
+        log.write(filename + "\t" + "Notebook conversion failed\n")
+        log.close()
+        sys.exit(-5)
+
 def execute_script():
     if args.skip:
         return
@@ -132,7 +140,7 @@ def clean():
     subprocess.run(["rm", os.path.join(path, filename_no_suffix + "_comment.json")])
 
 clean()
-os.system("jupyter nbconvert --to python " + args.notebook)
+convert()
 execute_script()
 static_analysis()
 dynamic_analysis()
