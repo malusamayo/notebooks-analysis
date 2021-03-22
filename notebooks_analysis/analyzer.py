@@ -20,6 +20,7 @@ np.set_printoptions(precision=4)
 dir_path = os.path.dirname(os.path.realpath(sys.argv[1]))
 filename = sys.argv[1].split('\\')[-1].split('/')[-1]
 filename_no_suffix = filename[:filename.rfind(".")]
+filename_no_suffix = filename_no_suffix[:-2] if filename_no_suffix.endswith("_m") else filename_no_suffix
 suffix = filename[filename.rfind("."):]
 
 data_path = os.path.join(dir_path, filename_no_suffix)
@@ -488,14 +489,15 @@ class PatternSynthesizer(object):
     '''
     df1: before, df2: after, col: the target column
     '''
-    def __init__(self, DF1, DF2, info):
+    def __init__(self, DF1, DF2, info, in_vars):
         self.df1 = DF1.var
         self.df2 = DF2.var
         self.df1_name = DF1.name
         self.df2_name = DF2.name
         self.cols1 = list(self.df1.columns)
         self.cols2 = list(self.df2.columns)
-        self.srccols = [col for col in info.get if col in self.cols1] 
+        self.srccols = [col for col in info.get if col in self.cols1]
+        self.other_src = {x.name: x.var for x in in_vars if type(x.var) == pd.Series}
         self.descols = [col for col in info.set if col in self.cols1] 
         self.partition = collections.defaultdict(list)
         if self.df1_name in info.par:
@@ -736,18 +738,30 @@ class PatternSynthesizer(object):
             if df2[col].nunique() > MAGIC_BOUND:
                 continue
             for i in df2.index:
-                paths[i].append((str(df2[col].at[i]), "default_"+ col))
+                paths[i].append([str(df2[col].at[i]), "default_"+ col])
         for col in self.colschange:
             # look at diff
             if df2[col].compare(df1[col])["self"].nunique() > MAGIC_BOUND:
                 continue
             for i in df2.index:
-                if df2[col].at[i] == df1[col].at[i]:
-                    paths[i].append(("DUMMY", "default_"+ col))
-                else:
-                    paths[i].append((str(df2[col].at[i]), "default_"+ col))
+                try:
+                    if type(df2[col].at[i]) == pd.Series:
+                        if df2[col].at[i].equals(df1[col].at[i]):
+                            paths[i].append(["DUMMY", "default_"+ col])
+                        else:
+                            paths[i].append([str(df2[col].at[i]), "default_"+ col])
+                    else:
+                        if df2[col].at[i] == df1[col].at[i]:
+                            paths[i].append(["DUMMY", "default_"+ col])
+                        else:
+                            paths[i].append([str(df2[col].at[i]), "default_"+ col])
+                except:
+                    print_error("bugs when generating partition")
+                    return
+        if len({str(i) for i in paths.values()}) > MAGIC_BOUND:
+            return
         for k, v in paths.items():
-            self.partition[str(tuple(v))].append(k)
+            self.partition[str(v)].append(k)
         # print(self.partition.keys())
 
 
@@ -759,13 +773,22 @@ class PatternSynthesizer(object):
             #     src = list(set(self.srccols) & set(graph[col]))
             # else:
             src = self.srccols
-            patterns = []
+            patterns = collections.defaultdict(list)
             for src_col in src:
                 top = self.check_column(df1, df2, src_col, col)
-                patterns += [p for p in top.patterns if p not in patterns]
-            for p in patterns:
-                self.synthesis_append(p, src, [col])
-            # no src col
+                patterns[tuple(top.patterns)].append(src_col)
+            
+            for src_col, src_series in self.other_src.items():
+                if src_series.index.equals(df2.index):
+                    top = self.check_column(pd.DataFrame({src_col: src_series}), df2, src_col, col)
+                    patterns[tuple(top.patterns)].append(src_col)
+
+            for p_ls, src in patterns.items():
+                p_ls = list(p_ls)
+                for p in p_ls:
+                    self.synthesis_append(p, src, [col])
+            
+            # no src col     
             if not patterns:
                 self.synthesis_append("compute", [self.df1_name], [col])
 
@@ -781,8 +804,8 @@ class PatternSynthesizer(object):
 
     def check(self, df1, df2):
         # ignore irrelevant dfs
-        if set(self.cols1).isdisjoint(set(self.cols2)):
-            return
+        # if set(self.cols1).isdisjoint(set(self.cols2)):
+        #     return
         # ignore adding rows
         if len(df1) < len(df2):
             return
@@ -834,6 +857,9 @@ class PatternSynthesizer(object):
             _type[col] = str(df1[col].dtype) + "->" + str(df[col].dtype)
             _range[col] = str(get_range(df1[col])) + "->" + str(get_range(df[col]))
             df[col] = df1[col].astype(str) + ['->']*len(df1) +  df[col].astype(str)
+        for col in df.columns:
+            if self.check_cat(df, col):
+                df[col] = df[col].astype(str)
 
         
         # sort examples 
@@ -843,14 +869,18 @@ class PatternSynthesizer(object):
             self.partition = dict(sorted(self.partition.items(), key=lambda item: len(item[1]), reverse=True))
             for k, l in dict(self.partition).items():
                 self.markers[k] = len(new_df)
-                new_df = new_df.append(df.loc[l])
+                try:
+                    new_df = new_df.append(df.loc[l])
+                except KeyError:
+                    l = list(set(l) & set(df.index))
+                    new_df = new_df.append(df.loc[l])
         else:
-            self.markers["((0, 'empty'))"] = len(new_df)
+            self.markers["[[0, 'empty']]"] = len(new_df)
             new_df = df
 
         if not self.removedrow.empty:
-            self.markers["((0, 'removed'))"] = len(new_df)
-            new_df = new_df.append(self.removedrow[df.columns])
+            self.markers["[[0, 'removed']]"] = len(new_df)
+            new_df = pd.concat([new_df, self.removedrow])[new_df.columns]
         
         df = pd.concat([pd.DataFrame([_type, _range]), new_df], ignore_index=True)
 
@@ -896,6 +926,7 @@ class Info(object):
 def handlecell(myvars, st, ed, info):
     # comments = ["\'\'\'"]
     comments = []
+    cell_num = myvars[st].cellnum
 
     # find the first input and output
     flags = [var.outflag for var in myvars[st:ed+1]]
@@ -923,7 +954,7 @@ def handlecell(myvars, st, ed, info):
                 # print(myvars[i].name, myvars[j].name, score)
                 if type(myvars[i].var) == pd.core.frame.DataFrame:
                     if type(myvars[j].var) == pd.core.frame.DataFrame:
-                        checker = PatternSynthesizer(myvars[j], myvars[i], info)
+                        checker = PatternSynthesizer(myvars[j], myvars[i], info, [var for var in myvars[st:ed+1] if not var.outflag])
                         result = checker.check(myvars[j].var, myvars[i].var)
                         if checker.summary:
                             flow = ' '.join([myvars[j].name, "->", myvars[i].name])

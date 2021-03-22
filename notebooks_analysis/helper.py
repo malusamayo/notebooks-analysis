@@ -78,7 +78,7 @@ def func_info_saver(line):
                 rets = str(rets)
             
             if cur_exe:
-                pathTracker.update(tuple(cur_exe), func.__name__)
+                pathTracker.update(cur_exe, func.__name__)
             cur_exe.clear()
             return rets
 
@@ -118,7 +118,7 @@ class MyStr(str):
         return MyStr(ret)
 
 def if_expr_wrapper(expr):
-    pathTracker.update(int(expr), "lambda_if")
+    pathTracker.update(int(expr), "if_expr")
     return expr
 
 class LibDecorator(object):
@@ -137,7 +137,7 @@ class LibDecorator(object):
         pd.Series.str.split = self.str_split_decorator(pd.Series.str.split)
 
         # reset index when appending rows
-        pd.concat = self.concat_decorator(pd.concat)
+        # pd.concat = self.concat_decorator(pd.concat) (disabled due to bugs)
         pd.DataFrame.merge = self.merge_decorator(pd.DataFrame.merge)
     
     def replace_decorator(self, wrapped_method):
@@ -319,7 +319,7 @@ class PathTracker(object):
         #     self.cur_idx = next(iter(self.index))
 
     def update(self, new_path, func_name):
-        self.paths[self.id][self.cur_idx].append((new_path, func_name))
+        self.paths[self.id][self.cur_idx].append([new_path, func_name])
 
     def to_partition(self):
         if not self.paths:
@@ -328,7 +328,7 @@ class PathTracker(object):
         for i, path in self.paths.items():
             row_eq[i] = collections.defaultdict(list)
             for k, v in path.items():
-                row_eq[i][str(tuple(v))].append(k)
+                row_eq[i][str(v)].append(k)
         self.partitions[cur_cell] = row_eq
         self.paths.clear()
         cur_get.clear()
