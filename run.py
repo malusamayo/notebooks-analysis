@@ -17,6 +17,7 @@ SRC_PATH = "notebooks_analysis"
 filename = args.notebook.split('\\')[-1].split('/')[-1]
 path = args.notebook.replace(filename, "")
 filename_no_suffix = filename[:filename.rfind(".")]
+filename_no_suffix = filename_no_suffix[:-2] if filename_no_suffix.endswith("_m") else filename_no_suffix
 suffix = filename[filename.rfind("."):]
 owd = os.getcwd()
 
