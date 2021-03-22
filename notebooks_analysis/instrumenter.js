@@ -6,6 +6,7 @@ const { printNode, RefSet } = require("../../notebooks-analysis");
 const { assert } = require("console");
 const { wrap_methods, collect_defs, collect_cols } = require('./method-wrapper');
 const { createExportDeclaration } = require("typescript");
+const { has } = require("lodash");
 
 let args = process.argv.slice(2);
 let path = args[0];
@@ -258,21 +259,6 @@ function static_analyzer(tree) {
 
         // console.log(printNode(stmt));
 
-        // lambda function tracking cancelled
-
-        // let lambda = contain_type(stmt, "lambda");
-        // if (lambda != undefined) {
-        //     // should also record/convert lambda function later
-        //     // lambda.name = "lambda_" + lambda.location.first_line;
-        //     // lambda.type = "def";
-        //     // lambda.params = lambda.args;
-        //     // lambda.code = [lambda.code, lambda.code];
-        //     // console.log(printNode(lambda));
-        //     let lambda_rep = "func_info_saver(" + stmt.location.first_line + ")(" + lambda + ")";
-        //     let stmt_str = printNode(stmt);
-        //     stmt_str = stmt_str.replace(lambda, lambda_rep);
-        //     replace_strs.push([stmt.location.first_line, stmt.location.last_line, [stmt_str]]);
-        // }
         let key = lineToCell.get(stmt.location.first_line);
         if (key != old_key) {
             if (old_key != -1 && cell_cols.size > 0) {
@@ -333,6 +319,23 @@ function static_analyzer(tree) {
                 add(static_comments, key,
                     "[fillna],fill missing values");
             }
+        } else if (stmt.type == "def") {
+            stmt.code.forEach(x => {
+                if (x.type == "return") {
+                    if (x.values.some(code => code.type == "ifexpr")) {
+                        x.values.forEach(code => {
+                            if (code.type == "ifexpr") {
+                                code.test = {
+                                    type: 'name',
+                                    id: "if_expr_wrapper(" + printNode(code.test).replace(/[\(\)]/g, "") + ")",
+                                    location: code.test.location
+                                }
+                            }
+                        })
+                        replace_strs.push([x.location.first_line, x.location.last_line, [printNode(x)]]);
+                    }
+                }
+            })
         }
     }
     return static_comments;
