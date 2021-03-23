@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 import random
 import collections
-from nbconvert import PythonExporter
+from nbconvert import PythonExporter, HTMLExporter
 import json, copy
 import itertools
 import queue
@@ -26,6 +26,7 @@ suffix = filename[filename.rfind("."):]
 data_path = os.path.join(dir_path, filename_no_suffix)
 output_path = os.path.join(dir_path, filename_no_suffix + "_m" + suffix)
 nb_path = os.path.join(dir_path, filename_no_suffix + ".ipynb")
+html_path = os.path.join(dir_path, filename_no_suffix + ".html")
 comment_path = os.path.join(dir_path, filename_no_suffix + "_comment.json")
 json_out_path = os.path.join(data_path, "result.json")
 
@@ -449,8 +450,8 @@ class DataFrame(Variable):
     #             self.comment += highlight_text("rearrange columns")
     #             self.json_map["hint"] += "rearrange columns" + "; "
 
-COSTS = {"compute":10, "fillna":1, "merge":1, "str_transform":1, 
-    "num_transform":1, "typeconvert":3, "float":2, "str":2, 
+COSTS = {"compute":15, "fillna":3, "merge":3, "str_transform":3, 
+    "num_transform":3, "typeconvert":3, "float":2, "str":2, 
     "category":2, "int":2, "encode":1, "one_hot_encoding":1}
 DSL = list(COSTS.keys())
 
@@ -599,6 +600,14 @@ class PatternSynthesizer(object):
                 res.append("str")
             else:
                 res.append("typeconvert")
+        # else:
+        #     if self.check_int(df2, to_col):
+        #         l = sorted(df2[to_col].unique())
+        #         if len(l) == max(l) + 1 - min(l):
+        #             if len(l) <= 2:
+        #                 res.append("one_hot_encoding")
+        #             else:
+        #                 res.append("encode")
 
         if df1[from_col].nunique() > df2[to_col].nunique():
             res.append("merge")
@@ -922,6 +931,8 @@ class Info(object):
         if str(cellnum) in info["par"]:
             self.par = info["par"][str(cellnum)]
 
+def score(df1, df2):
+    return abs(df1.shape[0] - df2.shape[0]) * abs(df1.shape[1] - df2.shape[1])
 
 def handlecell(myvars, st, ed, info):
     # comments = ["\'\'\'"]
@@ -929,41 +940,65 @@ def handlecell(myvars, st, ed, info):
     cell_num = myvars[st].cellnum
 
     # find the first input and output
-    flags = [var.outflag for var in myvars[st:ed+1]]
-    first_in = flags.index(0) + st if 0 in flags else -1
-    first_out = flags.index(1) + st if 1 in flags else -1
+    # flags = [var.outflag for var in myvars[st:ed+1]]
+    # first_in = flags.index(0) + st if 0 in flags else -1
+    # first_out = flags.index(1) + st if 1 in flags else -1
+    ins = [var for var in myvars[st:ed+1] if not var.outflag]
+    outs = [var for var in myvars[st:ed+1] if var.outflag]
 
     # build json maps
     json_map = {"input": {}, "output": {}, "summary": {}, "partition": {}, "table":{}}
-    for i in range(st, ed + 1):
-        if myvars[i].outflag == 0:
-            json_map["input"][myvars[i].name] = myvars[i].json_map
-        elif myvars[i].outflag == 1:
-            json_map["output"][myvars[i].name] = myvars[i].json_map
+    for in_var in ins:
+        json_map["input"][in_var.name] = in_var.json_map
+    for out_var in outs:
+        json_map["output"][out_var.name] = out_var.json_map
+    # for i in range(st, ed + 1):
+    #     if myvars[i].outflag == 0:
+    #         json_map["input"][myvars[i].name] = myvars[i].json_map
+    #     elif myvars[i].outflag == 1:
+    #         json_map["output"][myvars[i].name] = myvars[i].json_map
 
     '''
     for each output variable, find the input that is closest to it
     find rel within in/out group
     '''
-    if first_out != -1 and first_in != -1:
-        for i in range(first_out, ed + 1):
-            # choose_idx = -1
-            # cur_score = 5
-            for j in range(first_in, first_out):
-                # score = myvars[i].check_rel(myvars[j])
-                # print(myvars[i].name, myvars[j].name, score)
-                if type(myvars[i].var) == pd.core.frame.DataFrame:
-                    if type(myvars[j].var) == pd.core.frame.DataFrame:
-                        checker = PatternSynthesizer(myvars[j], myvars[i], info, [var for var in myvars[st:ed+1] if not var.outflag])
-                        result = checker.check(myvars[j].var, myvars[i].var)
-                        if checker.summary:
-                            flow = ' '.join([myvars[j].name, "->", myvars[i].name])
-                            json_map["summary"][flow] = dict(checker.summary)
-                            if checker.table:
-                                json_map["partition"][flow] = checker.markers
-                                json_map["table"][flow] = checker.table
-                            print(myvars[i].cellnum, ":", flow, "\033[96m", 
-                                dict(checker.summary), len(checker.markers), "\033[0m")               
+    for out_var in outs:
+        if type(out_var.var) == pd.DataFrame:
+            s_map = {score(x.var, out_var.var):x for x in ins if type(x.var)==pd.DataFrame}
+            if s_map:
+                (sc, in_var) = min(s_map.items(), key=lambda x: x[0])
+                checker = PatternSynthesizer(in_var, out_var, info, ins)
+                result = checker.check(in_var.var, out_var.var)
+                if checker.summary:
+                    flow = ' '.join([in_var.name, "->", out_var.name])
+                    json_map["summary"][flow] = dict(checker.summary)
+                    if checker.table:
+                        json_map["partition"][flow] = checker.markers
+                        json_map["table"][flow] = checker.table
+                    print(cell_num, ":", flow, "\033[96m", 
+                        dict(checker.summary), len(checker.markers), "\033[0m")
+
+    # if first_out != -1 and first_in != -1:
+    #     for i in range(first_out, ed + 1):
+    #         # choose_idx = -1
+    #         # cur_score = 5
+    #         for j in range(first_in, first_out):
+    #             # score = myvars[i].check_rel(myvars[j])
+    #             # print(myvars[i].name, myvars[j].name, score)
+    #             if type(myvars[i].var) == pd.core.frame.DataFrame:
+    #                 if type(myvars[j].var) == pd.core.frame.DataFrame:
+    #                     checker = PatternSynthesizer(myvars[j], myvars[i], info, [var for var in myvars[st:ed+1] if not var.outflag])
+    #                     result = checker.check(myvars[j].var, myvars[i].var)
+    #                     if checker.summary:
+    #                         flow = ' '.join([myvars[j].name, "->", myvars[i].name])
+    #                         json_map["summary"][flow] = dict(checker.summary)
+    #                         if checker.table:
+    #                             json_map["partition"][flow] = checker.markers
+    #                             json_map["table"][flow] = checker.table
+    #                         print(myvars[i].cellnum, ":", flow, "\033[96m", 
+    #                             dict(checker.summary), len(checker.markers), "\033[0m")
+    #                         # summaries = '\n\t'.join([str(k) + ':' + str(v) for k,v in dict(checker.summary).items()])
+    #                         # comments.append(f"{myvars[i].cellnum}: {flow}\n\t{summaries}\n#Clusters = {len(checker.markers)}")              
     
     return "\n".join(comments), json_map
 
@@ -1034,11 +1069,16 @@ if __name__ == "__main__":
                         print_error("error when dispatch var " + vars[i][1][2])
                         pass
                 # comments = static_comments[vars[0][1][0]] if vars[0][1][0] in static_comments.keys() else []
-                _, json_map = handlecell(myvars, 0, len(vars)-1, Info(info, vars[0][1][0]))
+                comment, json_map = handlecell(myvars, 0, len(vars)-1, Info(info, vars[0][1][0]))
+                # notebook.cells[code_indices[vars[0][1][0] - 1]].source = f"'''\n{comment}\n'''\n" + notebook.cells[code_indices[vars[0][1][0] - 1]].source
                 
                 # distributed
                 with open(os.path.join(data_path, f"result_{code_indices[vars[0][1][0] - 1]}.json"), "w") as f:
                     f.write(json.dumps(json_map))
+
+    # with open(html_path, "w") as f:
+    #     (content, junk) = HTMLExporter().from_notebook_node(nb=notebook)
+    #     f.write(content)
                 
 
     # fill not existing entries
