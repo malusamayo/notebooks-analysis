@@ -293,6 +293,12 @@ class LibDecorator(object):
             if hasattr(self, "obj") and type(self.obj) == pd.Series:
                 append(self.obj.name, set__keys[cur_cell])
                 graph[self.obj.name] += cur_get
+            if hasattr(self, "obj") and type(self.obj) in [pd.DataFrame, pd.Series]:
+                if type(key[0]) == pd.Series and key[0].dtype == bool:
+                    pathTracker.reset(self.obj.index)
+                    for i, v in enumerate(key[0]):
+                        pathTracker.next_iter()
+                        pathTracker.update(int(v), "loc/at")
             cur_get.clear()
             return method(self, key, value)
         return decorate
