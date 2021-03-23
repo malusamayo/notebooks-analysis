@@ -385,10 +385,11 @@ export class DataflowAnalyzer {
         };
       })
     );
-    if (assign.targets.some(x => x.type == ast.INDEX && x.value.type == ast.DOT && ["at", "iat", "loc", "iloc"].indexOf(x.value.name) >= 0))
+    if (assign.targets.some(x => x.type == ast.INDEX))
+      // && x.value.type == ast.DOT && ["at", "iat", "loc", "iloc"].indexOf(x.value.name) >= 0
       return sources.union(targets);
     else {
-      // problems here: x.loc[some_data] = y will be mishandled!
+      // problems here: x.loc[some_data] = y will be mishandled!, x[i] = y will aslo be mishandled!
       return sources.union(assign.op ? targets : new RefSet());
     }
   }
