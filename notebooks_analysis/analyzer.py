@@ -490,11 +490,11 @@ class PatternSynthesizer(object):
     '''
     df1: before, df2: after, col: the target column
     '''
-    def __init__(self, DF1, DF2, info, in_vars):
-        self.df1 = DF1.var
-        self.df2 = DF2.var
-        self.df1_name = DF1.name
-        self.df2_name = DF2.name
+    def __init__(self, DF1, DF2, info, in_vars=[]):
+        self.df1 = DF1.var if type(DF1) == DataFrame else DF1
+        self.df2 = DF2.var if type(DF2) == DataFrame else DF2
+        self.df1_name = DF1.name if type(DF1) == DataFrame else ""
+        self.df2_name = DF2.name if type(DF2) == DataFrame else ""
         self.cols1 = list(self.df1.columns)
         self.cols2 = list(self.df2.columns)
         self.srccols = [col for col in info.get if col in self.cols1]
@@ -624,6 +624,10 @@ class PatternSynthesizer(object):
 
     def validate(self, df1, df2, from_col, to_col, patterns, hint):
         CONVERT = {"typeconvert", "float", "str", "category", "int", "encode", "one_hot_encoding"}
+        # COSTS = {"compute":15, "fillna":3, "merge":3, "str_transform":3, 
+        #     "num_transform":3, "typeconvert":3, "float":2, "str":2, 
+        #     "category":2, "int":2, "encode":1, "one_hot_encoding":1}
+        # tmp = df1[from_col].copy()
         def check_transform(f):
             try:
                 return df1[from_col].astype(f).equals(df2[to_col])

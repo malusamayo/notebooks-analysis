@@ -1,9 +1,12 @@
-from analyzer import PatternSynthesizer, Info
 import pandas as pd
-import pickle
+import sys, pickle
+sys.argv.append("./notebooks/debug_example.ipynb")
+
+from analyzer import PatternSynthesizer, Info, DataFrame
 
 
-df1 = pd.read_csv('./notebooks/input/train.csv')
+
+df1 = pd.read_csv('../notebooks/input/train.csv')
 
 def test_case1():
     df2 = df1.copy()
@@ -36,9 +39,17 @@ def test_io():
         l = checker.check(df1, df2)
         print("df1", "->","df2", "\033[96m", l, "\033[0m")
 
+def test_double():
+    df2 = df1.copy()
+    df2.dropna(inplace=True)
+    checker = PatternSynthesizer(df1, df2, Info(None, None))
+    l = checker.check(df1, df2)
+    print("df1", "->","df2", "\033[96m", checker.summary, "\033[0m")
+    l = checker.check(df1, df2)
+    print("df1", "->","df2", "\033[96m", checker.summary, "\033[0m")
 
 def run_all_tests():
-    tests = [test_case1, test_case2]
+    tests = [test_case1, test_case2, test_double]
     for test in tests:
         test()
 
