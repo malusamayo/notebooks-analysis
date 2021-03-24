@@ -35,6 +35,12 @@ def convert():
         log.write(filename + "\t" + "Notebook conversion failed\n")
         log.close()
         sys.exit(-5)
+    result = subprocess.run(["jupyter", "nbconvert", "--to", "html", args.notebook]) 
+    if result.returncode:
+        print("\033[91m {}\033[00m".format("Notebook conversion failed!"))
+        log.write(filename + "\t" + "Notebook conversion failed\n")
+        log.close()
+        sys.exit(-5)
 
 def execute_script():
     if args.skip:
@@ -125,6 +131,13 @@ def analyze():
     log.write(filename + "\t" + "{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\n".format(t[0], t[1], t[2], t[3], t[1]+t[2]+t[3]))
     log.close()
 
+def render():
+    print("\033[96m {}\033[00m".format('-'*40))
+    print("\033[96m {}\033[00m".format("Converting documentation to html..."))
+    result = subprocess.run(["node", os.path.join(SRC_PATH, "html_convert.js"), args.notebook])
+    if result.returncode:
+        return
+
 def clean():
     try:
         shutil.rmtree(os.path.join(path, filename_no_suffix))
@@ -146,3 +159,4 @@ execute_script()
 static_analysis()
 dynamic_analysis()
 analyze()
+render()

@@ -1103,9 +1103,9 @@ if __name__ == "__main__":
                 with open(os.path.join(data_path, f"code_{code_indices[vars[0][1][0] - 1]}.py"), "w") as f:
                     f.write(notebook.cells[code_indices[vars[0][1][0] - 1]].source)
 
-    with open(html_path, "w") as f:
-        (content, junk) = HTMLExporter().from_notebook_node(notebook)
-        f.write(content)
+    # with open(html_path, "w") as f:
+    #     (content, junk) = HTMLExporter().from_notebook_node(notebook)
+    #     f.write(content)
                 
 
     # fill not existing entries
