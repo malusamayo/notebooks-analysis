@@ -6,3 +6,4 @@ input
 __pycache__
 .vscode
 test.dat
+html_outputs

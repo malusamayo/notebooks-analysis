@@ -1,5 +1,5 @@
 {
-  "python.formatting.provider": "black",
+  "python.formatting.provider": "none",
   "typescript.tsdk": "node_modules\\typescript\\lib",
   "editor.formatOnSave": true,
   "editor.tabSize": 2,

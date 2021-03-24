@@ -6,6 +6,9 @@ A tool for generating documentation information for jupyter notebooks via progra
 1. Run `npm install` and `npm run build`
 2. Run `python run.py your_notebook.ipynb`
 
+## Trouble Shooting
+1. npm install bugs: please refer to https://stackoverflow.com/a/64043900/13881716
+
 ## Parsing
 
 To parse Python 3 code, pass a string containing the code to the `parse` method.
