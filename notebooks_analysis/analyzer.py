@@ -11,8 +11,10 @@ from nbconvert import PythonExporter, HTMLExporter
 import json, copy
 import itertools
 import queue
+import warnings
 pd.set_option('display.max_columns', None)
 pd.set_option('precision', 4)
+warnings.simplefilter(action='ignore', category=FutureWarning)
 np.set_printoptions(precision=4)
 
 # sys.argv.append("notebooks/debug_example.ipynb")
@@ -243,7 +245,7 @@ class DataFrame(Variable):
     #         _example_names = ["example_" + str(i) for i in range(max_len)]
 
     #     def get_range(col):
-    #         if str(col.dtype) == "category":
+    #         if str(col.dtype) == Pattern.CAT:
     #             return len(col.unique())
     #         if np.issubdtype(col.dtype, np.number):
     #             return [np.min(col), np.max(col)]
@@ -450,12 +452,26 @@ class DataFrame(Variable):
     #             self.comment += highlight_text("rearrange columns")
     #             self.json_map["hint"] += "rearrange columns" + "; "
 
-COSTS = {"compute":15, "fillna":3, "merge":3, "str_transform":3, 
-    "num_transform":3, "typeconvert":3, "float":2, "str":2, 
-    "category":2, "int":2, "encode":1, "one_hot_encoding":1}
-DSL = list(COSTS.keys())
+
 
 class Pattern(object):
+    COMPUTE = "compute"
+    FILLNA = "fillna"
+    MERGE = "merge"
+    STRAN = "str_transform"
+    NTRAN = "num_transform"
+    CONV = "type_convert"
+    FLOAT = "float"
+    STR = "str"
+    CAT = "category"
+    INT = "int"
+    ENCODE = "encode"
+    ONEHOT = "one_hot_encoding"
+    COSTS = {COMPUTE:15, FILLNA:2, MERGE:2, STRAN:3, 
+        NTRAN:3, CONV:3, FLOAT:2, STR:2, 
+        CAT:2, INT:2, ENCODE:1, ONEHOT:1}
+    DSL = list(COSTS.keys())
+
     def __init__(self, pattern=""):
         self.patterns = []
         self.cost = 0
@@ -464,11 +480,11 @@ class Pattern(object):
 
     def add(self, pattern):
         self.patterns.append(pattern)
-        self.cost += COSTS[pattern]
+        self.cost += Pattern.COSTS[pattern]
     
     def addAll(self, patterns):
         self.patterns += patterns
-        self.cost += sum([COSTS[p] for p in patterns])
+        self.cost += sum([Pattern.COSTS[p] for p in patterns])
 
     def copy(self):
         cp = Pattern()
@@ -540,126 +556,147 @@ class PatternSynthesizer(object):
     def check_cat(self, df, col):
         return pd.api.types.is_categorical_dtype(df[col])
 
-    # def check_typeconvert(self, df1, df2, from_col, to_col):
-    #     def check_transform(f):
-    #         try:
-    #             if df1[from_col].map(f).equals(df2[to_col]):
-    #                 return
-    #         except:
-    #             pass
-    #             # print_error("error when check transform: " + str(df1[from_col].dtype) + "->" + str(df2[to_col].dtype))
-    #         if df1[from_col].nunique() > df2[to_col].nunique():
-    #             self.synthesis_append("merge", [from_col], [to_col])
-    #         elif self.check_num(df1, from_col):
-    #             self.synthesis_append("num_transform", [from_col], [to_col])
-    #         elif self.check_str(df1, from_col):
-    #             self.synthesis_append("str_transform", [from_col], [to_col])
-    #         else:
-    #             self.synthesis_append("map", [from_col], [to_col])  
-
-    #     # converted to str to avoid bugs when dtype == Categorical
-    #     if str(df1[from_col].dtype) != str(df2[to_col].dtype):
-    #         if self.check_float(df2, to_col):
-    #             self.synthesis_append("float", [from_col], [to_col])
-    #             check_transform(float)
-    #         elif self.check_cat(df2, to_col):
-    #             self.synthesis_append("discretize", [from_col], [to_col])
-    #         elif self.check_int(df2, to_col):
-    #             l = df2[to_col].unique()
-    #             if sorted(l) == list(range(min(l), max(l)+1)):
-    #                 self.synthesis_append("encode", [from_col], [to_col])
-    #             else:
-    #                 self.synthesis_append("int", [from_col], [to_col])
-    #                 check_transform(int)
-    #         elif self.check_str(df2, to_col):
-    #             self.synthesis_append("str", [from_col], [to_col])
-    #             check_transform(str)
-    #         else:
-    #             self.synthesis_append("type_convert", [from_col], [to_col])
-    #         return True
-    #     return False
     def prune_DSL(self, df1, df2, from_col, to_col):
-        res = ["compute"]
-        hint = {"convert": False, "fillna":False}
+        res = [Pattern.COMPUTE]
+        hint = {"convert": False, Pattern.FILLNA:False}
         if str(df1[from_col].dtype) != str(df2[to_col].dtype):
             hint["convert"] = True
             if self.check_float(df2, to_col):
-                res.append("float")
+                res.append(Pattern.FLOAT)
             elif self.check_cat(df2, to_col):
-                res.append("category")
+                res.append(Pattern.CAT)
             elif self.check_int(df2, to_col):
                 l = sorted(df2[to_col].unique())
                 if len(l) == max(l) + 1 - min(l):
                     if len(l) <= 2:
-                        res.append("one_hot_encoding")
+                        res.append(Pattern.ONEHOT)
                     else:
-                        res.append("encode")
+                        res.append(Pattern.ENCODE)
                 else:
-                    res.append("int")
+                    res.append(Pattern.INT)
             elif self.check_str(df2, to_col):
-                res.append("str")
+                res.append(Pattern.STR)
             else:
-                res.append("typeconvert")
-        # else:
-        #     if self.check_int(df2, to_col):
-        #         l = sorted(df2[to_col].unique())
-        #         if len(l) == max(l) + 1 - min(l):
-        #             if len(l) <= 2:
-        #                 res.append("one_hot_encoding")
-        #             else:
-        #                 res.append("encode")
+                res.append(Pattern.CONV)
+        else:
+            if self.check_int(df2, to_col):
+                l = sorted(df2[to_col].unique())
+                if len(l) == max(l) + 1 - min(l):
+                    if len(l) <= 2:
+                        res.append(Pattern.ONEHOT)
+                    else:
+                        res.append(Pattern.ENCODE)
 
         if df1[from_col].nunique() > df2[to_col].nunique():
-            res.append("merge")
+            res.append(Pattern.MERGE)
         elif self.check_num(df1, from_col):
-            res.append("num_transform")
+            res.append(Pattern.NTRAN)
         elif self.check_str(df1, from_col):
-            res.append("str_transform")
+            res.append(Pattern.STRAN)
         
         if self.check_fillna(df1, df2, from_col, to_col):
-            hint["fillna"] = True
-            res.append("fillna")
+            hint[Pattern.FILLNA] = True
+            res.append(Pattern.FILLNA)
 
         return res, hint
 
     def validate(self, df1, df2, from_col, to_col, patterns, hint):
-        CONVERT = {"typeconvert", "float", "str", "category", "int", "encode", "one_hot_encoding"}
-        # COSTS = {"compute":15, "fillna":3, "merge":3, "str_transform":3, 
-        #     "num_transform":3, "typeconvert":3, "float":2, "str":2, 
-        #     "category":2, "int":2, "encode":1, "one_hot_encoding":1}
-        # tmp = df1[from_col].copy()
-        def check_transform(f):
-            try:
-                return df1[from_col].astype(f).equals(df2[to_col])
-            except:
-                return False
         
-        if "compute" in patterns:
+        CONVERT = {Pattern.CONV, Pattern.FLOAT, Pattern.STR, Pattern.CAT, Pattern.INT, Pattern.ENCODE, Pattern.ONEHOT}
+        CONVERT_F = {Pattern.FLOAT: float, Pattern.INT:int, Pattern.STR:str}
+        SYM = "SYMBOLIC"
+        ANY =  "any"
+
+        # basic pruning
+        if Pattern.COMPUTE in patterns:
             return 1
+
         if hint["convert"] and not (CONVERT & set(patterns)):
             return -1
         
-        if hint["fillna"] and "fillna" not in patterns:
+        if hint[Pattern.FILLNA] and Pattern.FILLNA not in patterns:
             return 0
-        else:
-            if len(patterns) > 1:
-                return 1
-            p = patterns[0]
-            if p == "fillna":
-                return self.check_fillna_only(df1, df2, from_col, to_col)
-            if p == "encode" or p == "one_hot_encoding":
-                return len(df2[to_col].unique()) == len(df1[from_col].unique())
-            if p == "int":
-                return check_transform(int)
-            if p == "float":
-                return check_transform(float)
-            if p == "str":
-                return check_transform(str)
-            if p == "type_convert":
-                return 1
-            if p == "category":
-                return 1
-            return 1
+        
+        # helper functions
+        def typeof(df, col):
+            if self.check_float(df, col):
+                return Pattern.FLOAT
+            elif self.check_cat(df, col):
+                return Pattern.CAT
+            elif self.check_int(df, col):
+                return Pattern.INT
+            elif self.check_str(df, col):
+                return Pattern.STR
+            else:
+                return ANY
+        
+        def convertable(f, f_col):
+            try:
+                f_col.astype(f)
+                return True
+            except:
+                return False
+        
+        tmp = df1[from_col].copy()
+        target  = df2[to_col]
+        constraints = {"type": typeof(df1, from_col)}
+
+        for p in patterns[::-1]:
+            if p == Pattern.FILLNA:
+                tmp[tmp.isnull()] = SYM
+                constraints["na_filled"] = True
+            cmp_idx = (tmp!=SYM)
+            if p in [Pattern.INT, Pattern.FLOAT, Pattern.STR]:
+                type_f = CONVERT_F[p]
+                if convertable(type_f, tmp[cmp_idx]):
+                    tmp[cmp_idx] = tmp[cmp_idx].astype(type_f)
+                    constraints["type"] = p
+                else:
+                    return 0
+            elif p == Pattern.CAT:
+                tmp.loc[:] = SYM
+                constraints["type"] = p
+            elif p == Pattern.CONV:
+                tmp.loc[:] = SYM
+                constraints["type"] = ANY
+            elif p == Pattern.ENCODE:
+                tmp.loc[:] = SYM
+                constraints["cont-int"] = True
+            elif p == Pattern.ONEHOT:
+                # add stronger constraints for one-hot?
+                tmp.loc[:] = SYM
+                constraints["one-hot"] = True
+            elif p == Pattern.MERGE:
+                tmp.loc[:] = SYM
+                constraints["unique_before"] = df1[from_col].nunique()
+            elif p == Pattern.STRAN and constraints["type"] == Pattern.STR:
+                tmp.loc[:] = SYM
+            elif p == Pattern.NTRAN and constraints["type"] in [Pattern.INT, Pattern.FLOAT, ANY]:
+                tmp.loc[:] = SYM
+        
+        cmp_idx = (tmp!=SYM)
+        if (tmp[cmp_idx] != target[cmp_idx]).any():
+            return 0
+        
+        # validate constraints
+        if "na_filled" in constraints:
+            if target.isnull().any():
+                return -1
+        
+        if "unique_before" in constraints:
+            if constraints["unique_before"] <= df2[to_col].nunique(): 
+                return -1
+
+        if "cont-int" in constraints or "one-hot" in constraints:
+            l = sorted(df2[to_col].unique())
+            if "cont-int" in constraints:
+                if len(l) != max(l) + 1 - min(l):
+                    return -1
+            if "one-hot" in constraints:
+                if len(l) > 2:
+                    return -1
+
+        return 1
         
 
     # per column searching
@@ -670,7 +707,7 @@ class PatternSynthesizer(object):
             p = Pattern(pattern)
             worklist.put(p)
         
-        top = Pattern("compute")
+        top = Pattern(Pattern.COMPUTE)
 
         while not worklist.empty():
             cur = worklist.get()
@@ -690,22 +727,6 @@ class PatternSynthesizer(object):
         
         return top
 
-        # if not self.check_typeconvert(df1, df2, from_col, to_col):
-        #     # check the case when only different values are null values
-        #     if self.check_fillna_only(df1, df2, from_col, to_col):
-        #         self.synthesis_append("fillna", [from_col], [to_col])
-        #         return
-        #     if df1[from_col].nunique() > df2[to_col].nunique():
-        #         self.synthesis_append("merge", [from_col], [to_col])
-        #     elif self.check_num(df1, from_col):
-        #         self.synthesis_append("num_transform", [from_col], [to_col])
-        #     elif self.check_str(df1, from_col):
-        #         self.synthesis_append("str_transform", [from_col], [to_col])
-        #     else:
-        #         self.synthesis_append("map", [from_col], [to_col])  
-        
-        # if self.check_fillna(df1, df2, from_col, to_col):
-            # self.synthesis_append("fillna", [from_col], [to_col])
 
     def check_removecol(self, df1, df2):
         self.removedcols = [x for x in self.cols1 if x not in self.cols2]
@@ -803,7 +824,7 @@ class PatternSynthesizer(object):
             
             # no src col     
             if not patterns:
-                self.synthesis_append("compute", [self.df1_name], [col])
+                self.synthesis_append(Pattern.COMPUTE, [self.df1_name], [col])
 
         for col in self.colschange:
             top = self.check_column(df1, df2, col, col)    
@@ -856,7 +877,7 @@ class PatternSynthesizer(object):
 
         # generate extra info
         def get_range(col):
-            if str(col.dtype) == "category":
+            if str(col.dtype) == Pattern.CAT:
                 return len(col.unique())
             if np.issubdtype(col.dtype, np.number):
                 return [np.min(col), np.max(col)]
@@ -1079,10 +1100,12 @@ if __name__ == "__main__":
                 # distributed
                 with open(os.path.join(data_path, f"result_{code_indices[vars[0][1][0] - 1]}.json"), "w") as f:
                     f.write(json.dumps(json_map))
+                with open(os.path.join(data_path, f"code_{code_indices[vars[0][1][0] - 1]}.py"), "w") as f:
+                    f.write(notebook.cells[code_indices[vars[0][1][0] - 1]].source)
 
-    # with open(html_path, "w") as f:
-    #     (content, junk) = HTMLExporter().from_notebook_node(nb=notebook)
-    #     f.write(content)
+    with open(html_path, "w") as f:
+        (content, junk) = HTMLExporter().from_notebook_node(notebook)
+        f.write(content)
                 
 
     # fill not existing entries
