@@ -54,7 +54,6 @@ function init_lineToCell() {
             continue;
         lineToCell.set(i + 1, cur_cell);
     }
-    // console.log(lines);
 }
 
 function add(map, key, value) {
@@ -62,71 +61,6 @@ function add(map, key, value) {
         map.set(key, []);
     if (map.get(key).find(x => x == value) == undefined)
         map.get(key).push(value);
-}
-
-// add vars from external input or used for plotting 
-function add_extra_vars(tree) {
-    for (let stmt of tree.code) {
-        // if (stmt.type == "assign") {
-        //     // external input: x = pd.read_csv()
-        //     for (let [i, src] of stmt.sources.entries()) {
-        //         if (src.type == "call" && src.func.name == "read_csv") {
-        //             add(ins, lineToCell.get(stmt.location.first_line), stmt.targets[i].id)
-        //         }
-        //     }
-        // }
-
-        // add plotting vars
-        if (stmt.type == "call") {
-            if (stmt.func.name == "plot") {
-                let cell = lineToCell.get(stmt.location.first_line);
-                if (stmt.func.value.type == "index")
-                    add(outs, cell, stmt.func.value.value.id);
-                else if (stmt.func.value.id == "plt") {
-                    add(outs, cell, stmt.args[0].actual.id);
-                    add(outs, cell, stmt.args[1].actual.id);
-                } else
-                    add(outs, cell, stmt.func.value.id);
-            }
-            if (["factorplot", "countplot", "barplot"].includes(stmt.func.name)) {
-                for (let arg of stmt.args) {
-                    if ("keyword" in arg && arg.keyword.id == "data") {
-                        add(outs, lineToCell.get(stmt.location.first_line), arg.actual.id);
-                    }
-                }
-            }
-        }
-    }
-}
-
-// recursively find whether current subtree contains a node of certain type
-function contain_type(node, type) {
-    if (node == undefined)
-        return undefined;
-    if (node.type == type)
-        return node;
-    if (node.targets != undefined) {
-        for (let des of node.targets) {
-            let res = contain_type(des, type);
-            if (res != undefined)
-                return res;
-        }
-    }
-    if (node.sources != undefined) {
-        for (let src of node.sources) {
-            let res = contain_type(src, type);
-            if (res != undefined)
-                return res;
-        }
-    }
-    if (node.args != undefined) {
-        for (let arg of node.args) {
-            let res = contain_type(arg.actual, type);
-            if (res != undefined)
-                return res;
-        }
-    }
-    return undefined;
 }
 
 function static_analyzer(tree) {
@@ -408,13 +342,9 @@ function compute_flow_vars(code) {
     defs.forEach(item => {
         comments.set(item[0], lineToCell.get(item[1]))
     });
-    // def_list = def_list.map(item => item[0]);
-
-    // disable coverage replacement now
-    // replace_strs = replace_strs.concat(wrap_methods(tree));
     console.log(ins);
     console.log(outs);
-    console.log(comments)
+    // console.log(comments);
     return comments;
 }
 
@@ -472,23 +402,6 @@ function insert_print_stmt(code) {
     return lines.join("\n");
 }
 
-
-// let tree = py.parse(
-//     `data_Simple['Unit'] = data_Simple['Value'].str[-1]
-// data_Simple['Value (M)'] = np.where(data_Simple['Unit'] == '0', 0, 
-//                                            data_Simple['Value'].str[1:-1].replace(r'[a-zA-Z]',''))
-// data_Simple['Value (M)'] = data_Simple['Value (M)'].astype(float)
-// data_Simple['Value (M)'] = np.where(data_Simple['Unit'] == 'M', 
-//                                            data_Simple['Value (M)'], 
-//                                            data_Simple['Value (M)']/1000)
-// data_Simple = data_Simple.drop('Unit', 1)
-// `);
-// let _ = static_analyzer(tree);
-// console.log(_)
-// for (let [i, stmt] of tree.code.entries()) {
-//     // console.log(stmt);
-//     console.log(printNode(stmt));
-// }
 
 // let code = "train_test_data = [train, test]\nfor dataset in train_test_data:\n" +
 //     "    train_test_data = dataset['Name'].str.extract(' ([A-Za-z]+)\\.', expand=False)\n" +
