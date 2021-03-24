@@ -1075,7 +1075,7 @@ if __name__ == "__main__":
     graph = info["graph"]
 
 
-    for file in os.listdir(data_path):
+    for file in sorted(os.listdir(data_path)):
         myvars = []
         if file == "info.json" or file.endswith("_f.dat"):
             continue
