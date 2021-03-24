@@ -38,7 +38,7 @@ def convert(o):
     if isinstance(o, np.int64): return int(o)  
     raise TypeError
 with open(os.path.join(tmp_dir_path, "info.json"), "w") as f:
-    f.write(json.dumps({"get": get__keys, "set": set__keys, "graph": graph, "par": pathTracker.partitions}, default=convert))
+    f.write(json.dumps({"get": get__keys, "set": set__keys, "graph": {}, "par": pathTracker.partitions}, default=convert))
 `
 
 function init_lineToCell() {
@@ -199,9 +199,13 @@ function static_analyzer(tree) {
                 let code = src.args[0].actual.code;
                 // let def_code = "";
                 if (code.type == "ifexpr") {
+                    let test_str = printNode(code.test);
+                    if ((test_str.match(/[<>]/g) || []).length > 1) {
+                        test_str = test_str.replace(/[\(\)]/g, "");
+                    }
                     code.test = {
                         type: 'name',
-                        id: "if_expr_wrapper(" + printNode(code.test).replace(/[\(\)]/g, "") + ")",
+                        id: "if_expr_wrapper(" + test_str + ")",
                         location: code.test.location
                     }
                     // def_code = ["def lambda_" + lambda_id + "(" + args.join(", ") + "):",
@@ -348,7 +352,7 @@ function compute_flow_vars(code) {
     // console.log(cfg.blocks);
     const analyzer = new py.DataflowAnalyzer();
     const flows = analyzer.analyze(cfg).dataflows;
-    // let i = flows.items.filter(x => x.fromRef.name == "data")
+    // let i = flows.items.filter(x => x.fromRef != undefined && x.fromRef.name == "data")
     // for (let flow of i) {
     //     let fromLine = flow.fromNode.location.first_line;
     //     let toLine = flow.toNode.location.first_line;
