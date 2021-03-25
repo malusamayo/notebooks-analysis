@@ -14,8 +14,6 @@ ignore_types = [
 ]
 TRACE_INTO = []
 
-
-
 matplotlib.use('Agg')
 
 # global variables for information saving
@@ -293,8 +291,13 @@ class LibDecorator(object):
             if hasattr(self, "obj") and type(self.obj) == pd.Series:
                 append(self.obj.name, set__keys[cur_cell])
                 graph[self.obj.name] += cur_get
-            if hasattr(self, "obj") and type(self.obj) in [pd.DataFrame, pd.Series]:
-                if type(key[0]) == pd.Series and key[0].dtype == bool:
+                if type(key) == pd.Series and key.dtype == bool:
+                    pathTracker.reset(self.obj.index)
+                    for i, v in enumerate(key):
+                        pathTracker.next_iter()
+                        pathTracker.update(int(v), "loc/at")
+            if hasattr(self, "obj") and type(self.obj) == pd.DataFrame:
+                if type(key) == tuple and type(key[0]) == pd.Series and key[0].dtype == bool:
                     pathTracker.reset(self.obj.index)
                     for i, v in enumerate(key[0]):
                         pathTracker.next_iter()
