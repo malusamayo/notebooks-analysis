@@ -52,7 +52,12 @@ def func_info_saver(line):
         def wrapper(*args, **kwargs):
             if func.__name__ not in TRACE_INTO and func.__name__ != '<lambda>':
                 return func(*args, **kwargs)
-            pathTracker.next_iter()
+
+            try:
+                pathTracker.next_iter()
+            except:
+                # don't track apply/map of other objects
+                return func(*args, **kwargs)
 
             # name = func.__name__ + "_" + str(line)
             # args_name = tuple(inspect.signature(func).parameters)
