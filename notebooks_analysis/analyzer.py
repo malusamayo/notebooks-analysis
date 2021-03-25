@@ -637,7 +637,7 @@ class PatternSynthesizer(object):
             except:
                 return False
         
-        tmp = df1[from_col].copy()
+        tmp = df1[from_col].copy().astype(str)
         target  = df2[to_col]
         constraints = {"type": typeof(df1, from_col)}
 
