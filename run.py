@@ -39,6 +39,10 @@ def print_blue(msg):
 def print_red(msg):
     print("\033[91m {}\033[00m".format(msg))
 
+def write_to_log(msg=""):
+    log.write(filename + "\t" + "{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t".format(t[0], t[1], t[2], t[3], t[1]+t[2]+t[3]) + msg + "\n")
+    log.close()
+
 def convert():
     result = subprocess.run(["jupyter", "nbconvert", "--to", "python", args.notebook]) 
     if result.returncode:
@@ -81,8 +85,7 @@ def execute_script():
     os.chdir(owd)
     if result.returncode:
         print_red("Original execution failed!")
-        log.write(filename + "\t" + "Script failed\n")
-        log.close()
+        write_to_log("Script failed")
         sys.exit(-1)
     print_blue("Original execution completed in {:.2f} seconds.".format(t[0]))
 
@@ -96,8 +99,7 @@ def static_analysis():
     t[1] = ed1 - st
     if result.returncode:
         print_red("Static analysis failed!")
-        log.write(filename + "\t" + "Static analysis failed\n")
-        log.close()
+        write_to_log("Static analysis failed")
         sys.exit(-2)
     print_blue("Static analysis completed in {:.2f} seconds.".format(t[1]))
 
@@ -112,8 +114,7 @@ def dynamic_analysis():
     os.chdir(owd)
     if result.returncode:
         print_red("Dynamic analysis failed!")
-        log.write(filename + "\t" + "Dynamic analysis failed\n")
-        log.close()
+        write_to_log("Dynamic analysis failed!")
         sys.exit(-3)
     print_blue("Dynamic analysis completed in {:.2f} seconds.".format(t[2]))
 
@@ -126,8 +127,7 @@ def analyze():
     t[3] = ed3 - st
     if result.returncode:
         print_red("Doc gen failed!")
-        log.write(filename + "\t" + "Doc gen failed\n")
-        log.close()
+        write_to_log("Doc gen failed!")
         sys.exit(-4)
     print_blue(
     '''Generation completed in {:.2f} seconds.
@@ -135,8 +135,7 @@ def analyze():
     Time fraction: [{:.2f} vs {:.2f}, {:.2f}, {:.2f}] seconds
     '''
     .format(t[3], t[1]+t[2]+t[3], t[0], t[1], t[2], t[3]))
-    log.write(filename + "\t" + "{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\n".format(t[0], t[1], t[2], t[3], t[1]+t[2]+t[3]))
-    log.close()
+    write_to_log("success")
 
 def render():
     if args.ignore:
@@ -153,8 +152,8 @@ def render():
 
 def clean():
     try:
-        shutil.rmtree(os.path.join(path, filename_no_suffix))
         print_blue("removing folders")
+        shutil.rmtree(os.path.join(path, filename_no_suffix))
     except FileNotFoundError:
         print_blue("no previous folder")
     # os.system("rm " + os.path.join(path, filename_no_suffix, "\*.json"))
