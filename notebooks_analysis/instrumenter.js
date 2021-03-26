@@ -126,57 +126,47 @@ function static_analyzer(tree) {
     }
 
     function map_handler(stmt, src, des) {
-        let value_type = ["index", "dot"];
-        if (value_type.includes(des.type)
-            && value_type.includes(src.func.value.type)) {
-            let src_col = value_type_handler(src.func.value.type, src.func.value);
-            let des_col = value_type_handler(des.type, des);
-            let comment = ""
-            // same/different literal
-            if (src_col == des_col)
-                comment = "[map/apply],modify column " + des_col + " using map/apply"
-            else
-                comment = "[map/apply],create column " + des_col + " from " + src_col
-            if (pyTypeof.get(src.args[0].actual.id) == 'dict')
-                comment += " with dict"
-            if (src.args[0].actual.type == 'lambda') {
-                // console.log(printNode(src.args[0].actual));
-                // let args = src.args[0].actual.args.map(x => x.name);
-                let code = src.args[0].actual.code;
-                // let def_code = "";
-                if (code.type == "ifexpr") {
-                    if_expr_handler(code);
-                    // def_code = ["def lambda_" + lambda_id + "(" + args.join(", ") + "):",
-                    // "if " + testcode + ":", "\treturn " + printNode(code.then),
-                    //     "else:", "\treturn " + printNode(code.else)];
-                }
+        // let value_type = ["index", "dot"];
 
-                let info_saver = {
-                    type: 'call',
-                    func: {
-                        type: 'name',
-                        id: `func_info_saver(${src.args[0].actual.location.first_line})`,
-                        location: src.args[0].actual.location
-                    },
-                    args: [{ type: 'arg', location: src.args[0].actual.location, actual: src.args[0].actual }],
-                    location: { location: src.args[0].actual.location }
-                }
-                src.args[0].actual = info_saver;
-
-                // else {
-                //     def_code = ["def lambda_" + lambda_id + "(" + args.join(", ") + "):", "return " + printNode(code)];
-                // }
-                // console.log(printNode(stmt))
-
-                // src.args[0].actual = { id: "lambda_" + lambda_id, location: src.args[0].actual.location, type: "name" };
-                replace_strs.push([stmt.location.first_line, stmt.location.last_line, [printNode(stmt)]]);
-                // def_list.push("lambda_" + lambda_id)
-                // lambda_id++;
-            } else if (src.args[0].actual.type == 'name') {
-                def_list.push(src.args[0].actual.id);
+        if (src.args[0].actual.type == 'lambda') {
+            // console.log(printNode(src.args[0].actual));
+            // let args = src.args[0].actual.args.map(x => x.name);
+            let code = src.args[0].actual.code;
+            // let def_code = "";
+            if (code.type == "ifexpr") {
+                if_expr_handler(code);
             }
-            return comment;
+
+            let info_saver = {
+                type: 'call',
+                func: {
+                    type: 'name',
+                    id: `func_info_saver(${src.args[0].actual.location.first_line})`,
+                    location: src.args[0].actual.location
+                },
+                args: [{ type: 'arg', location: src.args[0].actual.location, actual: src.args[0].actual }],
+                location: { location: src.args[0].actual.location }
+            }
+            src.args[0].actual = info_saver;
+
+            replace_strs.push([stmt.location.first_line, stmt.location.last_line, [printNode(stmt)]]);
+        } else if (src.args[0].actual.type == 'name') {
+            def_list.push(src.args[0].actual.id);
         }
+        // if (value_type.includes(des.type)
+        //     && value_type.includes(src.func.value.type)) {
+        //     let src_col = value_type_handler(src.func.value.type, src.func.value);
+        //     let des_col = value_type_handler(des.type, des);
+        //     let comment = ""
+        //     // same/different literal
+        //     if (src_col == des_col)
+        //         comment = "[map/apply],modify column " + des_col + " using map/apply"
+        //     else
+        //         comment = "[map/apply],create column " + des_col + " from " + src_col
+        //     if (pyTypeof.get(src.args[0].actual.id) == 'dict')
+        //         comment += " with dict"
+        //     return comment;
+        // }
     }
 
     function build_flow_graph(stmt) {
