@@ -113,6 +113,18 @@ function static_analyzer(tree) {
         }
     }
 
+    function if_expr_handler(code) {
+        let test_str = printNode(code.test);
+        if ((test_str.match(/[<>]/g) || []).length > 1) {
+            test_str = test_str.replace(/[\(\)]/g, "");
+        }
+        code.test = {
+            type: 'name',
+            id: "if_expr_wrapper(" + test_str + ")",
+            location: code.test.location
+        }
+    }
+
     function map_handler(stmt, src, des) {
         let value_type = ["index", "dot"];
         if (value_type.includes(des.type)
@@ -133,15 +145,7 @@ function static_analyzer(tree) {
                 let code = src.args[0].actual.code;
                 // let def_code = "";
                 if (code.type == "ifexpr") {
-                    let test_str = printNode(code.test);
-                    if ((test_str.match(/[<>]/g) || []).length > 1) {
-                        test_str = test_str.replace(/[\(\)]/g, "");
-                    }
-                    code.test = {
-                        type: 'name',
-                        id: "if_expr_wrapper(" + test_str + ")",
-                        location: code.test.location
-                    }
+                    if_expr_handler(code);
                     // def_code = ["def lambda_" + lambda_id + "(" + args.join(", ") + "):",
                     // "if " + testcode + ":", "\treturn " + printNode(code.then),
                     //     "else:", "\treturn " + printNode(code.else)];
@@ -263,11 +267,7 @@ function static_analyzer(tree) {
                     if (x.values.some(code => code.type == "ifexpr")) {
                         x.values.forEach(code => {
                             if (code.type == "ifexpr") {
-                                code.test = {
-                                    type: 'name',
-                                    id: "if_expr_wrapper(" + printNode(code.test).replace(/[\(\)]/g, "") + ")",
-                                    location: code.test.location
-                                }
+                                if_expr_handler(code);
                             }
                         })
                         replace_strs.push([x.location.first_line, x.location.last_line, [printNode(x)]]);
