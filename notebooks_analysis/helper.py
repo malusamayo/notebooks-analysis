@@ -10,7 +10,7 @@ from pandas.core.series import Series
 my_dir_path = os.path.dirname(os.path.realpath(__file__))
 ignore_types = [
     "<class 'module'>", "<class 'type'>", "<class 'function'>",
-    "<class 'matplotlib.figure.Figure'>"
+    "<class 'matplotlib.figure.Figure'>", "<class 'tensorflow.python.keras.engine.sequential.Sequential'>"
 ]
 TRACE_INTO = []
 
