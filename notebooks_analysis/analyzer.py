@@ -511,8 +511,11 @@ class PatternSynthesizer(object):
         self.df2 = DF2.var if type(DF2) == DataFrame else DF2
         self.df1_name = DF1.name if type(DF1) == DataFrame else ""
         self.df2_name = DF2.name if type(DF2) == DataFrame else ""
-        self.cols1 = list(self.df1.columns)
-        self.cols2 = list(self.df2.columns)
+        # rename columns to str type
+        self.cols1 = list(self.df1.columns.astype(str))
+        self.cols2 = list(self.df2.columns.astype(str))
+        self.df1.rename(str, axis = 1, inplace = True)
+        self.df2.rename(str, axis = 1, inplace = True)
         self.srccols = [col for col in info.get if col in self.cols1]
         self.other_src = {x.name: x.var for x in in_vars if type(x.var) == pd.Series}
         self.descols = [col for col in info.set if col in self.cols1] 
