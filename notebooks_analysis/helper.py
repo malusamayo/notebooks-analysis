@@ -292,21 +292,23 @@ class LibDecorator(object):
         def append(key, ls):
             if pd.core.dtypes.common.is_hashable(key) and key not in ls:
                 ls.append(key)
+        def index_model(key, index):
+            if len(key) != len(index):
+                return
+            pathTracker.reset(index)
+            for i, v in enumerate(key):
+                pathTracker.next_iter()
+                pathTracker.update(int(v), "loc/at")
         def decorate(self, key, value):
             if hasattr(self, "obj") and type(self.obj) == pd.Series:
                 append(self.obj.name, set__keys[cur_cell])
                 graph[self.obj.name] += cur_get
+                # maybe we could model scalr/slice?
                 if type(key) == pd.Series and key.dtype == bool:
-                    pathTracker.reset(self.obj.index)
-                    for i, v in enumerate(key):
-                        pathTracker.next_iter()
-                        pathTracker.update(int(v), "loc/at")
+                    index_model(key, self.obj.index)
             if hasattr(self, "obj") and type(self.obj) == pd.DataFrame:
                 if type(key) == tuple and type(key[0]) == pd.Series and key[0].dtype == bool:
-                    pathTracker.reset(self.obj.index)
-                    for i, v in enumerate(key[0]):
-                        pathTracker.next_iter()
-                        pathTracker.update(int(v), "loc/at")
+                    index_model(key[0], self.obj.index)
             cur_get.clear()
             return method(self, key, value)
         return decorate
