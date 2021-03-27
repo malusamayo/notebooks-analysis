@@ -18,7 +18,7 @@ function printTabbed(node: SyntaxNode, tabLevel: number): string {
         commaSep(node.sources)
       );
     case 'binop':
-      return '(' + printNode(node.left) + node.op + printNode(node.right) + ')';
+      return '(' + printNode(node.left) + ' ' + node.op + ' ' + printNode(node.right) + ')';
     case 'break':
       return tabs + 'break';
     case 'call':
@@ -97,13 +97,13 @@ function printTabbed(node: SyntaxNode, tabLevel: number): string {
         lines(node.code, tabLevel + 1) +
         (node.elif
           ? node.elif.map(
-              elif =>
-                tabs +
-                'elif ' +
-                elif.cond +
-                ':' +
-                lines(elif.code, tabLevel + 1)
-            )
+            elif =>
+              tabs +
+              'elif ' +
+              elif.cond +
+              ':' +
+              lines(elif.code, tabLevel + 1)
+          )
           : '') +
         (node.else ? tabs + 'else:' + lines(node.else.code, tabLevel + 1) : '')
       );
@@ -166,15 +166,15 @@ function printTabbed(node: SyntaxNode, tabLevel: number): string {
         lines(node.code, tabLevel + 1) +
         (node.excepts
           ? node.excepts.map(
-              ex =>
-                tabs +
-                'except ' +
-                (ex.cond
-                  ? printNode(ex.cond) + (ex.name ? ' as ' + ex.name : '')
-                  : '') +
-                ':' +
-                lines(ex.code, tabLevel + 1)
-            )
+            ex =>
+              tabs +
+              'except ' +
+              (ex.cond
+                ? printNode(ex.cond) + (ex.name ? ' as ' + ex.name : '')
+                : '') +
+              ':' +
+              lines(ex.code, tabLevel + 1)
+          )
           : '') +
         (node.else ? tabs + 'else:' + lines(node.else, tabLevel + 1) : '') +
         (node.finally
