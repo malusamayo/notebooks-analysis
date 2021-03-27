@@ -1,5 +1,4 @@
 import os, sys, re
-from numpy.lib.function_base import append
 import pandas as pd
 import numpy as np
 import copy as lib_copy
@@ -57,6 +56,7 @@ def func_info_saver(line):
                 pathTracker.next_iter()
             except:
                 # don't track apply/map of other objects
+                pathTracker.clean()
                 return func(*args, **kwargs)
 
             # name = func.__name__ + "_" + str(line)
@@ -81,7 +81,7 @@ def func_info_saver(line):
                 rets = str(rets)
             
             if cur_exe:
-                pathTracker.update(cur_exe, func.__name__)
+                pathTracker.update(lib_copy.copy(cur_exe), func.__name__)
             cur_exe.clear()
             return rets
 
@@ -121,7 +121,8 @@ class MyStr(str):
         return MyStr(ret)
 
 def if_expr_wrapper(expr):
-    pathTracker.update(int(expr), "if_expr")
+    if pathTracker.cur_idx >= 0:
+        pathTracker.update(int(expr), "if_expr")
     return expr
 
 class LibDecorator(object):
@@ -239,7 +240,10 @@ class LibDecorator(object):
 
     def df_apply_decorator(self, wrapped_method):
         def decorate(self, func, axis=0, raw=False, result_type=None, args=(), **kwds):
-            pathTracker.reset(self.index)
+            if axis == 1 or axis == 'columns':
+                pathTracker.reset(self.index)
+            else:
+                pathTracker.clean()
             if kwds:
                 return wrapped_method(self, func, axis, raw, result_type, args, kwds=kwds)
             else:
@@ -318,6 +322,7 @@ class PathTracker(object):
         super().__init__()
         self.paths = collections.defaultdict(lambda: collections.defaultdict(list))
         self.partitions = {}
+        self.cur_idx = -1
         sys.settrace(self.trace_calls)
 
     def reset(self, index):
@@ -326,6 +331,10 @@ class PathTracker(object):
         if self.id in id2name:
             self.id = id2name[self.id]
         self.iter = iter(index)
+        self.cur_idx = 0
+    
+    def clean(self):
+        self.iter = iter(())
         self.cur_idx = -1
 
     def next_iter(self):
