@@ -50,12 +50,6 @@ def convert():
         log.write(filename + "\t" + "Notebook conversion failed\n")
         log.close()
         sys.exit(-5)
-    result = subprocess.run(["jupyter", "nbconvert", "--to", "html", args.notebook]) 
-    if result.returncode:
-        print_red("Notebook conversion failed!")
-        log.write(filename + "\t" + "Notebook conversion failed\n")
-        log.close()
-        sys.exit(-5)
 
 def execute_script():
     print_blue('-'*40)
@@ -142,6 +136,12 @@ def render():
         return
     print_blue('-'*40)
     print_blue("Converting documentation to html...")
+    result = subprocess.run(["jupyter", "nbconvert", "--to", "html", args.notebook]) 
+    if result.returncode:
+        print_red("Notebook conversion failed!")
+        log.write(filename + "\t" + "Notebook conversion failed\n")
+        log.close()
+        sys.exit(-5)
     st = time.time()
     result = subprocess.run(["node", os.path.join(SRC_PATH, "html_convert.js"), args.notebook])
     ed4 = time.time()
