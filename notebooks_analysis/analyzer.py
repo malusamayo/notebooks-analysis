@@ -575,8 +575,7 @@ class PatternSynthesizer(object):
                         res.append(Pattern.ONEHOT)
                     else:
                         res.append(Pattern.ENCODE)
-                else:
-                    res.append(Pattern.INT)
+                res.append(Pattern.INT)
             elif self.check_str(df2, to_col):
                 res.append(Pattern.STR)
             else:
@@ -585,6 +584,7 @@ class PatternSynthesizer(object):
             if self.check_int(df2, to_col):
                 l = sorted(df2[to_col].unique())
                 if len(l) == max(l) + 1 - min(l):
+                    hint["encode"] = True
                     if len(l) <= 2:
                         res.append(Pattern.ONEHOT)
                     else:
@@ -616,6 +616,9 @@ class PatternSynthesizer(object):
 
         if hint["convert"] and not (CONVERT & set(patterns)):
             return -1
+
+        if "encode" in hint and Pattern.ENCODE not in patterns and Pattern.ONEHOT not in patterns:
+            return -1
         
         if hint[Pattern.FILLNA] and Pattern.FILLNA not in patterns:
             return 0
@@ -646,29 +649,30 @@ class PatternSynthesizer(object):
 
         for p in patterns[::-1]:
             if p == Pattern.FILLNA:
-                tmp[tmp.isnull()] = SYM
+                tmp[tmp == 'nan'] = SYM
                 constraints["na_filled"] = True
-            cmp_idx = (tmp!=SYM)
             if p in [Pattern.INT, Pattern.FLOAT, Pattern.STR]:
-                type_f = CONVERT_F[p]
+                type_f = CONVERT_F[p]            
+                cmp_idx = ~tmp.str.startswith(SYM)
                 if convertable(type_f, tmp[cmp_idx]):
                     tmp[cmp_idx] = tmp[cmp_idx].astype(type_f)
                     constraints["type"] = p
                 else:
                     return 0
-            elif p == Pattern.CAT:
-                tmp.loc[:] = SYM
-                constraints["type"] = p
+            elif p in [Pattern.CAT, Pattern.ENCODE, Pattern.ONEHOT]:
+                # add stronger constraints for one-hot? how to deal with nan?
+                tmp2idx = {x:SYM + '_' + str(i) for i, x in enumerate(tmp.unique())}
+                tmp2idx[SYM] = SYM
+                tmp = tmp.map(tmp2idx)
+                if p == Pattern.CAT:
+                    constraints["type"] = p
+                elif p == Pattern.ENCODE:
+                    constraints["cont-int"] = True
+                elif p == Pattern.ONEHOT:
+                    constraints["one-hot"] = True
             elif p == Pattern.CONV:
                 tmp.loc[:] = SYM
                 constraints["type"] = ANY
-            elif p == Pattern.ENCODE:
-                tmp.loc[:] = SYM
-                constraints["cont-int"] = True
-            elif p == Pattern.ONEHOT:
-                # add stronger constraints for one-hot?
-                tmp.loc[:] = SYM
-                constraints["one-hot"] = True
             elif p == Pattern.MERGE:
                 tmp.loc[:] = SYM
                 constraints["unique_before"] = df1[from_col].nunique()
@@ -677,8 +681,9 @@ class PatternSynthesizer(object):
             elif p == Pattern.NTRAN and constraints["type"] in [Pattern.INT, Pattern.FLOAT, ANY]:
                 tmp.loc[:] = SYM
         
-        cmp_idx = (tmp!=SYM)
-        if (tmp[cmp_idx] != target[cmp_idx]).any():
+        sym_idx = tmp.str.startswith(SYM, na=False)
+        cmp_idx = ~sym_idx
+        if (tmp[cmp_idx].astype(str) != target[cmp_idx].astype(str)).any():
             return 0
         
         # validate constraints
@@ -692,12 +697,20 @@ class PatternSynthesizer(object):
 
         if "cont-int" in constraints or "one-hot" in constraints:
             l = sorted(df2[to_col].unique())
+            tmp = tmp[tmp[sym_idx] != SYM]
             if "cont-int" in constraints:
                 if len(l) != max(l) + 1 - min(l):
                     return -1
+                for v in l:
+                    if tmp[df2[to_col] == v].nunique() > 1:
+                        return -1
             if "one-hot" in constraints:
                 if len(l) > 2:
                     return -1
+                for v in l:
+                    if tmp[df2[to_col] == v].nunique() <= 1:
+                        return 1
+                return 0
 
         return 1
         
@@ -967,10 +980,6 @@ def handlecell(myvars, st, ed, info):
     comments = []
     cell_num = myvars[st].cellnum
 
-    # find the first input and output
-    # flags = [var.outflag for var in myvars[st:ed+1]]
-    # first_in = flags.index(0) + st if 0 in flags else -1
-    # first_out = flags.index(1) + st if 1 in flags else -1
     ins = [var for var in myvars[st:ed+1] if not var.outflag]
     outs = [var for var in myvars[st:ed+1] if var.outflag]
 
@@ -980,11 +989,6 @@ def handlecell(myvars, st, ed, info):
         json_map["input"][in_var.name] = in_var.json_map
     for out_var in outs:
         json_map["output"][out_var.name] = out_var.json_map
-    # for i in range(st, ed + 1):
-    #     if myvars[i].outflag == 0:
-    #         json_map["input"][myvars[i].name] = myvars[i].json_map
-    #     elif myvars[i].outflag == 1:
-    #         json_map["output"][myvars[i].name] = myvars[i].json_map
 
     '''
     for each output variable, find the input that is closest to it
@@ -1004,30 +1008,8 @@ def handlecell(myvars, st, ed, info):
                         json_map["partition"][flow] = checker.markers
                         json_map["table"][flow] = checker.table
                     print(cell_num, ":", flow, "\033[96m", 
-                        dict(checker.summary), len(checker.markers), "\033[0m")
+                        dict(checker.summary), len(checker.markers), "\033[0m")           
 
-    # if first_out != -1 and first_in != -1:
-    #     for i in range(first_out, ed + 1):
-    #         # choose_idx = -1
-    #         # cur_score = 5
-    #         for j in range(first_in, first_out):
-    #             # score = myvars[i].check_rel(myvars[j])
-    #             # print(myvars[i].name, myvars[j].name, score)
-    #             if type(myvars[i].var) == pd.core.frame.DataFrame:
-    #                 if type(myvars[j].var) == pd.core.frame.DataFrame:
-    #                     checker = PatternSynthesizer(myvars[j], myvars[i], info, [var for var in myvars[st:ed+1] if not var.outflag])
-    #                     result = checker.check(myvars[j].var, myvars[i].var)
-    #                     if checker.summary:
-    #                         flow = ' '.join([myvars[j].name, "->", myvars[i].name])
-    #                         json_map["summary"][flow] = dict(checker.summary)
-    #                         if checker.table:
-    #                             json_map["partition"][flow] = checker.markers
-    #                             json_map["table"][flow] = checker.table
-    #                         print(myvars[i].cellnum, ":", flow, "\033[96m", 
-    #                             dict(checker.summary), len(checker.markers), "\033[0m")
-    #                         # summaries = '\n\t'.join([str(k) + ':' + str(v) for k,v in dict(checker.summary).items()])
-    #                         # comments.append(f"{myvars[i].cellnum}: {flow}\n\t{summaries}\n#Clusters = {len(checker.markers)}")              
-    
     return "\n".join(comments), json_map
 
 
@@ -1103,13 +1085,8 @@ if __name__ == "__main__":
                 # distributed
                 with open(os.path.join(data_path, f"result_{code_indices[vars[0][1][0] - 1]}.json"), "w") as f:
                     f.write(json.dumps(json_map))
-                with open(os.path.join(data_path, f"code_{code_indices[vars[0][1][0] - 1]}.py"), "w") as f:
-                    f.write(notebook.cells[code_indices[vars[0][1][0] - 1]].source)
-
-    # with open(html_path, "w") as f:
-    #     (content, junk) = HTMLExporter().from_notebook_node(notebook)
-    #     f.write(content)
-                
+                # with open(os.path.join(data_path, f"code_{code_indices[vars[0][1][0] - 1]}.py"), "w") as f:
+                #     f.write(notebook.cells[code_indices[vars[0][1][0] - 1]].source)
 
     # fill not existing entries
     # for key, value in json_map.items():
