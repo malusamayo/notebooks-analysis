@@ -17,7 +17,7 @@ parser.add_argument('notebook', help='the notebook to be analyzed')
 parser.add_argument('-c', '--clean', help='clean intermediate files', action="store_true")
 parser.add_argument('-s', '--skip', help='skip execution of original script', action="store_true")
 parser.add_argument('-k', '--keep', help='keep output of scripts', action="store_true")
-parser.add_argument('-i', '--ignore', help='ignore rendering html', action="store_true")
+parser.add_argument('-o', '--output', help='generate html output', action="store_true")
 
 args = parser.parse_args()
 
@@ -133,7 +133,7 @@ def analyze():
     write_to_log("success")
 
 def render():
-    if args.ignore:
+    if not args.output:
         return
     print_blue('-'*40)
     print_blue("Converting documentation to html...")

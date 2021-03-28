@@ -171,16 +171,24 @@ class VariableInspectorPanel {
       "str": "convert column to str type",
       "category": "convert column to category type",
       "int": "convert column to int type",
-      "encode": "encode column in consecutive integers",
-      "one_hot_encoding": "encode column in binary (0/1) integers",
+      "encode": `encode column in consecutive integers
+      e.g., [x, y, z, y, x] -> [0, 1, 2, 1, 0]`,
+      "one_hot_encoding": `encode column in binary (0/1) integers
+      e.g., [x, y, z, y, x] -> col_x [1, 0, 0, 0, 1]
+            [x, y, z, y, x] -> col_x [0, 1, 0, 1, 0]
+            [x, y, z, y, x] -> col_x [0, 0, 1, 0, 0]`,
       "float": "convert column to float type",
       "type_convert": "convert column type",
-      "fillna": "fill null values (e.g., nan->0)",
-      "merge": "merge items to reduce column's cardinality (e.g., Monday->1 & Mon->1)",
-      "num_transform": "manipulate numerical columns with unspecified transformation",
-      "str_transform": "manipulate string columns with unspecified transformation",
+      "fillna": `fill null/nan values
+      e.g., [3, 4, nan, 2, nan] -> [3, 4, 0, 2, 0]`,
+      "merge": `merge different items
+      e.g., [Mon, Monday, Thursday, Thur] -> [Mon, Mon, Thu, Thu] `,
+      "num_transform": `unspecified numerical transformation
+      e.g., [2, 3, 4] -> [20, 30, 40]`,
+      "str_transform": `unspecified string transformation
+      e.g., [S1, D2, C3, K1] -> [S, D, C, K]`,
       "substr": "take substring from column",
-      "compute": "manipulate column with unspecified transformation"
+      "compute": "unspecified transformation"
     };
     this.CLUSTER_HINTS = {
       "replace": { "0": "value unchanged", "1": "value changed", "-2": "error" },
@@ -251,13 +259,8 @@ class VariableInspectorPanel {
     // let transform_title = this.titles.get("TRANSFORMS");
     this.add_button(this.buttons.get("INPUTS"), _input_title, data.input);
     this.add_button(this.buttons.get("OUTPUTS"), _output_title, data.output);
-    // this.add_button(this.buttons.get("TRANSFORMS"), transform_title, data.summary);
-    // let notes = document.createElement( "p" );
-    // notes.innerHTML = highlightHTML("click button to see details; click one example to show more");
     this.node.appendChild(summary_title);
     summary_title.appendChild(document.createElement("br"));
-    // summary_title.appendChild( summary_table as HTMLElement );
-    // summary_title.appendChild( notes as HTMLElement);
     if (Object.keys(data.summary).length > 0) {
       for (let flow in data.summary) {
         let flow_title = Private.createTitle(flow);
@@ -303,31 +306,6 @@ class VariableInspectorPanel {
       _output_title.appendChild(document.createElement("br"));
       Object.entries(data.output).forEach(item => this.processItem(item, this._output_table));
     }
-    // Object.entries(example).forEach(cell => {
-    //     if(Number(cell[0]) != idx)
-    //         return;
-    // if (Object.keys(cell[1].function).length > 0) {
-    //     Object.entries(cell[1].function).forEach(func => this.buildFunctionTable(func[0], func[1], this.function_tables));
-    //     this.function_tables.forEach(x => function_title.appendChild(x));
-    // }
-    // integrate comments
-    // if (Object.keys(cell[1].comment).length > 0) {
-    //     let comment_table = Private.createTable(["loc", "comment"]);
-    //     comment_table.className = TABLE_CLASS;
-    //     comment_table.createTFoot();
-    //     comment_table.tFoot.className = TABLE_BODY_CLASS;
-    //     Object.entries(cell[1].comment).forEach(item => {
-    //         let row = comment_table.tFoot.insertRow();
-    //         let cell = row.insertCell(0);
-    //         cell.innerHTML = item[0];
-    //         cell = row.insertCell(1);
-    //         cell.innerHTML = item[1];
-    //     });
-    //     let comment_title = this.titles.get("COMMENTS");
-    //     // this.node.appendChild( comment_title as HTMLElement );
-    //     comment_title.appendChild( comment_table as HTMLElement );
-    // }   
-    // })
   }
   draw_inner_summary(patterns, prefix, col_names, flow_title) {
     let sum_words;
@@ -543,37 +521,6 @@ class VariableInspectorPanel {
         });
       }
     }
-    // else {
-    //     // draw first 5 rows
-    //     let initlen = Math.min(7, maxlen);
-    //     // first row
-    //     row = df_table.tFoot.insertRow();
-    //     // add button
-    //     cell = row.insertCell(0);
-    //     cell.id = String(initlen - 1) + ":" + String(maxlen);
-    //     cell.appendChild(Private.createSmallButton("fas fa-search-plus", String(maxlen -  2)));
-    //     Private.read_row(row, content, columns, 2);
-    //     cell.title = `click to show more examples`;
-    //     cell.addEventListener("click", function(this) {
-    //         let [cur_idx, bound_idx] = this.id.split(":").map(Number);
-    //         cur_idx++;
-    //         if (cur_idx >= bound_idx) {
-    //             return
-    //         }
-    //         let new_row = df_table.insertRow(4);
-    //         cell = new_row.insertCell(0);
-    //         // cell.innerHTML = String(cur_idx - 2);
-    //         Private.read_row(new_row, content, columns, cur_idx);
-    //         this.id = `${cur_idx}:${bound_idx}`;
-    //     }); 
-    //     // next 4 rows
-    //     for (let i = 3; i < initlen; i++) {
-    //         row = df_table.tFoot.insertRow();
-    //         cell = row.insertCell(0);
-    //         // cell.innerHTML = String(i - 2);
-    //         Private.read_row(row, content, columns, i);
-    //     }
-    // }
     return df_table;
   }
   processItem(item, table) {
