@@ -27,6 +27,7 @@ path = args.notebook.replace(filename, "")
 filename_no_suffix = filename[:filename.rfind(".")]
 filename_no_suffix = filename_no_suffix[:-2] if filename_no_suffix.endswith("_m") else filename_no_suffix
 suffix = filename[filename.rfind("."):]
+html_path = os.path.join("html_outputs", filename_no_suffix + ".html")
 owd = os.getcwd()
 
 log = open(os.path.join(path, "log.txt"), "a")
@@ -136,7 +137,7 @@ def render():
         return
     print_blue('-'*40)
     print_blue("Converting documentation to html...")
-    result = subprocess.run(["jupyter", "nbconvert", "--to", "html", args.notebook]) 
+    result = subprocess.run(["jupyter", "nbconvert", "--to", "html", args.notebook, "--output-dir", "html_outputs"]) 
     if result.returncode:
         print_red("Notebook conversion failed!")
         log.write(filename + "\t" + "Notebook conversion failed\n")

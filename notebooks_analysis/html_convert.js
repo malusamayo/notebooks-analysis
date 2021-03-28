@@ -16,7 +16,8 @@ let args = process.argv.slice(2);
 let dir = args[0].slice(0, -6) + path.sep;
 // dir = "\\notebooks\\study-task1\\"
 let dir_name = dir.split(path.sep).filter(x => x).slice(-1)[0];
-let html_file_path = dir.slice(0, -1) + ".html"
+let html_file_path = path.join("html_outputs", dir_name + ".html");
+// dir.slice(0, -1) + ".html"
 // console.log(dir_name);
 
 let header = `<head>
@@ -694,7 +695,7 @@ var Private;
   Private.createText = createText;
 })(Private || (Private = {}));
 
-let dom = document.createElement("html")
+let dom = document.createElement("html");
 dom.innerHTML = fs.readFileSync(html_file_path).toString();
 let res = dom.getElementsByClassName('jp-Notebook')[0];
 
