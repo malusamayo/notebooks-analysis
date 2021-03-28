@@ -892,20 +892,22 @@ class PatternSynthesizer(object):
             df[col] = df1[col]
 
         # generate extra info
+        def get_unique(col):
+            return str(len(col.unique()))
         def get_range(col):
-            if str(col.dtype) == Pattern.CAT:
-                return len(col.unique())
             if np.issubdtype(col.dtype, np.number):
                 return [np.min(col), np.max(col)]
             else:
-                return len(col.unique())
+                return ""
         _type = {col:str(df[col].dtype) for col in df if col not in self.colschange}
         _range = {col: str(get_range(df[col])) for col in df if col not in self.colschange}
+        _unique = {col: str(get_unique(df[col])) for col in df if col not in self.colschange}
 
         # build data changes for columns
         for col in self.colschange:
             _type[col] = str(df1[col].dtype) + "->" + str(df[col].dtype)
             _range[col] = str(get_range(df1[col])) + "->" + str(get_range(df[col]))
+            _unique[col] = str(get_unique(df1[col])) + "->" + str(get_unique(df[col]))
             df[col] = df1[col].astype(str) + ['->']*len(df1) +  df[col].astype(str)
         for col in df.columns:
             if self.check_cat(df, col):
@@ -932,7 +934,7 @@ class PatternSynthesizer(object):
             self.markers["[[0, 'removed']]"] = len(new_df)
             new_df = pd.concat([new_df, self.removedrow])[new_df.columns]
         
-        df = pd.concat([pd.DataFrame([_type, _range]), new_df], ignore_index=True)
+        df = pd.concat([pd.DataFrame([_type, _unique, _range]), new_df], ignore_index=True)
 
         # rearrange cols to make changed/new cols first
         colsleft = [col for col in df.columns if col not in self.colsnew + self.colschange + self.removedcols]
