@@ -29,7 +29,8 @@ graph = collections.defaultdict(list)
 def my_store_info(info, var):
     if str(type(var)) in ignore_types:
         return
-    if type(var) in [pd.DataFrame]:
+    if type(var) in [pd.DataFrame] and info[1] == 0:
+        var.reset_index(inplace=True, drop=True)
         id2name[id(var.index)] = info[2]
     store_vars[info[0]].append((wrap_copy(var), info))
 
@@ -142,7 +143,7 @@ class LibDecorator(object):
 
         # reset index when appending rows
         # pd.concat = self.concat_decorator(pd.concat) (disabled due to bugs)
-        pd.DataFrame.merge = self.merge_decorator(pd.DataFrame.merge)
+        # pd.DataFrame.merge = self.merge_decorator(pd.DataFrame.merge)
     
     def replace_decorator(self, wrapped_method):
         def f(x, key, value, regex):
@@ -250,18 +251,18 @@ class LibDecorator(object):
                 return wrapped_method(self, func, axis, raw, result_type, args)
         return decorate
 
-    def concat_decorator(self, wrapped_method):
-        def decorate(objs, axis=0, join="outer", ignore_index = False, keys=None, levels=None, names=None, verify_integrity = False, sort = False, copy = True):
-            if axis == 0:
-                ignore_index = True
-            return wrapped_method(objs, axis, join, ignore_index, keys, levels, names, verify_integrity, sort, copy)
-        return decorate
+    # def concat_decorator(self, wrapped_method):
+    #     def decorate(objs, axis=0, join="outer", ignore_index = False, keys=None, levels=None, names=None, verify_integrity = False, sort = False, copy = True):
+    #         if axis == 0:
+    #             ignore_index = True
+    #         return wrapped_method(objs, axis, join, ignore_index, keys, levels, names, verify_integrity, sort, copy)
+    #     return decorate
 
-    def merge_decorator(self, wrapped_method):
-        def decorate(other, ignore_index=False, verify_integrity=False, sort=False):
-            ignore_index = True
-            return wrapped_method(other, ignore_index, verify_integrity, sort)
-        return decorate
+    # def merge_decorator(self, wrapped_method):
+    #     def decorate(other, ignore_index=False, verify_integrity=False, sort=False):
+    #         ignore_index = True
+    #         return wrapped_method(other, ignore_index, verify_integrity, sort)
+    #     return decorate
 
     def get_decorator(self, method):     
         def append(key, ls):
@@ -378,6 +379,7 @@ class PathTracker(object):
                 return
         except TypeError:
             print(func_name, TRACE_INTO)
+            return
         line_no = frame.f_lineno
         return self.trace_lines
 
