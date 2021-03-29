@@ -858,18 +858,18 @@ class PatternSynthesizer(object):
         #     return
         # ignore adding rows
         if len(df1) < len(df2):
-            return
+            return False
 
         # handle easy op: removerow, removecol, rearrange
         if self.check_removerow(df1, df2):
             # if index is reset this might lead to error?
-            df1 = df1.loc[df2.index]
+            df1 = df1.loc[df1.index.isin(df2.index)]
         # rows not removed -> index not subset -> irrelevant dfs
         if len(df1) > len(df2):
-            return
+            return False
         if not df1.index.equals(df2.index):
             print_error("mismatched index for " + self.df1_name + " and " + self.df2_name)
-            return
+            return False
         self.check_removecol(df1, df2)
         self.check_rearrange(df1, df2)
 
@@ -921,11 +921,8 @@ class PatternSynthesizer(object):
             self.partition = dict(sorted(self.partition.items(), key=lambda item: len(item[1]), reverse=True))
             for k, l in dict(self.partition).items():
                 self.markers[k] = len(new_df)
-                try:
-                    new_df = new_df.append(df.loc[l])
-                except KeyError:
-                    l = list(set(l) & set(df.index))
-                    new_df = new_df.append(df.loc[l])
+                # removerow -> some items in l might not be in df.index
+                new_df = new_df.append(df.loc[df.index.isin(l)])
         else:
             self.markers["[[0, 'empty']]"] = len(new_df)
             new_df = df
@@ -1003,7 +1000,7 @@ def handlecell(myvars, st, ed, info):
                 (sc, in_var) = min(s_map.items(), key=lambda x: x[0])
                 checker = PatternSynthesizer(in_var, out_var, info, ins)
                 result = checker.check(in_var.var, out_var.var)
-                if checker.summary:
+                if result:
                     flow = ' '.join([in_var.name, "->", out_var.name])
                     json_map["summary"][flow] = dict(checker.summary)
                     if checker.table:
