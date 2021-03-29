@@ -278,7 +278,7 @@ class LibDecorator(object):
                 for item in key:
                     append(item, get__keys[cur_cell])
                     append(item, cur_get)
-            else:
+            elif type(key) == str:
                 append(key, get__keys[cur_cell])
                 append(key, cur_get)
             return method(self, key)
@@ -292,7 +292,7 @@ class LibDecorator(object):
                 for item in key:
                     append(item, set__keys[cur_cell])
                     graph[item] += cur_get
-            else:
+            elif type(key) == str:
                 append(key, set__keys[cur_cell])
                 graph[key] += cur_get
             cur_get.clear()
