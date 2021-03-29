@@ -411,7 +411,7 @@ function insert_print_stmt(code) {
 init_lineToCell();
 let comments = compute_flow_vars(text);
 // set up trace functions
-let def_str = "TRACE_INTO = [" + def_list.map(x => "'" + x + "'").join(",") + "]\n";
+let def_str = "TRACE_INTO = [" + def_list.map(x => "'" + x + "'").join(",") + "]";
 head_str = head_str.split("\n")
 head_str[trace_into_line] = def_str
 head_str = head_str.join("\n") + "\n"

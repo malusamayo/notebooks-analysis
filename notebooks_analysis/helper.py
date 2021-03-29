@@ -11,6 +11,10 @@ ignore_types = [
     "<class 'module'>", "<class 'type'>", "<class 'function'>",
     "<class 'matplotlib.figure.Figure'>", "<class 'tensorflow.python.keras.engine.sequential.Sequential'>"
 ]
+reset_index_types = [
+    "<class 'pandas.core.indexes.range.RangeIndex'>", "<class 'pandas.core.indexes.numeric.Int64Index'>"
+]
+
 TRACE_INTO = []
 
 matplotlib.use('Agg')
@@ -30,7 +34,8 @@ def my_store_info(info, var):
     if str(type(var)) in ignore_types:
         return
     if type(var) in [pd.DataFrame] and info[1] == 0:
-        var.reset_index(inplace=True, drop=True)
+        if str(type(var.index)) in reset_index_types:
+            var.reset_index(inplace=True, drop=True)
         id2name[id(var.index)] = info[2]
     store_vars[info[0]].append((wrap_copy(var), info))
 
