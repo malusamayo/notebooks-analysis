@@ -895,6 +895,8 @@ class PatternSynthesizer(object):
         def get_unique(col):
             return str(len(col.unique()))
         def get_range(col):
+            if str(col.dtype) == Pattern.CAT:
+                return ""
             if np.issubdtype(col.dtype, np.number):
                 return [np.min(col), np.max(col)]
             else:
