@@ -4,7 +4,7 @@ def my_print(msg):
     print("\033[96m {}\033[00m".format(msg))
 
 dir = sys.argv[1]
-option = sys.argv[2]
+option = sys.argv[2] if len(sys.argv) > 2 else ""
 for file in sorted(os.listdir(dir)):
     if file.endswith(".ipynb"):
         file_path = os.path.join(dir, file)
