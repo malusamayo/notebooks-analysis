@@ -511,6 +511,7 @@ class PatternSynthesizer(object):
         self.df2 = DF2.var if type(DF2) == DataFrame else DF2
         self.df1_name = DF1.name if type(DF1) == DataFrame else ""
         self.df2_name = DF2.name if type(DF2) == DataFrame else ""
+        self.cellnum = DF1.cellnum
         # rename columns to str type
         self.cols1 = list(self.df1.columns.astype(str))
         self.cols2 = list(self.df2.columns.astype(str))
@@ -822,7 +823,18 @@ class PatternSynthesizer(object):
             # if col in graph:
             #     src = list(set(self.srccols) & set(graph[col]))
             # else:
-            src = self.srccols
+
+            src = []
+            if col in graph["set"] and self.srccols:
+                set_lines = [lineno for lineno in graph["set"][col] if graph["l2c"][str(lineno)] == self.cellnum]
+                for to_lineno in set_lines:
+                    col2dist = {col: min([to_lineno - lineno for lineno in graph["get"][col] if to_lineno - lineno >=0] + [float("inf")]) 
+                        for col in self.srccols}
+                    minval = min(col2dist.values())
+                    src += [k for k, v in col2dist.items() if v==minval and k not in src]
+            else:
+                src = self.srccols
+                            
             patterns = collections.defaultdict(list)
             for src_col in src:
                 top = self.check_column(df1, df2, src_col, col)

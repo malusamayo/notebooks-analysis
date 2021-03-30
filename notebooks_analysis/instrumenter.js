@@ -36,9 +36,10 @@ for idx, vars in store_vars.items():
         pickle.dump(vars, f)
 def convert(o):
     if isinstance(o, np.int64): return int(o)  
+    if isinstance(o, set): return sorted(list(o))  
     raise TypeError
 with open(os.path.join(tmp_dir_path, "info.json"), "w") as f:
-    f.write(json.dumps({"get": get__keys, "set": set__keys, "graph": {}, "par": pathTracker.partitions}, default=convert))
+    f.write(json.dumps({"get": get__keys, "set": set__keys, "graph": {"get": getter2lines, "set": setter2lines, "l2c": line2cell}, "par": pathTracker.partitions}, default=convert))
 `
 
 function init_lineToCell() {

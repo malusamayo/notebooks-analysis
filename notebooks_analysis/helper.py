@@ -2,10 +2,11 @@ import os, sys, re
 import pandas as pd
 import numpy as np
 import copy as lib_copy
-import inspect, collections, functools
+import collections, functools
 import matplotlib, pickle, json
+from inspect import getframeinfo, stack
 
-from pandas.core.series import Series
+script_path = os.path.realpath(__file__)
 my_dir_path = os.path.dirname(os.path.realpath(__file__))
 ignore_types = [
     "<class 'module'>", "<class 'type'>", "<class 'function'>",
@@ -28,6 +29,9 @@ set__keys = collections.defaultdict(list)
 id2name = {}
 cur_get = []
 graph = collections.defaultdict(list)
+setter2lines = collections.defaultdict(set)
+getter2lines = collections.defaultdict(set)
+line2cell = {}
 # noop = lambda *args, **kwargs: None
 
 def my_store_info(info, var):
@@ -274,13 +278,18 @@ class LibDecorator(object):
             if pd.core.dtypes.common.is_hashable(key) and key not in ls:
                 ls.append(key)
         def decorate(self, key):
-            if type(key) == list:
-                for item in key:
-                    append(item, get__keys[cur_cell])
-                    append(item, cur_get)
-            elif type(key) == str:
-                append(key, get__keys[cur_cell])
-                append(key, cur_get)
+            caller = getframeinfo(stack()[1][0])
+            line2cell[caller.lineno] = cur_cell
+            if script_path.endswith(caller.filename):  
+                if type(key) == list:
+                    for item in key:
+                        append(item, get__keys[cur_cell])
+                        append(item, cur_get)
+                        getter2lines[item].add(caller.lineno)
+                elif type(key) == str:
+                    append(key, get__keys[cur_cell])
+                    append(key, cur_get)
+                    getter2lines[key].add(caller.lineno)
             return method(self, key)
         return decorate
     def set_decorator(self, method):
@@ -288,14 +297,19 @@ class LibDecorator(object):
             if pd.core.dtypes.common.is_hashable(key) and key not in ls:
                 ls.append(key)
         def decorate(self, key, value):
-            if type(key) == list:
-                for item in key:
-                    append(item, set__keys[cur_cell])
-                    graph[item] += cur_get
-            elif type(key) == str:
-                append(key, set__keys[cur_cell])
-                graph[key] += cur_get
-            cur_get.clear()
+            caller = getframeinfo(stack()[1][0])
+            line2cell[caller.lineno] = cur_cell
+            if script_path.endswith(caller.filename):
+                if type(key) == list:
+                    for item in key:
+                        append(item, set__keys[cur_cell])
+                        graph[item] += cur_get
+                        setter2lines[item].add(caller.lineno)
+                elif type(key) == str:
+                    append(key, set__keys[cur_cell])
+                    graph[key] += cur_get            
+                    setter2lines[key].add(caller.lineno)
+                cur_get.clear()
             return method(self, key, value)
         return decorate
     def index_set_decorator(self, method):
@@ -310,16 +324,20 @@ class LibDecorator(object):
                 pathTracker.next_iter()
                 pathTracker.update(int(v), "loc/at")
         def decorate(self, key, value):
-            if hasattr(self, "obj") and type(self.obj) == pd.Series:
-                append(self.obj.name, set__keys[cur_cell])
-                graph[self.obj.name] += cur_get
-                # maybe we could model scalr/slice?
-                if type(key) == pd.Series and key.dtype == bool:
-                    index_model(key, self.obj.index)
-            if hasattr(self, "obj") and type(self.obj) == pd.DataFrame:
-                if type(key) == tuple and type(key[0]) == pd.Series and key[0].dtype == bool:
-                    index_model(key[0], self.obj.index)
-            cur_get.clear()
+            caller = getframeinfo(stack()[1][0])
+            line2cell[caller.lineno] = cur_cell
+            if script_path.endswith(caller.filename):  
+                if hasattr(self, "obj") and type(self.obj) == pd.Series:
+                    append(self.obj.name, set__keys[cur_cell])
+                    graph[self.obj.name] += cur_get
+                    setter2lines[self.obj.name].add(caller.lineno)
+                    # maybe we could model scalr/slice?
+                    if type(key) == pd.Series and key.dtype == bool:
+                        index_model(key, self.obj.index)
+                if hasattr(self, "obj") and type(self.obj) == pd.DataFrame:
+                    if type(key) == tuple and type(key[0]) == pd.Series and key[0].dtype == bool:
+                        index_model(key[0], self.obj.index)
+                cur_get.clear()
             return method(self, key, value)
         return decorate
 
