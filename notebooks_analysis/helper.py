@@ -337,6 +337,8 @@ class LibDecorator(object):
                 if hasattr(self, "obj") and type(self.obj) == pd.DataFrame:
                     if type(key) == tuple and type(key[0]) == pd.Series and key[0].dtype == bool:
                         index_model(key[0], self.obj.index)
+                        if type(key[1]) == str:
+                            setter2lines[key[1]].add(caller.lineno)
                 cur_get.clear()
             return method(self, key, value)
         return decorate

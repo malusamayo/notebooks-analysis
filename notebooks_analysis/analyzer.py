@@ -827,11 +827,14 @@ class PatternSynthesizer(object):
             src = []
             if col in graph["set"] and self.srccols:
                 set_lines = [lineno for lineno in graph["set"][col] if graph["l2c"][str(lineno)] == self.cellnum]
-                for to_lineno in set_lines:
+                if set_lines:
+                    to_lineno = max(set_lines)
                     col2dist = {col: min([to_lineno - lineno for lineno in graph["get"][col] if to_lineno - lineno >=0] + [float("inf")]) 
                         for col in self.srccols}
                     minval = min(col2dist.values())
-                    src += [k for k, v in col2dist.items() if v==minval and k not in src]
+                    src = [k for k, v in col2dist.items() if v==minval]
+                else:
+                    src = self.srccols
             else:
                 src = self.srccols
                             
@@ -1088,11 +1091,15 @@ if __name__ == "__main__":
                     try:
                         myvars.append(
                             dispatch_gen(vars[i][0], vars[i][1][2], vars[i][1][0], vars[i][1][1]))
+                        if type(vars[i][0]) == list and len(vars[i][0]) <= 3:
+                            for j in range(len(vars[i][0])):
+                                myvars.append(
+                                    dispatch_gen(vars[i][0][j], vars[i][1][2] + f"[{j}]", vars[i][1][0], vars[i][1][1]))
                     except:
                         print_error("error when dispatch var " + vars[i][1][2])
                         pass
                 # comments = static_comments[vars[0][1][0]] if vars[0][1][0] in static_comments.keys() else []
-                comment, json_map = handlecell(myvars, 0, len(vars)-1, Info(info, vars[0][1][0]))
+                comment, json_map = handlecell(myvars, 0, len(myvars)-1, Info(info, vars[0][1][0]))
                 # notebook.cells[code_indices[vars[0][1][0] - 1]].source = f"'''\n{comment}\n'''\n" + notebook.cells[code_indices[vars[0][1][0] - 1]].source
                 
                 # distributed
