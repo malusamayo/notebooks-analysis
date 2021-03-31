@@ -188,7 +188,7 @@ function static_analyzer(tree) {
         infer_types(stmt);
         // build_flow_graph(stmt)
         let cols = collect_cols(stmt, pyTypeof);
-        cols.forEach(value => cell_cols.add(value.replace(/['"]+/g, '')));
+        cols.forEach(value => cell_cols.add(String(value).replace(/['"]+/g, '')));
 
         // console.log(printNode(stmt));
 
