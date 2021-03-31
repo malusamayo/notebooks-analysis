@@ -239,39 +239,21 @@ class LibDecorator(object):
         return decorate
 
     def apply_decorator(self, wrapped_method):
-        def decorate(self, func, convert_dtype=True, args=(), **kwds):
+        def decorate(self, *args, **kwargs):
             pathTracker.reset(self.index)
-            if kwds:
-                return wrapped_method(self, func, convert_dtype, args, kwds=kwds)
-            else:
-                return wrapped_method(self, func, convert_dtype, args)
+            return wrapped_method(self, *args, **kwargs)
         return decorate
 
 
     def df_apply_decorator(self, wrapped_method):
-        def decorate(self, func, axis=0, raw=False, result_type=None, args=(), **kwds):
-            if axis == 1 or axis == 'columns':
-                pathTracker.reset(self.index)
-            else:
-                pathTracker.clean()
-            if kwds:
-                return wrapped_method(self, func, axis, raw, result_type, args, kwds=kwds)
-            else:
-                return wrapped_method(self, func, axis, raw, result_type, args)
+        def decorate(self, *args, **kwargs):
+            if "axis" in kwargs:
+                if kwargs["axis"] == 1 or kwargs["axis"] == 'columns':
+                    pathTracker.reset(self.index)
+                else:
+                    pathTracker.clean()
+            return wrapped_method(self, *args, **kwargs)
         return decorate
-
-    # def concat_decorator(self, wrapped_method):
-    #     def decorate(objs, axis=0, join="outer", ignore_index = False, keys=None, levels=None, names=None, verify_integrity = False, sort = False, copy = True):
-    #         if axis == 0:
-    #             ignore_index = True
-    #         return wrapped_method(objs, axis, join, ignore_index, keys, levels, names, verify_integrity, sort, copy)
-    #     return decorate
-
-    # def merge_decorator(self, wrapped_method):
-    #     def decorate(other, ignore_index=False, verify_integrity=False, sort=False):
-    #         ignore_index = True
-    #         return wrapped_method(other, ignore_index, verify_integrity, sort)
-    #     return decorate
 
     def get_decorator(self, method):     
         def append(key, ls):
