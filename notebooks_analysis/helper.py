@@ -28,7 +28,7 @@ get__keys = collections.defaultdict(list)
 set__keys = collections.defaultdict(list)
 id2name = {}
 cur_get = []
-graph = collections.defaultdict(list)
+# graph = collections.defaultdict(list)
 setter2lines = collections.defaultdict(set)
 getter2lines = collections.defaultdict(set)
 line2cell = {}
@@ -285,11 +285,11 @@ class LibDecorator(object):
                 if type(key) == list:
                     for item in key:
                         append(item, set__keys[cur_cell])
-                        graph[item] += cur_get
+                        # graph[item] += cur_get
                         setter2lines[item].add(caller.lineno)
                 elif type(key) == str:
                     append(key, set__keys[cur_cell])
-                    graph[key] += cur_get            
+                    # graph[key] += cur_get            
                     setter2lines[key].add(caller.lineno)
                 cur_get.clear()
             return method(self, key, value)
@@ -311,7 +311,7 @@ class LibDecorator(object):
             if script_path.endswith(caller.filename):  
                 if hasattr(self, "obj") and type(self.obj) == pd.Series:
                     append(self.obj.name, set__keys[cur_cell])
-                    graph[self.obj.name] += cur_get
+                    # graph[self.obj.name] += cur_get
                     setter2lines[self.obj.name].add(caller.lineno)
                     # maybe we could model scalr/slice?
                     if type(key) == pd.Series and key.dtype == bool:
