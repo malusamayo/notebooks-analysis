@@ -817,6 +817,7 @@ class PatternSynthesizer(object):
 
 
     def search(self, df1, df2):
+        all_src = []
         for col in self.colsnew:
             # graph pruning disabled now
 
@@ -837,6 +838,7 @@ class PatternSynthesizer(object):
                     src = self.srccols
             else:
                 src = self.srccols
+            all_src += src
                             
             patterns = collections.defaultdict(list)
             for src_col in src:
@@ -856,6 +858,8 @@ class PatternSynthesizer(object):
             # no src col     
             if not patterns:
                 self.synthesis_append(Pattern.COMPUTE, [self.df1_name], [col])
+
+        self.srccols = [col for col in self.srccols if col in all_src]
 
         for col in self.colschange:
             top = self.check_column(df1, df2, col, col)    
