@@ -175,8 +175,8 @@ class VariableInspectorPanel {
       e.g., [x, y, z, y, x] -> [0, 1, 2, 1, 0]`,
       "one_hot_encoding": `encode column in binary (0/1) integers
       e.g., [x, y, z, y, x] -> col_x [1, 0, 0, 0, 1]
-            [x, y, z, y, x] -> col_x [0, 1, 0, 1, 0]
-            [x, y, z, y, x] -> col_x [0, 0, 1, 0, 0]`,
+            [x, y, z, y, x] -> col_y [0, 1, 0, 1, 0]
+            [x, y, z, y, x] -> col_z [0, 0, 1, 0, 0]`,
       "float": "convert column to float type",
       "type_convert": "convert column type",
       "fillna": `fill null/nan values
@@ -313,7 +313,7 @@ class VariableInspectorPanel {
     let ele = document.createElement("b");
     ele.className = "tomato-text";
     ele.innerHTML = prefix + " columns";
-    sum_words = ele.outerHTML + ": [" + col_names.map(x => x.split('|')[1]) + "]";
+    sum_words = ele.outerHTML + ": [" + [...new Set(col_names.map(x => x.split('|')[1]))] + "]";
     sum_ele = Private.createText(sum_words);
     flow_title.appendChild(sum_ele);
     for (const col_str of col_names) {
@@ -444,7 +444,7 @@ class VariableInspectorPanel {
                 ret += "value set to " + i[0];
               break;
             }
-            let exec = i.slice(0, -1).map(Number);
+            let exec = i[0].map(Number);
             let min = Math.min(...exec);
             exec = exec.map(x => x - min);
             ret += "path: " + String(exec);
@@ -467,7 +467,7 @@ class VariableInspectorPanel {
     df_table.createTFoot();
     df_table.tFoot.className = TABLE_BODY_CLASS;
     let maxlen = Object.keys(content[columns[0]]).length;
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 3; i++) {
       row = df_table.tFoot.insertRow();
       row.style.backgroundColor = "lightgray";
       cell = row.insertCell(0);
@@ -477,8 +477,13 @@ class VariableInspectorPanel {
         cell.style.cursor = "pointer";
       }
       else if (i == 1) {
+        cell.innerHTML = "unique";
+        cell.title = "unique values of the column";
+        cell.style.cursor = "pointer";
+      }
+      else if (i == 2) {
         cell.innerHTML = "range";
-        cell.title = "For object type, N = num of distinct values;\nFor number type: [A, B] = [min, max]";
+        cell.title = "For number type: [A, B] = [min, max]";
         cell.style.cursor = "pointer";
       }
       Private.read_row(row, content, columns, i);
@@ -496,7 +501,7 @@ class VariableInspectorPanel {
       let bounds = [];
       for (let path in markers) {
         paths.push(path);
-        bounds.push(markers[path] + 2);
+        bounds.push(markers[path] + 3);
       }
       bounds.push(maxlen);
       for (let i = 0; i < paths.length; i++) {
