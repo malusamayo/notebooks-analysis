@@ -827,7 +827,7 @@ class PatternSynthesizer(object):
 
             src = []
             if col in graph["set"] and self.srccols:
-                set_lines = [lineno for lineno in graph["set"][col] if graph["l2c"][str(lineno)] == self.cellnum]
+                set_lines = [lineno for lineno in graph["set"][col] if graph["l2c"][str(lineno)] == self.cellnum or lineno == 0]
                 if set_lines:
                     to_lineno = max(set_lines)
                     col2dist = {col: min([to_lineno - lineno for lineno in graph["get"][col] if to_lineno - lineno >=0] + [float("inf")]) 

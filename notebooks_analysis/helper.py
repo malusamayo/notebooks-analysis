@@ -261,17 +261,17 @@ class LibDecorator(object):
                 ls.append(key)
         def decorate(self, key):
             caller = getframeinfo(stack()[1][0])
-            line2cell[caller.lineno] = cur_cell
-            if script_path.endswith(caller.filename):  
-                if type(key) == list:
-                    for item in key:
-                        append(item, get__keys[cur_cell])
-                        append(item, cur_get)
-                        getter2lines[item].add(caller.lineno)
-                elif type(key) == str:
-                    append(key, get__keys[cur_cell])
-                    append(key, cur_get)
-                    getter2lines[key].add(caller.lineno)
+            lineno = caller.lineno if script_path.endswith(caller.filename) else 0  
+            line2cell[lineno] = cur_cell
+            if type(key) == list:
+                for item in key:
+                    append(item, get__keys[cur_cell])
+                    append(item, cur_get)
+                    getter2lines[item].add(lineno)
+            elif type(key) == str:
+                append(key, get__keys[cur_cell])
+                append(key, cur_get)
+                getter2lines[key].add(lineno)
             return method(self, key)
         return decorate
     def set_decorator(self, method):
@@ -280,18 +280,18 @@ class LibDecorator(object):
                 ls.append(key)
         def decorate(self, key, value):
             caller = getframeinfo(stack()[1][0])
-            line2cell[caller.lineno] = cur_cell
-            if script_path.endswith(caller.filename):
-                if type(key) == list:
-                    for item in key:
-                        append(item, set__keys[cur_cell])
-                        # graph[item] += cur_get
-                        setter2lines[item].add(caller.lineno)
-                elif type(key) == str:
-                    append(key, set__keys[cur_cell])
-                    # graph[key] += cur_get            
-                    setter2lines[key].add(caller.lineno)
-                cur_get.clear()
+            lineno = caller.lineno if script_path.endswith(caller.filename) else 0  
+            line2cell[lineno] = cur_cell
+            if type(key) == list:
+                for item in key:
+                    append(item, set__keys[cur_cell])
+                    # graph[item] += cur_get
+                    setter2lines[item].add(lineno)
+            elif type(key) == str:
+                append(key, set__keys[cur_cell])
+                # graph[key] += cur_get            
+                setter2lines[key].add(lineno)
+            cur_get.clear()
             return method(self, key, value)
         return decorate
     def index_set_decorator(self, method):
@@ -307,21 +307,21 @@ class LibDecorator(object):
                 pathTracker.update(int(v), "loc/at")
         def decorate(self, key, value):
             caller = getframeinfo(stack()[1][0])
-            line2cell[caller.lineno] = cur_cell
-            if script_path.endswith(caller.filename):  
-                if hasattr(self, "obj") and type(self.obj) == pd.Series:
-                    append(self.obj.name, set__keys[cur_cell])
-                    # graph[self.obj.name] += cur_get
-                    setter2lines[self.obj.name].add(caller.lineno)
-                    # maybe we could model scalr/slice?
-                    if type(key) == pd.Series and key.dtype == bool:
-                        index_model(key, self.obj.index)
-                if hasattr(self, "obj") and type(self.obj) == pd.DataFrame:
-                    if type(key) == tuple and type(key[0]) == pd.Series and key[0].dtype == bool:
-                        index_model(key[0], self.obj.index)
-                        if type(key[1]) == str:
-                            setter2lines[key[1]].add(caller.lineno)
-                cur_get.clear()
+            lineno = caller.lineno if script_path.endswith(caller.filename) else 0  
+            line2cell[lineno] = cur_cell
+            if hasattr(self, "obj") and type(self.obj) == pd.Series:
+                append(self.obj.name, set__keys[cur_cell])
+                # graph[self.obj.name] += cur_get
+                setter2lines[self.obj.name].add(lineno)
+                # maybe we could model scalr/slice?
+                if type(key) == pd.Series and key.dtype == bool:
+                    index_model(key, self.obj.index)
+            if hasattr(self, "obj") and type(self.obj) == pd.DataFrame:
+                if type(key) == tuple and type(key[0]) == pd.Series and key[0].dtype == bool:
+                    index_model(key[0], self.obj.index)
+                    if type(key[1]) == str:
+                        setter2lines[key[1]].add(lineno)
+            cur_get.clear()
             return method(self, key, value)
         return decorate
 
