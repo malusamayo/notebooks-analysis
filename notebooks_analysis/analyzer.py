@@ -819,12 +819,6 @@ class PatternSynthesizer(object):
     def search(self, df1, df2):
         all_src = []
         for col in self.colsnew:
-            # graph pruning disabled now
-
-            # if col in graph:
-            #     src = list(set(self.srccols) & set(graph[col]))
-            # else:
-
             src = []
             if col in graph["set"] and self.srccols:
                 set_lines = [lineno for lineno in graph["set"][col] if graph["l2c"][str(lineno)] == self.cellnum or lineno == 0]
@@ -859,7 +853,8 @@ class PatternSynthesizer(object):
             if not patterns:
                 self.synthesis_append(Pattern.COMPUTE, [self.df1_name], [col])
 
-        self.srccols = [col for col in self.srccols if col in all_src]
+        if self.colsnew:
+            self.srccols = [col for col in self.srccols if col in all_src]
 
         for col in self.colschange:
             top = self.check_column(df1, df2, col, col)    
