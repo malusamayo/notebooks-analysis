@@ -63,7 +63,10 @@ def execute_script():
         for line in f:
             if line.startswith("get_ipython") or line.startswith("display("):
                 line = "# " + line
-            content += line
+            if line.startswith("from __future__"):
+                content = line + content
+            else:
+                content += line
         f.seek(0)
         f.truncate()
         f.write(content)
