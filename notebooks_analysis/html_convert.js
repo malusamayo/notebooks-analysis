@@ -11,6 +11,8 @@ var fs = require('fs');
 const jsdom = require("jsdom");
 const { JSDOM } = jsdom;
 const { document } = (new JSDOM(`...`)).window;
+const JSON5 = require('json5')
+
 const path = require('path');
 let args = process.argv.slice(2);
 let dir = args[0].slice(0, -6) + path.sep;
@@ -397,7 +399,7 @@ class VariableInspectorPanel {
     ret = "Cluster No." + String(num) + "\n";
     ret += "Size: " + String(size) + "\n";
     ret += "Paths:\n";
-    let items = JSON.parse(path.replace(/'/g, '"'));
+    let items = JSON5.parse(path);
     for (let i of items) {
       let f_name = i[i.length - 1];
       ret += "\t" + f_name.replace("default_", "") + ": ";
