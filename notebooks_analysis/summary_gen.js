@@ -20,6 +20,7 @@ let ENDS = "</HTML>"
 
 let script = ["notebooks_analysis", "html_convert.js"].join(path.sep);
 
+
 const getDirectories = source =>
 	readdirSync(source, { withFileTypes: true })
 		.filter(dirent => dirent.isDirectory())
@@ -78,7 +79,7 @@ dirs.forEach(dir => {
 		// generate summary
 		readdirSync(dir).filter(file => file.startsWith("result")).sort().forEach(file => {
 			let data = JSON.parse(readFileSync(path.join(dir, file)));
-			let cell_num = file.match(/\d+/)[0];
+			let cell_num = file.match(/\d+/)[0].padStart(3, "0");
 
 			Object.keys(data.summary).forEach(k => {
 				generateSummary(data.summary[k], nb_html + "#" + cell_num);
@@ -87,20 +88,46 @@ dirs.forEach(dir => {
 	}
 });
 
-
 let output_html = STARTS;
 
-// sampling cells
-let sampled_cells = []
-output_html += "<h1>" + "Sampled Cells:" + "</h1><br>";
-while (sampled_cells.length < 20) {
+// sampling code
+output_html += `
+<script>
+function sample(all_cells) {
+  let sampled_cells = []
+  while (sampled_cells.length < 10) {
 	const file_name = all_cells[Math.floor(Math.random() * all_cells.length)];
 	if (!sampled_cells.includes(file_name))
-		sampled_cells.push(file_name);
+	  sampled_cells.push(file_name);
+  }
+  return sampled_cells;
 }
+let cells = ${JSON.stringify(all_cells)};
+</script>
+<h1>Sampled Cells:</h1>
+<button
+onclick="let sp = sample(cells).sort();Array.from(document.getElementById('sampled_cells').children).filter(x => x.nodeName !='BR').forEach((x, i)=> {let new_x = document.createElement('a'); new_x.href=sp[i]; new_x.innerText=sp[i]; new_x.target = 'SourceFrame'; x.outerHTML = new_x.outerHTML;});">
+Resample</button><br>
+`
+
+
+// sampling cells
+function sample(all_cells) {
+	let sampled_cells = []
+	while (sampled_cells.length < 10) {
+		const file_name = all_cells[Math.floor(Math.random() * all_cells.length)];
+		if (!sampled_cells.includes(file_name))
+			sampled_cells.push(file_name);
+	}
+	return sampled_cells;
+}
+
+let sampled_cells = sample(all_cells);
+output_html += `<div id="sampled_cells">`;
 sampled_cells.sort().forEach(file_name => {
 	output_html += '<FONT CLASS="FrameItemFont"><A HREF="' + file_name + '" TARGET="SourceFrame">' + file_name + '</A></FONT><BR>\n';
-})
+});
+output_html += '</div>';
 
 // pattern list
 output_html += "<br><h1>" + "Full Pattern List:" + "</h1><br>";

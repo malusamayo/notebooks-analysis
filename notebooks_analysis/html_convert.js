@@ -662,7 +662,7 @@ fs.readdir(dir, (err, files) => {
     v.onInspectorUpdate(data);
 
     let anchor = document.createElement("a");
-    anchor.id = cell_num;
+    anchor.id = cell_num.padStart(3, "0");
     anchor.appendChild(v.node)
 
     insert_list.push({ "cell_num": Number(cell_num), "node": anchor });
