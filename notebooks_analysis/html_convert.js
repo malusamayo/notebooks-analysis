@@ -24,6 +24,7 @@ let header = `<head>
 <link rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.0.3/styles/default.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.0.3/highlight.min.js"></script>
+<script src="https://kit.fontawesome.com/e787e986bb.js" crossorigin="anonymous"></script>
 <script>hljs.initHighlightingOnLoad();</script>
 <style type="text/css">
       .jp-VarInspector {
@@ -150,6 +151,7 @@ let header = `<head>
         background-color: black;
       }
     </style>
+</head>
 `
 
 
@@ -249,10 +251,6 @@ class VariableInspectorPanel {
       this.buttons.set(name, Private.createButton(name));
       this.buttons.get(name).title = "show details";
     }
-    // add icon lib
-    let v = document.createElement("p");
-    v.innerHTML = `<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">`;
-    this.node.appendChild(v);
     let summary_title = this.titles.get("SUMMARY");
     let _input_title = this.titles.get("INPUTS");
     let _output_title = this.titles.get("OUTPUTS");
@@ -367,7 +365,7 @@ class VariableInspectorPanel {
           sum_words = ele.outerHTML + ": [" + cols[0] + "] to [" + cols[1] + "]\n";
         }
         if ("copy" in pattern) {
-          ele.innerHTML = "copy dataframe";
+          ele.innerHTML = "copy (no change)";
           sum_words = ele.outerHTML;
         }
         let sum_ele = Private.createText(sum_words);
@@ -553,6 +551,8 @@ var Private;
         cell.innerHTML = escapeHTML(content[col][idx]);
       else
         cell.innerHTML = escapeHTML(JSON.stringify(content[col][idx]));
+      cell.innerHTML = cell.innerHTML.replace("null", `<span style="color:red;">null</span>`);
+      cell.innerHTML = cell.innerHTML.replace("nan", `<span style="color:red;">nan</span>`);
       if (col.endsWith("-[auto]") || deleted) {
         cell.innerHTML = `<s>${cell.innerHTML}</s>`;
         cell.addEventListener("click", function () {
@@ -661,7 +661,11 @@ fs.readdir(dir, (err, files) => {
     let cell_num = file.match(/\d+/)[0];
     v.onInspectorUpdate(data);
 
-    insert_list.push({ "cell_num": Number(cell_num), "node": v.node });
+    let anchor = document.createElement("a");
+    anchor.id = cell_num;
+    anchor.appendChild(v.node)
+
+    insert_list.push({ "cell_num": Number(cell_num), "node": anchor });
     // let code = fs.readFileSync(dir + `code_${cell_num}.py`).toString();
     // let codeNode = document.createElement("pre");
     // codeNode.innerHTML = `<code class="python">${code}</code>`;
