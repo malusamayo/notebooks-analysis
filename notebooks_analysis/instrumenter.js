@@ -28,6 +28,7 @@ let stmt_ends_line = new Set();
 let pyTypeof = new Map();
 
 const trace_into_line = head_str.split("\n").findIndex(x => x.startsWith("TRACE_INTO"));
+const init_lineno = head_str.split("\n").findIndex(x => x.startsWith("lineno = 0"));
 let write_str =
     `
 tmp_dir_path = os.path.join(my_dir_path, "${filename_no_suffix}")
@@ -364,9 +365,9 @@ function insert_print_stmt(code) {
         lines[item[0] - 1] = space + item[2].join("\n" + space);
         for (let i = item[0]; i < item[1]; i++)
             lines[i] = ""
-        if (stmt_ends_line.has(item[1])) {
-            stmt_ends_line.delete(item[1]);
-            stmt_ends_line.add(item[0]);
+        let to_replaced = stmt_ends_line.indexOf(item[1])
+        if (to_replaced != -1) {
+            stmt_ends_line[to_replaced] = item[0];
         }
     }
     for (let i = 0; i < max_line; i++) {
@@ -397,8 +398,9 @@ function insert_print_stmt(code) {
             lines[i] = space + "@func_info_saver(" + (i + 1) + ")\n" + lines[i]
         }
         // add lineno update
-        if (stmt_ends_line.has(i + 1)) {
-            lines[i] += "; lineno = " + String(i + 1)
+        let target = stmt_ends_line.indexOf(i + 1)
+        if (target != -1 && target != stmt_ends_line.length - 1) {
+            lines[i] += "; lineno = " + stmt_ends_line[target + 1];
         }
     }
     lines[max_line - 1] += write_str;
@@ -423,10 +425,13 @@ function insert_print_stmt(code) {
 
 init_lineToCell();
 let comments = compute_flow_vars(text);
+// to array and sort
+stmt_ends_line = Array.from(stmt_ends_line).sort((a, b) => a - b)
 // set up trace functions
 let def_str = "TRACE_INTO = [" + def_list.map(x => "'" + x + "'").join(",") + "]";
 head_str = head_str.split("\n")
 head_str[trace_into_line] = def_str
+head_str[init_lineno] = "lineno = " + String(stmt_ends_line[0])
 head_str = head_str.join("\n") + "\n"
 // insert save stmt
 let modified_text = insert_print_stmt(text);
