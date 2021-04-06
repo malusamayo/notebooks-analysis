@@ -28,11 +28,10 @@ get__keys = collections.defaultdict(list)
 set__keys = collections.defaultdict(list)
 id2name = {}
 access_path = []
-lineno = 0
 # noop = lambda *args, **kwargs: None
 
-def update_access(col, lineno, is_set):
-    tup = (col, cur_cell, lineno, is_set)
+def update_access(col, is_set):
+    tup = (col, cur_cell, is_set)
     if tup not in access_path:
         access_path.append(tup)
 
@@ -275,10 +274,10 @@ class LibDecorator(object):
             if type(key) == list:
                 for item in key:
                     append(item, get__keys[cur_cell])
-                    update_access(item, lineno, False)
+                    update_access(item, False)
             elif type(key) == str:
                 append(key, get__keys[cur_cell])
-                update_access(key, lineno, False)
+                update_access(key, False)
             return method(self, key)
         return decorate
     def set_decorator(self, method):
@@ -291,10 +290,10 @@ class LibDecorator(object):
             if type(key) == list:
                 for item in key:
                     append(item, set__keys[cur_cell])
-                    update_access(item, lineno, True)
+                    update_access(item, True)
             elif type(key) == str:
                 append(key, set__keys[cur_cell])
-                update_access(key, lineno, True)
+                update_access(key, True)
             return method(self, key, value)
         return decorate
     def index_set_decorator(self, method):
@@ -313,7 +312,7 @@ class LibDecorator(object):
             # lineno = caller.lineno if script_path.endswith(caller.filename) else 0
             if hasattr(self, "obj") and type(self.obj) == pd.Series:
                 append(self.obj.name, set__keys[cur_cell])
-                update_access(self.obj.name, lineno, True)
+                update_access(self.obj.name, True)
                 # maybe we could model scalr/slice?
                 if type(key) == pd.Series and key.dtype == bool:
                     index_model(key, self.obj.index)
@@ -321,7 +320,7 @@ class LibDecorator(object):
                 if type(key) == tuple and type(key[0]) == pd.Series and key[0].dtype == bool:
                     index_model(key[0], self.obj.index)
                     if type(key[1]) == str:
-                        update_access(key[1], lineno, True)
+                        update_access(key[1], True)
             return method(self, key, value)
         return decorate
 

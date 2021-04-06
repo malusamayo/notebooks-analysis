@@ -591,7 +591,8 @@ class PatternSynthesizer(object):
                     else:
                         res.append(Pattern.ENCODE)
 
-        if df1[from_col].nunique() > df2[to_col].nunique():
+        # carefully handling na in a column
+        if df1[from_col].nunique() > len(df2[to_col].unique()):
             res.append(Pattern.MERGE)
         elif self.check_num(df1, from_col):
             res.append(Pattern.NTRAN)
@@ -821,15 +822,22 @@ class PatternSynthesizer(object):
         for col in self.colsnew:
             src = []
             if self.srccols:
-                set_idxes = [i for i, acc in enumerate(access_path) if acc[0] == col and acc[1] == self.cellnum and acc[3] == True]
-                get_idxes = [i for i, acc in enumerate(access_path) if acc[0] in self.srccols and acc[1] <= self.cellnum and acc[3] == False]
+                set_idxes = [i for i, acc in enumerate(access_path) if acc[0] == col and acc[1] == self.cellnum and acc[2] == True]
+                get_idxes = [i for i, acc in enumerate(access_path) if acc[0] in self.srccols and acc[1] <= self.cellnum and acc[2] == False]
                 for set_idx in set_idxes:
-                    filtered_get_idxes = [i for i in get_idxes if i<=set_idx]
-                    lineno = access_path[filtered_get_idxes[-1]][2]
-                    src_candidates = [access_path[i][0] for i in filtered_get_idxes if access_path[i][2] == lineno]
-                    for candiate in src_candidates:
-                        if candiate not in src:
-                            src.append(candiate)
+                    get_idx = set_idx - 1
+                    while get_idx >= 0:
+                        if get_idx in get_idxes and access_path[get_idx][0] not in src:
+                            src.append(access_path[get_idx][0])
+                            break
+                        get_idx -= 1
+                    # filtered_get_idxes = [i for i in get_idxes if i<=set_idx]
+                    # lineno = access_path[filtered_get_idxes[-1]][2]
+                    # src_candidates = [access_path[i][0] for i in filtered_get_idxes if access_path[i][2] == lineno]
+                    # for candiate in src_candidates:
+                    #     if candiate not in src:
+                    #         src.append(candiate)
+
                     # while get_idx >= 0 and access_path[get_idx][0] not in self.srccols:
                     #     get_idx -= 1
                     # if get_idx < 0:
@@ -901,7 +909,7 @@ class PatternSynthesizer(object):
         if len(df1) > len(df2):
             return False
         if not df1.index.equals(df2.index):
-            print_error("mismatched index for " + self.df1_name + " and " + self.df2_name)
+            print_error(f"{self.cellnum}: mismatched index for {self.df1_name} and {self.df2_name}")
             return False
         self.check_removecol(df1, df2)
         self.check_rearrange(df1, df2)
