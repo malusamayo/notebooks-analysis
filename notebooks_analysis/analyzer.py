@@ -34,7 +34,7 @@ json_out_path = os.path.join(data_path, "result.json")
 
 blanks = "\t- "
 postfix = "[auto]"
-graph = collections.defaultdict(list)
+access_path = []
 
 ### sample
 '''
@@ -820,17 +820,36 @@ class PatternSynthesizer(object):
         all_src = []
         for col in self.colsnew:
             src = []
-            if col in graph["set"] and self.srccols:
-                set_lines = [lineno for lineno in graph["set"][col] if graph["l2c"][str(lineno)] == self.cellnum or lineno == 0]
-                if set_lines:
-                    to_lineno = max(set_lines)
-                    col2dist = {col: min([to_lineno - lineno for lineno in graph["get"][col] if to_lineno - lineno >=0] + [float("inf")]) 
-                        for col in self.srccols}
-                    minval = min(col2dist.values())
-                    src = [k for k, v in col2dist.items() if v==minval]
-                else:
-                    src = self.srccols
-            else:
+            if self.srccols:
+                set_idxes = [i for i, acc in enumerate(access_path) if acc[0] == col and acc[1] == self.cellnum and acc[3] == True]
+                get_idxes = [i for i, acc in enumerate(access_path) if acc[0] in self.srccols and acc[1] <= self.cellnum and acc[3] == False]
+                for set_idx in set_idxes:
+                    filtered_get_idxes = [i for i in get_idxes if i<=set_idx]
+                    lineno = access_path[filtered_get_idxes[-1]][2]
+                    src_candidates = [access_path[i][0] for i in filtered_get_idxes if access_path[i][2] == lineno]
+                    for candiate in src_candidates:
+                        if candiate not in src:
+                            src.append(candiate)
+                    # while get_idx >= 0 and access_path[get_idx][0] not in self.srccols:
+                    #     get_idx -= 1
+                    # if get_idx < 0:
+                    #     break
+                    # cond = lambda idx: idx >= 0 and access_path[idx][3] == False
+                    # lineno = access_path[get_idx][2]
+                    # while cond(get_idx) and access_path[get_idx][2] == lineno:
+                    #     src.append(access_path[get_idx][0])
+                    #     get_idx -= 1
+
+                # set_lines = [lineno for lineno in graph["set"][col] if graph["l2c"][str(lineno)] == self.cellnum or lineno == 0]
+                # if set_lines:
+                #     to_lineno = max(set_lines)
+                #     col2dist = {col: min([to_lineno - lineno for lineno in graph["get"][col] if to_lineno - lineno >=0] + [float("inf")]) 
+                #         for col in self.srccols}
+                #     minval = min(col2dist.values())
+                #     src = [k for k, v in col2dist.items() if v==minval]
+                # else:
+                #     src = self.srccols
+            if not src:
                 src = self.srccols
             all_src += src
                             
@@ -1072,7 +1091,7 @@ if __name__ == "__main__":
     # funcs = {}
     with open(os.path.join(data_path, "info.json"), 'r') as j:
         info = json.loads(j.read())
-    graph = info["graph"]
+    access_path = info["graph"]
 
 
     for file in sorted(os.listdir(data_path)):

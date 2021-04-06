@@ -16,7 +16,7 @@ reset_index_types = [
     "<class 'pandas.core.indexes.range.RangeIndex'>", "<class 'pandas.core.indexes.numeric.Int64Index'>"
 ]
 
-TRACE_INTO = []
+TRACE_INTO = ['to_nan']
 
 matplotlib.use('Agg')
 
@@ -27,21 +27,20 @@ cur_exe = []
 get__keys = collections.defaultdict(list)
 set__keys = collections.defaultdict(list)
 id2name = {}
-cur_get = []
-# graph = collections.defaultdict(list)
-setter2lines = collections.defaultdict(set)
-getter2lines = collections.defaultdict(set)
-line2cell = {}
+access_path = []
 # noop = lambda *args, **kwargs: None
+
+def update_access(col, lineno, is_set):
+    tup = (col, cur_cell, lineno, is_set)
+    if tup not in access_path:
+        access_path.append(tup)
 
 def my_store_info(info, var):
     if str(type(var)) in ignore_types:
         return
     if type(var) in [pd.DataFrame] and info[1] == 0:
         if str(type(var.index)) in reset_index_types:
-            saved_name = var.index.name
             var.reset_index(inplace=True, drop=True)
-            var.index.rename(saved_name, inplace=True)
         id2name[id(var.index)] = info[2]
     store_vars[info[0]].append((wrap_copy(var), info))
 
@@ -141,7 +140,9 @@ class LibDecorator(object):
     def __init__(self):
         super().__init__()
         pd.DataFrame.__getitem__ = self.get_decorator(pd.DataFrame.__getitem__)
+        pd.Series.__getitem__ = self.get_decorator(pd.Series.__getitem__)
         pd.DataFrame.__setitem__ = self.set_decorator(pd.DataFrame.__setitem__)
+        pd.Series.__setitem__ = self.get_decorator(pd.Series.__setitem__)
         pd.core.indexing._LocationIndexer.__setitem__ = self.index_set_decorator(pd.core.indexing._LocationIndexer.__setitem__)
         pd.core.indexing._ScalarAccessIndexer.__setitem__ = self.index_set_decorator(pd.core.indexing._ScalarAccessIndexer.__setitem__)
         pd.Series.replace = self.replace_decorator(pd.Series.replace)
@@ -210,8 +211,6 @@ class LibDecorator(object):
                     pathTracker.update(int(v), "fillna")
             else:
                 self.map(lambda x: f(x, value))
-            if inplace:
-                cur_get.clear()
             return wrapped_method(self, value, method, axis, inplace, limit, downcast)
         return decorate
 
@@ -263,17 +262,14 @@ class LibDecorator(object):
                 ls.append(key)
         def decorate(self, key):
             caller = getframeinfo(stack()[1][0])
-            lineno = caller.lineno if script_path.endswith(caller.filename) else 0  
-            line2cell[lineno] = cur_cell
+            lineno = caller.lineno if script_path.endswith(caller.filename) else 0
             if type(key) == list:
                 for item in key:
                     append(item, get__keys[cur_cell])
-                    append(item, cur_get)
-                    getter2lines[item].add(lineno)
+                    update_access(item, lineno, False)
             elif type(key) == str:
                 append(key, get__keys[cur_cell])
-                append(key, cur_get)
-                getter2lines[key].add(lineno)
+                update_access(key, lineno, False)
             return method(self, key)
         return decorate
     def set_decorator(self, method):
@@ -283,17 +279,13 @@ class LibDecorator(object):
         def decorate(self, key, value):
             caller = getframeinfo(stack()[1][0])
             lineno = caller.lineno if script_path.endswith(caller.filename) else 0  
-            line2cell[lineno] = cur_cell
             if type(key) == list:
                 for item in key:
                     append(item, set__keys[cur_cell])
-                    # graph[item] += cur_get
-                    setter2lines[item].add(lineno)
+                    update_access(item, lineno, True)
             elif type(key) == str:
                 append(key, set__keys[cur_cell])
-                # graph[key] += cur_get            
-                setter2lines[key].add(lineno)
-            cur_get.clear()
+                update_access(key, lineno, True)
             return method(self, key, value)
         return decorate
     def index_set_decorator(self, method):
@@ -309,12 +301,10 @@ class LibDecorator(object):
                 pathTracker.update(int(v), "loc/at")
         def decorate(self, key, value):
             caller = getframeinfo(stack()[1][0])
-            lineno = caller.lineno if script_path.endswith(caller.filename) else 0  
-            line2cell[lineno] = cur_cell
+            lineno = caller.lineno if script_path.endswith(caller.filename) else 0
             if hasattr(self, "obj") and type(self.obj) == pd.Series:
                 append(self.obj.name, set__keys[cur_cell])
-                # graph[self.obj.name] += cur_get
-                setter2lines[self.obj.name].add(lineno)
+                update_access(self.obj.name, lineno, True)
                 # maybe we could model scalr/slice?
                 if type(key) == pd.Series and key.dtype == bool:
                     index_model(key, self.obj.index)
@@ -322,8 +312,7 @@ class LibDecorator(object):
                 if type(key) == tuple and type(key[0]) == pd.Series and key[0].dtype == bool:
                     index_model(key[0], self.obj.index)
                     if type(key[1]) == str:
-                        setter2lines[key[1]].add(lineno)
-            cur_get.clear()
+                        update_access(key[1], lineno, True)
             return method(self, key, value)
         return decorate
 
@@ -366,7 +355,6 @@ class PathTracker(object):
                 row_eq[i][str(v)].append(k)
         self.partitions[cur_cell] = row_eq
         self.paths.clear()
-        cur_get.clear()
 
     def trace_lines(self, frame, event, arg):
         if event != 'line':
