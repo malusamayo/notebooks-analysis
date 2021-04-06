@@ -28,6 +28,7 @@ get__keys = collections.defaultdict(list)
 set__keys = collections.defaultdict(list)
 id2name = {}
 access_path = []
+lineno = 0
 # noop = lambda *args, **kwargs: None
 
 def update_access(col, lineno, is_set):
@@ -87,6 +88,14 @@ def func_info_saver(line):
 
             # should make sure it is inside map/apply
             rets = func(*args, **kwargs)
+            
+            cond = lambda arg: pd.api.types.is_numeric_dtype(type(arg)) and np.isnan(arg)
+            if any(cond(arg) for arg in args):
+                if not cond(rets):
+                    pathTracker.update(1, "fillna")
+                else:
+                    pathTracker.update(0, "fillna")
+
             # convert back to str
             if type(rets) == MyStr:
                 rets = str(rets)
@@ -261,8 +270,8 @@ class LibDecorator(object):
             if pd.core.dtypes.common.is_hashable(key) and key not in ls:
                 ls.append(key)
         def decorate(self, key):
-            caller = getframeinfo(stack()[1][0])
-            lineno = caller.lineno if script_path.endswith(caller.filename) else 0
+            # caller = getframeinfo(stack()[1][0])
+            # lineno = caller.lineno if script_path.endswith(caller.filename) else 0
             if type(key) == list:
                 for item in key:
                     append(item, get__keys[cur_cell])
@@ -277,8 +286,8 @@ class LibDecorator(object):
             if pd.core.dtypes.common.is_hashable(key) and key not in ls:
                 ls.append(key)
         def decorate(self, key, value):
-            caller = getframeinfo(stack()[1][0])
-            lineno = caller.lineno if script_path.endswith(caller.filename) else 0  
+            # caller = getframeinfo(stack()[1][0])
+            # lineno = caller.lineno if script_path.endswith(caller.filename) else 0  
             if type(key) == list:
                 for item in key:
                     append(item, set__keys[cur_cell])
@@ -300,8 +309,8 @@ class LibDecorator(object):
                 pathTracker.next_iter()
                 pathTracker.update(int(v), "loc/at")
         def decorate(self, key, value):
-            caller = getframeinfo(stack()[1][0])
-            lineno = caller.lineno if script_path.endswith(caller.filename) else 0
+            # caller = getframeinfo(stack()[1][0])
+            # lineno = caller.lineno if script_path.endswith(caller.filename) else 0
             if hasattr(self, "obj") and type(self.obj) == pd.Series:
                 append(self.obj.name, set__keys[cur_cell])
                 update_access(self.obj.name, lineno, True)
