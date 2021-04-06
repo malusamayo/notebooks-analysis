@@ -7,6 +7,7 @@ const { assert } = require("console");
 const { wrap_methods, collect_defs, collect_cols } = require('./method-wrapper');
 const { createExportDeclaration } = require("typescript");
 const { has } = require("lodash");
+const { stringifyConfiguration } = require("tslint/lib/configuration");
 
 let args = process.argv.slice(2);
 let path = args[0];
@@ -22,6 +23,7 @@ let outs = new Map();
 let replace_strs = [];
 let head_str = fs.readFileSync(PATH.join("notebooks_analysis", "helper.py")).toString();
 let def_list = [];
+let stmt_ends_line = new Set();
 
 let pyTypeof = new Map();
 
@@ -185,6 +187,8 @@ function static_analyzer(tree) {
 
     for (let [_, stmt] of tree.code.entries()) {
         // console.log(printNode(stmt));
+        if (!['import', 'def'].includes(stmt.type))
+            stmt_ends_line.add(stmt.location.last_line);
         infer_types(stmt);
         // build_flow_graph(stmt)
         let cols = collect_cols(stmt, pyTypeof);
@@ -350,7 +354,7 @@ except NameError:
 }
 
 function insert_print_stmt(code) {
-    let lines = code.split("\n");
+    let lines = code.split("\n").map(x => x.trimEnd());
     let max_line = lines.length;
     let cur_cell = 0;
     lines[0] = head_str + lines[0];
@@ -360,6 +364,10 @@ function insert_print_stmt(code) {
         lines[item[0] - 1] = space + item[2].join("\n" + space);
         for (let i = item[0]; i < item[1]; i++)
             lines[i] = ""
+        if (stmt_ends_line.has(item[1])) {
+            stmt_ends_line.delete(item[1]);
+            stmt_ends_line.add(item[0]);
+        }
     }
     for (let i = 0; i < max_line; i++) {
         if (lines[i].startsWith('# In[')) {
@@ -387,6 +395,10 @@ function insert_print_stmt(code) {
         let space = " ".repeat((lines[i].length - lines[i].trimLeft().length))
         if (lines[i].trim().startsWith("def ")) {
             lines[i] = space + "@func_info_saver(" + (i + 1) + ")\n" + lines[i]
+        }
+        // add lineno update
+        if (stmt_ends_line.has(i + 1)) {
+            lines[i] += "; lineno = " + String(i + 1)
         }
     }
     lines[max_line - 1] += write_str;
