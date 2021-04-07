@@ -41,7 +41,9 @@ def my_store_info(info, var):
         return
     if type(var) in [pd.DataFrame] and info[1] == 0:
         if str(type(var.index)) in reset_index_types:
+            saved_name = var.index.name
             var.reset_index(inplace=True, drop=True)
+            var.index.rename(saved_name, inplace=True)
         id2name[id(var.index)] = info[2]
     store_vars[info[0]].append((wrap_copy(var), info))
 
@@ -151,7 +153,7 @@ class LibDecorator(object):
         pd.DataFrame.__getitem__ = self.get_decorator(pd.DataFrame.__getitem__)
         pd.Series.__getitem__ = self.get_decorator(pd.Series.__getitem__)
         pd.DataFrame.__setitem__ = self.set_decorator(pd.DataFrame.__setitem__)
-        pd.Series.__setitem__ = self.get_decorator(pd.Series.__setitem__)
+        pd.Series.__setitem__ = self.set_decorator(pd.Series.__setitem__)
         pd.core.indexing._LocationIndexer.__setitem__ = self.index_set_decorator(pd.core.indexing._LocationIndexer.__setitem__)
         pd.core.indexing._ScalarAccessIndexer.__setitem__ = self.index_set_decorator(pd.core.indexing._ScalarAccessIndexer.__setitem__)
         pd.Series.replace = self.replace_decorator(pd.Series.replace)
