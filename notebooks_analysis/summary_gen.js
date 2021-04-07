@@ -119,13 +119,14 @@ function gen_html_page(testFolder) {
 	});
 
 	let output_html = STARTS;
+	sample_num = Math.max(sample_num, all_cells.length)
 
 	// sampling code
 	output_html += `
 <a href="index.html"><h3><i class="fas fa-backward"></i> Go to MainPage</h3></a>
 <script>
 function sample(all_cells) {
-  let sampled_cells = []
+  let sampled_cells = [];
   while (sampled_cells.length < ${sample_num}) {
 	const file_name = all_cells[Math.floor(Math.random() * all_cells.length)];
 	if (!sampled_cells.includes(file_name))

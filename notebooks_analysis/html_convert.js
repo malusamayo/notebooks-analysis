@@ -366,6 +366,10 @@ class VariableInspectorPanel {
           ele.innerHTML = "rearrange columns";
           sum_words = ele.outerHTML + ": [" + cols[0] + "] to [" + cols[1] + "]\n";
         }
+        if ("rearrange_row" in pattern) {
+          ele.innerHTML = "rearrange rows";
+          sum_words = ele.outerHTML;
+        }
         if ("copy" in pattern) {
           ele.innerHTML = "copy (no change)";
           sum_words = ele.outerHTML;
