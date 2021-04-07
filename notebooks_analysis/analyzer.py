@@ -835,15 +835,23 @@ class PatternSynthesizer(object):
     def get_src(self, col):
         src = []
         if self.srccols:
-            set_idxes = [i for i, acc in enumerate(access_path) if acc[0] == col and acc[1] == self.cellnum and acc[2] == True]
-            get_idxes = [i for i, acc in enumerate(access_path) if acc[0] in self.srccols and acc[1] <= self.cellnum and acc[2] == False]
+            set_idxes = [i for i, acc in enumerate(access_path) if acc[0] == col and acc[1] == self.cellnum and acc[3] == True]
+            get_idxes = [i for i, acc in enumerate(access_path) if acc[0] in self.srccols and acc[1] <= self.cellnum and acc[3] == False]
+            # set_idxes = [i for i, acc in enumerate(access_path) if acc[0] == col and acc[1] == self.cellnum and acc[2] == True]
+            # get_idxes = [i for i, acc in enumerate(access_path) if acc[0] in self.srccols and acc[1] <= self.cellnum and acc[2] == False]
             for set_idx in set_idxes:
-                get_idx = set_idx - 1
-                while get_idx >= 0:
-                    if get_idx in get_idxes and access_path[get_idx][0] not in src:
-                        src.append(access_path[get_idx][0])
-                        break
-                    get_idx -= 1
+                filtered_get_idxes = [i for i in get_idxes if i<=set_idx]
+                lineno = access_path[filtered_get_idxes[-1]][2]
+                src_candidates = [access_path[i][0] for i in filtered_get_idxes if access_path[i][2] == lineno]
+                for candiate in src_candidates:
+                    if candiate not in src:
+                        src.append(candiate)
+                # get_idx = set_idx - 1
+                # while get_idx >= 0:
+                #     if get_idx in get_idxes and access_path[get_idx][0] not in src:
+                #         src.append(access_path[get_idx][0])
+                #         break
+                #     get_idx -= 1
         if not src:
             src = self.srccols
         return src
@@ -856,7 +864,7 @@ class PatternSynthesizer(object):
         all_src = []
         
         while one_hots:        
-            s = pd.Series(np.zeros(len(df2)), dtype=int)
+            s = pd.Series(np.zeros(len(df2)), dtype=int, index = df2.index)
             candidates = []
             for col in one_hots:
                 if (s.loc[df2[col] == 1] == 0).all():

@@ -16,7 +16,7 @@ reset_index_types = [
     "<class 'pandas.core.indexes.range.RangeIndex'>", "<class 'pandas.core.indexes.numeric.Int64Index'>"
 ]
 
-TRACE_INTO = ['to_nan']
+TRACE_INTO = []
 
 matplotlib.use('Agg')
 
@@ -28,10 +28,11 @@ get__keys = collections.defaultdict(list)
 set__keys = collections.defaultdict(list)
 id2name = {}
 access_path = []
+lineno = 0
 # noop = lambda *args, **kwargs: None
 
 def update_access(col, is_set):
-    tup = (col, cur_cell, is_set)
+    tup = (col, cur_cell, lineno, is_set)
     if tup not in access_path:
         access_path.append(tup)
 
@@ -268,7 +269,7 @@ class LibDecorator(object):
         def append(key, ls):
             if pd.core.dtypes.common.is_hashable(key) and key not in ls:
                 ls.append(key)
-        def decorate(self, key):
+        def decorate_acc(self, key):
             # caller = getframeinfo(stack()[1][0])
             # lineno = caller.lineno if script_path.endswith(caller.filename) else 0
             if type(key) == list:
@@ -279,12 +280,12 @@ class LibDecorator(object):
                 append(key, get__keys[cur_cell])
                 update_access(key, False)
             return method(self, key)
-        return decorate
+        return decorate_acc
     def set_decorator(self, method):
         def append(key, ls):
             if pd.core.dtypes.common.is_hashable(key) and key not in ls:
                 ls.append(key)
-        def decorate(self, key, value):
+        def decorate_acc(self, key, value):
             # caller = getframeinfo(stack()[1][0])
             # lineno = caller.lineno if script_path.endswith(caller.filename) else 0  
             if type(key) == list:
@@ -295,7 +296,7 @@ class LibDecorator(object):
                 append(key, set__keys[cur_cell])
                 update_access(key, True)
             return method(self, key, value)
-        return decorate
+        return decorate_acc
     def index_set_decorator(self, method):
         def append(key, ls):
             if pd.core.dtypes.common.is_hashable(key) and key not in ls:
@@ -307,7 +308,7 @@ class LibDecorator(object):
             for i, v in enumerate(key):
                 pathTracker.next_iter()
                 pathTracker.update(int(v), "loc/at")
-        def decorate(self, key, value):
+        def decorate_acc(self, key, value):
             # caller = getframeinfo(stack()[1][0])
             # lineno = caller.lineno if script_path.endswith(caller.filename) else 0
             if hasattr(self, "obj") and type(self.obj) == pd.Series:
@@ -322,7 +323,7 @@ class LibDecorator(object):
                     if type(key[1]) == str:
                         update_access(key[1], True)
             return method(self, key, value)
-        return decorate
+        return decorate_acc
 
 class PathTracker(object):
     def __init__(self) -> None:
@@ -375,6 +376,19 @@ class PathTracker(object):
 
 
     def trace_calls(self, frame, event, arg):
+        
+        line_no = frame.f_lineno
+        if frame.f_code.co_name == "decorate_acc":
+            caller = frame.f_back
+            caller_line_no = caller.f_lineno
+            caller_filename = caller.f_code.co_filename
+            if caller_filename.endswith("generic.py"):
+                caller = caller.f_back
+                caller_line_no = caller.f_lineno
+                caller_filename = caller.f_code.co_filename
+            if script_path.endswith(caller_filename):
+                global lineno
+                lineno = caller_line_no
         if event != 'call':
             return
         co = frame.f_code
