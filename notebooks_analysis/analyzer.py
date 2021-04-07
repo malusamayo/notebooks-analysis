@@ -1048,7 +1048,7 @@ class Info(object):
             self.par = info["par"][str(cellnum)]
 
 def score(df1, df2):
-    return abs(df1.shape[0] - df2.shape[0]) * abs(df1.shape[1] - df2.shape[1])
+    return abs(df1.shape[0] - df2.shape[0]) + abs(df1.shape[1] - df2.shape[1])
 
 def handlecell(myvars, st, ed, info):
     # comments = ["\'\'\'"]
@@ -1071,9 +1071,9 @@ def handlecell(myvars, st, ed, info):
     '''
     for out_var in outs:
         if type(out_var.var) == pd.DataFrame:
-            s_map = {score(x.var, out_var.var):x for x in ins if type(x.var)==pd.DataFrame}
+            s_map = {x: score(x.var, out_var.var) for x in ins if type(x.var)==pd.DataFrame}
             if s_map:
-                (sc, in_var) = min(s_map.items(), key=lambda x: x[0])
+                (in_var, _) = min(s_map.items(), key=lambda x: x[1])
                 checker = PatternSynthesizer(in_var, out_var, info, ins)
                 result = checker.check(in_var.var, out_var.var)
                 if result:
