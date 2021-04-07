@@ -4,6 +4,7 @@ import os
 import pickle
 import numpy as np
 import pandas as pd
+from pandas.core.arrays.sparse import dtype
 import torch
 import random
 import collections
@@ -459,16 +460,18 @@ class Pattern(object):
     FILLNA = "fillna"
     MERGE = "merge"
     STRAN = "str_transform"
+    SUBSTR = "substr"
     NTRAN = "num_transform"
     CONV = "type_convert"
     FLOAT = "float"
     STR = "str"
+    TIME = "datetime64"
     CAT = "category"
     INT = "int"
     ENCODE = "encode"
     ONEHOT = "one_hot_encoding"
-    COSTS = {COMPUTE:15, FILLNA:2, MERGE:2, STRAN:3, 
-        NTRAN:3, CONV:3, FLOAT:2, STR:2, 
+    COSTS = {COMPUTE:15, FILLNA:2, MERGE:2, STRAN:3, SUBSTR: 2,
+        NTRAN:3, CONV:3, FLOAT:2, STR:2, TIME: 2,
         CAT:2, INT:2, ENCODE:1, ONEHOT:1}
     DSL = list(COSTS.keys())
 
@@ -559,6 +562,9 @@ class PatternSynthesizer(object):
 
     def check_cat(self, df, col):
         return pd.api.types.is_categorical_dtype(df[col])
+    
+    def check_datetime(self, df, col):
+        return pd.api.types.is_datetime64_dtype(df[col])
 
     def prune_DSL(self, df1, df2, from_col, to_col):
         res = [Pattern.COMPUTE]
@@ -579,6 +585,8 @@ class PatternSynthesizer(object):
                 res.append(Pattern.INT)
             elif self.check_str(df2, to_col):
                 res.append(Pattern.STR)
+            elif self.check_datetime(df2, to_col):
+                res.append(Pattern.TIME)
             else:
                 res.append(Pattern.CONV)
         else:
@@ -592,12 +600,13 @@ class PatternSynthesizer(object):
                         res.append(Pattern.ENCODE)
 
         # carefully handling na in a column
-        if df1[from_col].nunique() > len(df2[to_col].unique()):
+        if len(df1[from_col].unique()) > len(df2[to_col].unique()):
             res.append(Pattern.MERGE)
         elif self.check_num(df1, from_col):
             res.append(Pattern.NTRAN)
         elif self.check_str(df1, from_col):
             res.append(Pattern.STRAN)
+            res.append(Pattern.SUBSTR)
         
         if self.check_fillna(df1, df2, from_col, to_col):
             hint[Pattern.FILLNA] = True
@@ -607,8 +616,7 @@ class PatternSynthesizer(object):
 
     def validate(self, df1, df2, from_col, to_col, patterns, hint):
         
-        CONVERT = {Pattern.CONV, Pattern.FLOAT, Pattern.STR, Pattern.CAT, Pattern.INT, Pattern.ENCODE, Pattern.ONEHOT}
-        CONVERT_F = {Pattern.FLOAT: float, Pattern.INT:int, Pattern.STR:str}
+        CONVERT = {Pattern.CONV, Pattern.FLOAT, Pattern.STR, Pattern.CAT, Pattern.INT, Pattern.ENCODE, Pattern.ONEHOT, Pattern.TIME}
         SYM = "SYMBOLIC"
         ANY =  "any"
 
@@ -635,33 +643,41 @@ class PatternSynthesizer(object):
                 return Pattern.INT
             elif self.check_str(df, col):
                 return Pattern.STR
+            elif self.check_datetime(df, col):
+                return Pattern.TIME
             else:
                 return ANY
         
         def convertable(f, f_col):
             try:
-                f_col.astype(f)
-                return True
+                res = f_col.astype(type_before).astype(f)
+                # if f == int:
+                #     res = f_col.astype(float).astype(f)
+                # else:
+                #     res = f_col.astype(f)
+                return True, res
             except:
-                return False
+                return False, None
+        
         
         tmp = df1[from_col].copy().astype(str)
         target  = df2[to_col]
-        constraints = {"type": typeof(df1, from_col)}
+        type_before = typeof(df1, from_col)
+        constraints = {"type": type_before}
 
         for p in patterns[::-1]:
             if p == Pattern.FILLNA:
                 tmp[tmp == 'nan'] = SYM
                 constraints["na_filled"] = True
-            if p in [Pattern.INT, Pattern.FLOAT, Pattern.STR]:
-                type_f = CONVERT_F[p]            
+            if p in [Pattern.INT, Pattern.FLOAT, Pattern.STR, Pattern.CAT, Pattern.TIME]:            
                 cmp_idx = ~tmp.str.startswith(SYM)
-                if convertable(type_f, tmp[cmp_idx]):
-                    tmp[cmp_idx] = tmp[cmp_idx].astype(type_f)
+                flag, res = convertable(p, tmp[cmp_idx])
+                if flag:
+                    tmp[cmp_idx] = res.astype(str)
                     constraints["type"] = p
                 else:
                     return 0
-            elif p in [Pattern.CAT, Pattern.ENCODE, Pattern.ONEHOT]:
+            elif p in [Pattern.ENCODE, Pattern.ONEHOT]:
                 # add stronger constraints for one-hot? how to deal with nan?
                 tmp2idx = {x:SYM + '_' + str(i) for i, x in enumerate(tmp.unique())}
                 tmp2idx[SYM] = SYM
@@ -677,7 +693,7 @@ class PatternSynthesizer(object):
                 constraints["type"] = ANY
             elif p == Pattern.MERGE:
                 tmp.loc[:] = SYM
-                constraints["unique_before"] = df1[from_col].nunique()
+                constraints["unique_before"] = len(df1[from_col].unique())
             elif p == Pattern.STRAN and constraints["type"] == Pattern.STR:
                 tmp.loc[:] = SYM
             elif p == Pattern.NTRAN and constraints["type"] in [Pattern.INT, Pattern.FLOAT, ANY]:
@@ -694,7 +710,7 @@ class PatternSynthesizer(object):
                 return -1
         
         if "unique_before" in constraints:
-            if constraints["unique_before"] <= df2[to_col].nunique(): 
+            if constraints["unique_before"] <= len(df2[to_col].unique()): 
                 return -1
 
         if "cont-int" in constraints or "one-hot" in constraints:
@@ -816,49 +832,54 @@ class PatternSynthesizer(object):
             self.partition[str(v)].append(k)
         # print(self.partition.keys())
 
+    def get_src(self, col):
+        src = []
+        if self.srccols:
+            set_idxes = [i for i, acc in enumerate(access_path) if acc[0] == col and acc[1] == self.cellnum and acc[2] == True]
+            get_idxes = [i for i, acc in enumerate(access_path) if acc[0] in self.srccols and acc[1] <= self.cellnum and acc[2] == False]
+            for set_idx in set_idxes:
+                get_idx = set_idx - 1
+                while get_idx >= 0:
+                    if get_idx in get_idxes and access_path[get_idx][0] not in src:
+                        src.append(access_path[get_idx][0])
+                        break
+                    get_idx -= 1
+        if not src:
+            src = self.srccols
+        return src
 
     def search(self, df1, df2):
+        # early detection of one-hot encoding:
+        one_hots = [col for col in self.colsnew if set(df2[col].unique()).issubset({0,1})]
+        col_left = [col for col in self.colsnew]
+        
         all_src = []
-        for col in self.colsnew:
-            src = []
-            if self.srccols:
-                set_idxes = [i for i, acc in enumerate(access_path) if acc[0] == col and acc[1] == self.cellnum and acc[2] == True]
-                get_idxes = [i for i, acc in enumerate(access_path) if acc[0] in self.srccols and acc[1] <= self.cellnum and acc[2] == False]
-                for set_idx in set_idxes:
-                    get_idx = set_idx - 1
-                    while get_idx >= 0:
-                        if get_idx in get_idxes and access_path[get_idx][0] not in src:
-                            src.append(access_path[get_idx][0])
-                            break
-                        get_idx -= 1
-                    # filtered_get_idxes = [i for i in get_idxes if i<=set_idx]
-                    # lineno = access_path[filtered_get_idxes[-1]][2]
-                    # src_candidates = [access_path[i][0] for i in filtered_get_idxes if access_path[i][2] == lineno]
-                    # for candiate in src_candidates:
-                    #     if candiate not in src:
-                    #         src.append(candiate)
+        
+        while one_hots:        
+            s = pd.Series(np.zeros(len(df2)), dtype=int)
+            candidates = []
+            for col in one_hots:
+                if (s.loc[df2[col] == 1] == 0).all():
+                    s += df2[col]
+                    candidates.append(col)
+                if (s == 1).all():
+                    break
+            if (s == 1).all():
+                one_hots = [col for col in one_hots if col not in candidates]
+                col_left = [col for col in col_left if col not in candidates]
+                all_src_candidaes = []  
+                for col in candidates:
+                    src = self.get_src(col)
+                    all_src_candidaes += [col for col in src if col not in all_src_candidaes]
+                all_src += all_src_candidaes
+                if not all_src_candidaes:
+                    all_src_candidaes.append(self.df1_name)
+                self.synthesis_append(Pattern.ONEHOT, all_src_candidaes, candidates)
+            else:
+                break                    
 
-                    # while get_idx >= 0 and access_path[get_idx][0] not in self.srccols:
-                    #     get_idx -= 1
-                    # if get_idx < 0:
-                    #     break
-                    # cond = lambda idx: idx >= 0 and access_path[idx][3] == False
-                    # lineno = access_path[get_idx][2]
-                    # while cond(get_idx) and access_path[get_idx][2] == lineno:
-                    #     src.append(access_path[get_idx][0])
-                    #     get_idx -= 1
-
-                # set_lines = [lineno for lineno in graph["set"][col] if graph["l2c"][str(lineno)] == self.cellnum or lineno == 0]
-                # if set_lines:
-                #     to_lineno = max(set_lines)
-                #     col2dist = {col: min([to_lineno - lineno for lineno in graph["get"][col] if to_lineno - lineno >=0] + [float("inf")]) 
-                #         for col in self.srccols}
-                #     minval = min(col2dist.values())
-                #     src = [k for k, v in col2dist.items() if v==minval]
-                # else:
-                #     src = self.srccols
-            if not src:
-                src = self.srccols
+        for col in col_left:
+            src = self.get_src(col)
             all_src += src
                             
             patterns = collections.defaultdict(list)
@@ -909,8 +930,12 @@ class PatternSynthesizer(object):
         if len(df1) > len(df2):
             return False
         if not df1.index.equals(df2.index):
-            print_error(f"{self.cellnum}: mismatched index for {self.df1_name} and {self.df2_name}")
-            return False
+            if df1.index.sort_values().equals(df2.index.sort_values()):
+                self.synthesis_append("rearrange_row", [], [])
+                df1 = df1.reindex(df2.index)
+            else:
+                print_error(f"{self.cellnum}: mismatched index for {self.df1_name} and {self.df2_name}")
+                return False
         self.check_removecol(df1, df2)
         self.check_rearrange(df1, df2)
 
