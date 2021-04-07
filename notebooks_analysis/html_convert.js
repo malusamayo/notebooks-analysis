@@ -185,7 +185,7 @@ class VariableInspectorPanel {
       "type_convert": "convert column type",
       "fillna": `fill null/nan values
       e.g., [3, 4, nan, 2, nan] -> [3, 4, 0, 2, 0]`,
-      "merge": `merge different items
+      "merge": `computation that reduces cardinality (number of distinct values)
       e.g., [Mon, Monday, Thursday, Thur] -> [Mon, Mon, Thu, Thu] `,
       "num_transform": `unspecified numerical transformation
       e.g., [2, 3, 4] -> [20, 30, 40]`,
