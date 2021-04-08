@@ -370,6 +370,10 @@ class VariableInspectorPanel {
           ele.innerHTML = "rearrange rows";
           sum_words = ele.outerHTML;
         }
+        if ("reset_index" in pattern) {
+          ele.innerHTML = "reset index";
+          sum_words = ele.outerHTML;
+        }
         if ("copy" in pattern) {
           ele.innerHTML = "copy (no change)";
           sum_words = ele.outerHTML;
