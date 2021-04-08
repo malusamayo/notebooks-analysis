@@ -606,7 +606,7 @@ class PatternSynthesizer(object):
             res.append(Pattern.NTRAN)
         elif self.check_str(df1, from_col):
             res.append(Pattern.STRAN)
-            res.append(Pattern.SUBSTR)
+            # res.append(Pattern.SUBSTR)
         
         if self.check_fillna(df1, df2, from_col, to_col):
             hint[Pattern.FILLNA] = True
@@ -663,7 +663,7 @@ class PatternSynthesizer(object):
         tmp = df1[from_col].copy().astype(str)
         target  = df2[to_col]
         type_before = typeof(df1, from_col)
-        constraints = {"type": type_before}
+        constraints = {"type": type_before, "substr": False}
 
         for p in patterns[::-1]:
             if p == Pattern.FILLNA:
@@ -682,22 +682,27 @@ class PatternSynthesizer(object):
                 tmp2idx = {x:SYM + '_' + str(i) for i, x in enumerate(tmp.unique())}
                 tmp2idx[SYM] = SYM
                 tmp = tmp.map(tmp2idx)
-                if p == Pattern.CAT:
-                    constraints["type"] = p
-                elif p == Pattern.ENCODE:
+                if p == Pattern.ENCODE:
                     constraints["cont-int"] = True
                 elif p == Pattern.ONEHOT:
                     constraints["one-hot"] = True
+                # constraints["substr"] = False
             elif p == Pattern.CONV:
                 tmp.loc[:] = SYM
                 constraints["type"] = ANY
+                # constraints["substr"] = False
             elif p == Pattern.MERGE:
                 tmp.loc[:] = SYM
                 constraints["unique_before"] = len(df1[from_col].unique())
-            elif p == Pattern.STRAN and constraints["type"] == Pattern.STR:
+                # constraints["substr"] = False
+            elif p in [Pattern.STRAN, Pattern.SUBSTR] and constraints["type"] == Pattern.STR:
                 tmp.loc[:] = SYM
+                # constraints["substr"] = False
+                # if p == Pattern.SUBSTR:
+                #     constraints["substr"] = True
             elif p == Pattern.NTRAN and constraints["type"] in [Pattern.INT, Pattern.FLOAT, ANY]:
                 tmp.loc[:] = SYM
+                # constraints["substr"] = False
         
         sym_idx = tmp.str.startswith(SYM, na=False)
         cmp_idx = ~sym_idx
@@ -729,6 +734,9 @@ class PatternSynthesizer(object):
                     if tmp[df2[to_col] == v].nunique() <= 1:
                         return 1
                 return 0
+        
+        # if constraints["substr"]:
+        #     df1[from_col].map(df2[to_col].astype(str))
 
         return 1
         
@@ -841,11 +849,13 @@ class PatternSynthesizer(object):
             # get_idxes = [i for i, acc in enumerate(access_path) if acc[0] in self.srccols and acc[1] <= self.cellnum and acc[2] == False]
             for set_idx in set_idxes:
                 filtered_get_idxes = [i for i in get_idxes if i<=set_idx]
-                lineno = access_path[filtered_get_idxes[-1]][2]
-                src_candidates = [access_path[i][0] for i in filtered_get_idxes if access_path[i][2] == lineno]
-                for candiate in src_candidates:
-                    if candiate not in src:
-                        src.append(candiate)
+                # set could be intialized without src
+                if filtered_get_idxes:
+                    lineno = access_path[filtered_get_idxes[-1]][2]
+                    src_candidates = [access_path[i][0] for i in filtered_get_idxes if access_path[i][2] == lineno]
+                    for candiate in src_candidates:
+                        if candiate not in src:
+                            src.append(candiate)
                 # get_idx = set_idx - 1
                 # while get_idx >= 0:
                 #     if get_idx in get_idxes and access_path[get_idx][0] not in src:
@@ -885,6 +895,10 @@ class PatternSynthesizer(object):
                 self.synthesis_append(Pattern.ONEHOT, all_src_candidaes, candidates)
             else:
                 break                    
+
+        if "index" in col_left and pd.Series(df1.index).equals(df2["index"]):
+            self.synthesis_append("reset_index", [], [])
+            col_left.remove("index")
 
         for col in col_left:
             src = self.get_src(col)
