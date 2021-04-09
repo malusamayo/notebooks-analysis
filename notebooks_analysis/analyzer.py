@@ -569,19 +569,26 @@ class PatternSynthesizer(object):
     def prune_DSL(self, df1, df2, from_col, to_col):
         res = [Pattern.COMPUTE]
         hint = {"convert": False, Pattern.FILLNA:False}
+
+        def check_encode(df1, df2, from_col, to_col):
+            l = sorted(df2[to_col].unique())
+            if len(l) == max(l) + 1 - min(l):
+                hint["encode"] = True
+                if len(l) <= 2:
+                    res.append(Pattern.ONEHOT)
+                else:
+                    res.append(Pattern.ENCODE)
+
         if str(df1[from_col].dtype) != str(df2[to_col].dtype):
             hint["convert"] = True
             if self.check_float(df2, to_col):
                 res.append(Pattern.FLOAT)
+                check_encode(df1, df2, from_col, to_col)
             elif self.check_cat(df2, to_col):
                 res.append(Pattern.CAT)
             elif self.check_int(df2, to_col):
                 l = sorted(df2[to_col].unique())
-                if len(l) == max(l) + 1 - min(l):
-                    if len(l) <= 2:
-                        res.append(Pattern.ONEHOT)
-                    else:
-                        res.append(Pattern.ENCODE)
+                check_encode(df1, df2, from_col, to_col)
                 res.append(Pattern.INT)
             elif self.check_str(df2, to_col):
                 res.append(Pattern.STR)
@@ -590,14 +597,8 @@ class PatternSynthesizer(object):
             else:
                 res.append(Pattern.CONV)
         else:
-            if self.check_int(df2, to_col):
-                l = sorted(df2[to_col].unique())
-                if len(l) == max(l) + 1 - min(l):
-                    hint["encode"] = True
-                    if len(l) <= 2:
-                        res.append(Pattern.ONEHOT)
-                    else:
-                        res.append(Pattern.ENCODE)
+            if self.check_num(df2, to_col):
+                check_encode(df1, df2, from_col, to_col)
 
         # carefully handling na in a column
         if len(df1[from_col].unique()) > len(df2[to_col].unique()):
