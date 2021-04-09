@@ -375,12 +375,12 @@ class VariableInspectorPanel {
           sum_words = ele.outerHTML;
         }
         if ("concat_col" in pattern) {
-          let cols = pattern.rearrange.split('|');
+          let cols = pattern.concat_col.split('|');
           ele.innerHTML = "concat by columns";
           sum_words = ele.outerHTML + ": [" + cols[0] + "]"
         }
         if ("concat_row" in pattern) {
-          let cols = pattern.rearrange.split('|');
+          let cols = pattern.concat_row.split('|');
           ele.innerHTML = "concat by rows";
           sum_words = ele.outerHTML + ": [" + cols[0] + "]"
         }

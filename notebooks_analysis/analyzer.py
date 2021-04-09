@@ -388,7 +388,7 @@ class PatternSynthesizer(object):
                     self.synthesis_append("concat_col", [self.df1_name] + candidates, [])
                     return True
         elif len(df1) < len(df2) and df1.shape[1] == df2.shape[1] and set(df1.index).issubset(set(df2.index)) and self.other_src:
-            candidates = []
+            candidates = [self.df1_name]
             idxes = set(df1.index)
             idxes2 = set(df2.index)
             for name, var in self.other_src.items():
@@ -397,11 +397,13 @@ class PatternSynthesizer(object):
                         candidates.append(name)
                         idxes.update(var.index)
             if idxes == idxes2:
-                df_test = pd.concat([df1] + [self.other_src[var_name] for var_name in candidates], axis=0)
-                df_test.reindex(df2.index)
-                if df_test.equals(df2):
-                    self.synthesis_append("concat_row", [self.df1_name] + candidates, [])
-                    return True
+                self.other_src[self.df1_name] = df1
+                for p in itertools.permutations(candidates):
+                    values = [self.other_src[var_name] for var_name in p]
+                    if pd.concat(values, axis = 0).equals(df2):
+                        self.synthesis_append("concat_row", list(p), [])
+                        return True
+                self.other_src.pop(self.df1_name)
         return False
 
 
@@ -549,14 +551,14 @@ class PatternSynthesizer(object):
                     top = self.check_column(pd.DataFrame({src_col: src_series}), df2, src_col, col)
                     patterns[tuple(top.patterns)].append(src_col)
 
-            best_match = min(patterns.keys(), key = lambda x: Pattern.compute_cost(list(x)))
-            # for p_ls, src in patterns.items():
-            src_used = patterns[best_match]
-            for p in list(best_match):
-                self.synthesis_append(p, src_used, [col])
-            
-            # no src col     
-            if not patterns:
+            if patterns:
+                best_match = min(patterns.keys(), key = lambda x: Pattern.compute_cost(list(x)))
+                # for p_ls, src in patterns.items():
+                src_used = patterns[best_match]
+                for p in list(best_match):
+                    self.synthesis_append(p, src_used, [col])
+            else:
+                # no src col
                 self.synthesis_append(Pattern.COMPUTE, [self.df1_name], [col])
 
         if self.colsnew:

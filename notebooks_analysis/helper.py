@@ -384,6 +384,7 @@ class PathTracker(object):
         self.paths[self.id][self.cur_idx].append([new_path, func_name])
 
     def to_partition(self):
+        id2index.clear()
         if not self.paths:
             return
         row_eq = {}
@@ -393,7 +394,6 @@ class PathTracker(object):
                 row_eq[i][str(v)].append(k)
         self.partitions[cur_cell] = row_eq
         self.paths.clear()
-        id2index.clear()
 
     def trace_lines(self, frame, event, arg):
         if event != 'line':
