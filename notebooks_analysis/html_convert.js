@@ -379,6 +379,11 @@ class VariableInspectorPanel {
           ele.innerHTML = "concat by columns";
           sum_words = ele.outerHTML + ": [" + cols[0] + "]"
         }
+        if ("concat_row" in pattern) {
+          let cols = pattern.rearrange.split('|');
+          ele.innerHTML = "concat by rows";
+          sum_words = ele.outerHTML + ": [" + cols[0] + "]"
+        }
         if ("copy" in pattern) {
           ele.innerHTML = "copy (no change)";
           sum_words = ele.outerHTML;
@@ -442,6 +447,13 @@ class VariableInspectorPanel {
               ret += "fill " + i[0] + " nan items";
             break;
           }
+          case "extract": {
+            if (i[0] == "0")
+              ret += "not extracted"
+            else
+              ret += "extract " + i[0] + " items";
+            break;
+          }
           case "map_dict": {
             if (i[0] == "-1")
               ret += "value unchanged";
@@ -457,10 +469,12 @@ class VariableInspectorPanel {
                 ret += "value set to " + i[0];
               break;
             }
-            let exec = i[0].map(Number);
-            let min = Math.min(...exec);
-            exec = exec.map(x => x - min);
-            ret += "path: " + String(exec);
+            if (Array.isArray(i[0])) {
+              let exec = i[0].map(Number);
+              let min = Math.min(...exec);
+              exec = exec.map(x => x - min);
+              ret += "path: " + String(exec);
+            }
           }
         }
       }
