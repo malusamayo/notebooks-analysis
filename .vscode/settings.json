@@ -6,7 +6,8 @@
   "files.watcherExclude": {
     "**/.git/objects/**": true,
     "**/.git/subtree-cache/**": true,
-    "**/node_modules/*/**": true
+    "**/node_modules/*/**": true,
+    "**/notebooks/*": true
   },
   "python.pythonPath": "C:\\Users\\77338\\Anaconda3\\python.exe"
 }
