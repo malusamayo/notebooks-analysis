@@ -363,7 +363,7 @@ class PatternSynthesizer(object):
         return False
 
     def check_concat(self, df1, df2):
-        if len(df1) == len(df2) and set(df1.columns).issubset(set(df2.columns)) and self.other_src:
+        if len(df1) == len(df2) and df1.shape[1] < df2.shape[1] and set(df1.columns).issubset(set(df2.columns)) and self.other_src:
             candidates = []
             cols = set(df1.columns)
             cols2 = set(df2.columns)
@@ -375,13 +375,29 @@ class PatternSynthesizer(object):
                         candidates.append(name)
                         cols.update(var.columns)
                 elif type(var) == pd.Series:
-                    if var.name in cols2: # what happen if series have no name?
+                    # what happen if series have no name? default column name: 0, 1, ...
+                    if var.name in cols2: 
                         candidates.append(name)
                         cols.add(var.name)
             if cols == cols2:
-                df_test = pd.concat([self.other_src[var_name] for var_name in candidates] + [df1], axis=1)[df2.columns]
+                df_test = pd.concat([df1] + [self.other_src[var_name] for var_name in candidates], axis=1)[df2.columns]
                 if df_test.equals(df2):
                     self.synthesis_append("concat_col", [self.df1_name] + candidates, [])
+                    return True
+        elif len(df1) < len(df2) and df1.shape[1] == df2.shape[1] and set(df1.index).issubset(set(df2.index)) and self.other_src:
+            candidates = []
+            idxes = set(df1.index)
+            idxes2 = set(df2.index)
+            for name, var in self.other_src.items():
+                if type(var) == pd.DataFrame:
+                    if set(var.index).issubset(idxes2):
+                        candidates.append(name)
+                        idxes.update(var.index)
+            if idxes == idxes2:
+                df_test = pd.concat([df1] + [self.other_src[var_name] for var_name in candidates], axis=0)
+                df_test.reindex(df2.index)
+                if df_test.equals(df2):
+                    self.synthesis_append("concat_row", [self.df1_name] + candidates, [])
                     return True
         return False
 

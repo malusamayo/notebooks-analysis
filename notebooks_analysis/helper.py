@@ -30,6 +30,8 @@ id2name = {}
 access_path = []
 lineno = 0
 # noop = lambda *args, **kwargs: None
+id2index = {}
+reset_user_flag = True
 
 def update_access(col, is_set):
     tup = (col, cur_cell, lineno, is_set)
@@ -42,9 +44,15 @@ def my_store_info(info, var):
     if type(var) in [pd.DataFrame] and info[1] == 0:
         if str(type(var.index)) in reset_index_types:
             saved_name = var.index.name
+            global reset_user_flag
+            reset_user_flag = False
             var.reset_index(inplace=True, drop=True)
+            reset_user_flag = True
             var.index.rename(saved_name, inplace=True)
         id2name[id(var.index)] = info[2]
+    elif type(var) in [pd.DataFrame] and info[1] == 1:
+        if id(var) in id2index:
+            var = var.set_index(id2index[id(var)])
     store_vars[info[0]].append((wrap_copy(var), info))
 
 
@@ -163,6 +171,7 @@ class LibDecorator(object):
         pd.Series.apply  = self.apply_decorator(pd.Series.apply)
         pd.DataFrame.apply  = self.df_apply_decorator(pd.DataFrame.apply)
         pd.Series.str.split = self.str_split_decorator(pd.Series.str.split)
+        pd.DataFrame.reset_index = self.reset_index_decorator(pd.DataFrame.reset_index)
 
         # reset index when appending rows
         # pd.concat = self.concat_decorator(pd.concat) (disabled due to bugs)
@@ -267,6 +276,15 @@ class LibDecorator(object):
             return wrapped_method(self, *args, **kwargs)
         return decorate
 
+    def reset_index_decorator(self, wrapped_method):
+        def decorate(self, *args, **kwargs):
+            saved_index = self.index
+            ret = wrapped_method(self, *args, **kwargs)
+            if reset_user_flag:
+                id2index[id(ret)] = saved_index
+            return ret
+        return decorate
+
     def get_decorator(self, method):     
         def append(key, ls):
             if pd.core.dtypes.common.is_hashable(key) and key not in ls:
@@ -366,6 +384,7 @@ class PathTracker(object):
                 row_eq[i][str(v)].append(k)
         self.partitions[cur_cell] = row_eq
         self.paths.clear()
+        id2index.clear()
 
     def trace_lines(self, frame, event, arg):
         if event != 'line':
