@@ -472,7 +472,7 @@ class Pattern(object):
     ONEHOT = "one_hot_encoding"
     COSTS = {COMPUTE:15, FILLNA:2, MERGE:2, STRAN:3, SUBSTR: 2,
         NTRAN:3, CONV:3, FLOAT:2, STR:2, TIME: 2,
-        CAT:2, INT:2, ENCODE:1, ONEHOT:1}
+        CAT:2, INT:2, ENCODE:2, ONEHOT:2}
     DSL = list(COSTS.keys())
 
     def __init__(self, pattern=""):
@@ -521,7 +521,7 @@ class PatternSynthesizer(object):
         self.df1.rename(str, axis = 1, inplace = True)
         self.df2.rename(str, axis = 1, inplace = True)
         self.srccols = [col for col in info.get if col in self.cols1]
-        self.other_src = {x.name: x.var for x in in_vars if type(x.var) == pd.Series}
+        self.other_src = {x.name: x.var for x in in_vars if type(x.var) in [pd.Series, pd.DataFrame] and x != DF1}
         self.descols = [col for col in info.set if col in self.cols1] 
         self.partition = collections.defaultdict(list)
         if self.df1_name in info.par:
@@ -575,14 +575,14 @@ class PatternSynthesizer(object):
                 res.append(Pattern.FLOAT)
             elif self.check_cat(df2, to_col):
                 res.append(Pattern.CAT)
-            elif self.check_int(df2, to_col):
+            elif self.check_int(df2, to_col):                
+                res.append(Pattern.INT)
                 l = sorted(df2[to_col].unique())
                 if len(l) == max(l) + 1 - min(l):
                     if len(l) <= 2:
                         res.append(Pattern.ONEHOT)
                     else:
                         res.append(Pattern.ENCODE)
-                res.append(Pattern.INT)
             elif self.check_str(df2, to_col):
                 res.append(Pattern.STR)
             elif self.check_datetime(df2, to_col):
@@ -769,6 +769,35 @@ class PatternSynthesizer(object):
         
         return top
 
+    def check_copy(self, df1, df2):
+        if df1.equals(df2):
+            self.synthesis_append("copy", [], [])
+            return True
+        return False
+
+    def check_concat(self, df1, df2):
+        if len(df1) == len(df2) and set(df1.columns).issubset(set(df2.columns)) and self.other_src:
+            candidates = []
+            cols = set(df1.columns)
+            cols2 = set(df2.columns)
+            for name, var in self.other_src.items():
+                if len(var) != len(df2):
+                    continue
+                if type(var) == pd.DataFrame:
+                    if set(var.columns).issubset(cols2):
+                        candidates.append(name)
+                        cols.update(var.columns)
+                elif type(var) == pd.Series:
+                    if var.name in cols2: # what happen if series have no name?
+                        candidates.append(name)
+                        cols.add(var.name)
+            if cols == cols2:
+                df_test = pd.concat([self.other_src[var_name] for var_name in candidates] + [df1], axis=1)[df2.columns]
+                if df_test.equals(df2):
+                    self.synthesis_append("concat_col", [self.df1_name] + candidates, [])
+                    return True
+        return False
+
 
     def check_removecol(self, df1, df2):
         self.removedcols = [x for x in self.cols1 if x not in self.cols2]
@@ -910,7 +939,7 @@ class PatternSynthesizer(object):
                 patterns[tuple(top.patterns)].append(src_col)
             
             for src_col, src_series in self.other_src.items():
-                if src_series.index.equals(df2.index):
+                if type(src_series) == pd.Series and src_series.index.equals(df2.index):
                     top = self.check_column(pd.DataFrame({src_col: src_series}), df2, src_col, col)
                     patterns[tuple(top.patterns)].append(src_col)
 
@@ -940,6 +969,11 @@ class PatternSynthesizer(object):
         # ignore irrelevant dfs
         # if set(self.cols1).isdisjoint(set(self.cols2)):
         #     return
+
+        # check copy and concat first
+        if self.check_copy(df1, df2) or self.check_concat(df1, df2):
+            return self.summary
+
         # ignore adding rows
         if len(df1) < len(df2):
             return False
@@ -969,8 +1003,8 @@ class PatternSynthesizer(object):
             self.search(df1, df2)
         if self.syn_stack:
             self.gen_table(df1, df2)
-        elif not self.colsnew and not self.colschange:
-            self.synthesis_append("copy", [], [])
+        # elif not self.colsnew and not self.colschange:
+        #     self.synthesis_append("copy", [], [])
         return self.summary
 
     def gen_table(self, df1, df2):
@@ -1062,7 +1096,8 @@ class Info(object):
             self.par = info["par"][str(cellnum)]
 
 def score(df1, df2):
-    return abs(df1.shape[0] - df2.shape[0]) + abs(df1.shape[1] - df2.shape[1])
+    diff_len = len(set(df1.columns) - set(df2.columns))
+    return abs(df1.shape[0] - df2.shape[0] + 1) * (diff_len + 1) ** 2
 
 def handlecell(myvars, st, ed, info):
     # comments = ["\'\'\'"]
