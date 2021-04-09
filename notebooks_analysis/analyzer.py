@@ -12,7 +12,7 @@ import json, copy
 import itertools
 import queue
 import warnings
-from notebooks_analysis.model import DataFrame, dispatch_gen 
+from model import DataFrame, dispatch_gen 
 
 pd.set_option('display.max_columns', None)
 pd.set_option('precision', 4)

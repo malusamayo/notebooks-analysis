@@ -2,7 +2,7 @@ import pandas as pd
 import sys, pickle
 sys.argv.append("./notebooks/debug_example.ipynb")
 
-from notebooks_analysis.analyzer import PatternSynthesizer, Info
+from analyzer import PatternSynthesizer, Info
 
 
 df1 = pd.read_csv('../notebooks/input/train.csv')
