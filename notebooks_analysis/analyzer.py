@@ -74,12 +74,15 @@ class Pattern(object):
     
     def addAll(self, patterns):
         self.patterns += patterns
-        self.cost += sum([Pattern.COSTS[p] for p in patterns])
+        self.cost += Pattern.compute_cost(patterns)
 
     def copy(self):
         cp = Pattern()
         cp.addAll(self.patterns.copy())
         return cp
+
+    def compute_cost(patterns):
+        return sum([Pattern.COSTS[p] for p in patterns])
     
     def __gt__(self, other):
         return self.cost > other.cost
@@ -546,10 +549,11 @@ class PatternSynthesizer(object):
                     top = self.check_column(pd.DataFrame({src_col: src_series}), df2, src_col, col)
                     patterns[tuple(top.patterns)].append(src_col)
 
-            for p_ls, src in patterns.items():
-                p_ls = list(p_ls)
-                for p in p_ls:
-                    self.synthesis_append(p, src, [col])
+            best_match = min(patterns.keys(), key = lambda x: Pattern.compute_cost(list(x)))
+            # for p_ls, src in patterns.items():
+            src_used = patterns[best_match]
+            for p in list(best_match):
+                self.synthesis_append(p, src_used, [col])
             
             # no src col     
             if not patterns:
