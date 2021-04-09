@@ -30,6 +30,8 @@ id2name = {}
 access_path = []
 lineno = 0
 # noop = lambda *args, **kwargs: None
+id2index = {}
+reset_user_flag = True
 
 def update_access(col, is_set):
     tup = (col, cur_cell, lineno, is_set)
@@ -42,9 +44,15 @@ def my_store_info(info, var):
     if type(var) in [pd.DataFrame] and info[1] == 0:
         if str(type(var.index)) in reset_index_types:
             saved_name = var.index.name
+            global reset_user_flag
+            reset_user_flag = False
             var.reset_index(inplace=True, drop=True)
+            reset_user_flag = True
             var.index.rename(saved_name, inplace=True)
         id2name[id(var.index)] = info[2]
+    elif type(var) in [pd.DataFrame] and info[1] == 1:
+        if id(var) in id2index:
+            var = var.set_index(id2index[id(var)])
     store_vars[info[0]].append((wrap_copy(var), info))
 
 
@@ -163,6 +171,8 @@ class LibDecorator(object):
         pd.Series.apply  = self.apply_decorator(pd.Series.apply)
         pd.DataFrame.apply  = self.df_apply_decorator(pd.DataFrame.apply)
         pd.Series.str.split = self.str_split_decorator(pd.Series.str.split)
+        pd.Series.str.extract = self.str_extract_decorator(pd.Series.str.extract)
+        pd.DataFrame.reset_index = self.reset_index_decorator(pd.DataFrame.reset_index)
 
         # reset index when appending rows
         # pd.concat = self.concat_decorator(pd.concat) (disabled due to bugs)
@@ -207,22 +217,16 @@ class LibDecorator(object):
         return decorate
 
     def fillna_decorator(self, wrapped_method):
-        def f(x, value):
+        def f(x):
             pathTracker.next_iter()
-            if pd.api.types.is_numeric_dtype(type(x)) and np.isnan(x):
-                pathTracker.update(1, "fillna")
-            else:
-                pathTracker.update(0, "fillna")
+            pathTracker.update(int(x), "fillna")
 
-        def decorate(self, value=None, method=None, axis=None, inplace=False, limit=None, downcast=None):
-            if type(self) == pd.DataFrame:
-                pathTracker.reset(self.index)
-                for i, v in enumerate(self.isnull().sum(axis=1)):
-                    pathTracker.next_iter()
-                    pathTracker.update(int(v), "fillna")
-            else:
-                self.map(lambda x: f(x, value))
-            return wrapped_method(self, value, method, axis, inplace, limit, downcast)
+        def decorate(self, *args, **kwargs):
+            if type(self) == pd.Series:
+                self.isnull().map(f)
+            elif type(self) == pd.DataFrame:
+                self.isnull().sum(axis=1).map(f)
+            return wrapped_method(self, *args, **kwargs)
         return decorate
 
     def str_split_decorator(self, wrapped_method):
@@ -236,6 +240,20 @@ class LibDecorator(object):
         def decorate(self, pat=None, n=-1, expand=False):
             self._parent.map(lambda x: f(x, pat, n))
             return wrapped_method(self, pat, n, expand)
+        return decorate
+
+    def str_extract_decorator(self, wrapped_method):
+        def f(x):
+            pathTracker.next_iter()
+            pathTracker.update(int(x), "extract")
+
+        def decorate(self, *args, **kwargs):
+            ret = wrapped_method(self, *args, **kwargs)
+            if type(ret) == pd.Series:
+                ret.notnull().map(f)
+            elif type(ret) == pd.DataFrame:
+                ret.notnull().sum(axis=1).map(f)
+            return ret
         return decorate
 
     def map_decorator(self, wrapped_method):
@@ -265,6 +283,15 @@ class LibDecorator(object):
                 else:
                     pathTracker.clean()
             return wrapped_method(self, *args, **kwargs)
+        return decorate
+
+    def reset_index_decorator(self, wrapped_method):
+        def decorate(self, *args, **kwargs):
+            saved_index = self.index
+            ret = wrapped_method(self, *args, **kwargs)
+            if reset_user_flag:
+                id2index[id(ret)] = saved_index
+            return ret
         return decorate
 
     def get_decorator(self, method):     
@@ -366,6 +393,7 @@ class PathTracker(object):
                 row_eq[i][str(v)].append(k)
         self.partitions[cur_cell] = row_eq
         self.paths.clear()
+        id2index.clear()
 
     def trace_lines(self, frame, event, arg):
         if event != 'line':
