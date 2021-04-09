@@ -119,7 +119,7 @@ function gen_html_page(testFolder) {
 	});
 
 	let output_html = STARTS;
-	sample_num = Math.max(sample_num, all_cells.length)
+	sample_num = Math.min(sample_num, all_cells.length)
 
 	// sampling code
 	output_html += `
