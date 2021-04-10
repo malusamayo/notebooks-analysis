@@ -505,40 +505,41 @@ class PatternSynthesizer(object):
 
     def search(self, df1, df2):
         # early detection of one-hot encoding:
-        one_hots = [col for col in self.colsnew if set(df2[col].unique()).issubset({0,1})]
-        col_left = [col for col in self.colsnew]
+        # one_hots = [col for col in self.colsnew if set(df2[col].unique()).issubset({0,1})]
+        # col_left = [col for col in self.colsnew]
         
         all_src = []
         
-        while one_hots:        
-            s = pd.Series(np.zeros(len(df2)), dtype=int, index = df2.index)
-            candidates = []
-            for col in one_hots:
-                if (s.loc[df2[col] == 1] == 0).all():
-                    s += df2[col]
-                    candidates.append(col)
-                if (s == 1).all():
-                    break
-            if (s == 1).all():
-                one_hots = [col for col in one_hots if col not in candidates]
-                col_left = [col for col in col_left if col not in candidates]
-                all_src_candidaes = []  
-                for col in candidates:
-                    src = self.get_src(col)
-                    all_src_candidaes += [col for col in src if col not in all_src_candidaes]
-                all_src += all_src_candidaes
-                if not all_src_candidaes:
-                    all_src_candidaes.append(self.df1_name)
-                self.synthesis_append(Pattern.ONEHOT, all_src_candidaes, candidates)
-            else:
-                break                    
+        # while one_hots:        
+            # s = pd.Series(np.zeros(len(df2)), dtype=int, index = df2.index)
+            # candidates = []
+            # for col in one_hots:
+            #     if (s.loc[df2[col] == 1] == 0).all():
+            #         s += df2[col]
+            #         candidates.append(col)
+            #     if (s == 1).all():
+            #         break
+            # if (s == 1).all():
+            #     one_hots = [col for col in one_hots if col not in candidates]
+            #     col_left = [col for col in col_left if col not in candidates]
+            #     all_src_candidaes = []  
+            #     for col in candidates:
+            #         src = self.get_src(col)
+            #         all_src_candidaes += [col for col in src if col not in all_src_candidaes]
+            #     all_src += all_src_candidaes
+            #     if not all_src_candidaes:
+            #         all_src_candidaes.append(self.df1_name)
+            #     self.synthesis_append(Pattern.ONEHOT, all_src_candidaes, candidates)
+            # else:
+            #     break                    
 
-        if "index" in col_left and pd.Series(df1.index).equals(df2["index"]):
+        old_index_name = df1.index.name if df1.index.name != None else "index"
+        if old_index_name in self.colsnew and pd.Series(df1.index).equals(df2[old_index_name]):
             self.synthesis_append("reset_index", [], [])
-            col_left.remove("index")
+            col_left.remove(old_index_name)
 
         src2des = collections.defaultdict(list)
-        for col in col_left:
+        for col in self.colsnew:
             src = self.get_src(col)
             all_src += src
                             
