@@ -31,7 +31,6 @@ access_path = []
 lineno = 0
 # noop = lambda *args, **kwargs: None
 id2index = {}
-reset_user_flag = True
 
 def update_access(col, is_set):
     tup = (col, cur_cell, lineno, is_set)
@@ -44,10 +43,7 @@ def my_store_info(info, var):
     if type(var) in [pd.DataFrame] and info[1] == 0:
         if str(type(var.index)) in reset_index_types:
             saved_name = var.index.name
-            global reset_user_flag
-            reset_user_flag = False
-            var.reset_index(inplace=True, drop=True)
-            reset_user_flag = True
+            var.reset_index(inplace=True, drop=True, sys_flag=True)
             var.index.rename(saved_name, inplace=True)
         id2name[id(var.index)] = info[2]
     elif type(var) in [pd.DataFrame] and info[1] == 1:
@@ -222,6 +218,7 @@ class LibDecorator(object):
             pathTracker.update(int(x), "fillna")
 
         def decorate(self, *args, **kwargs):
+            # cmp before and after?
             if type(self) == pd.Series:
                 self.isnull().map(f)
             elif type(self) == pd.DataFrame:
@@ -286,11 +283,14 @@ class LibDecorator(object):
         return decorate
 
     def reset_index_decorator(self, wrapped_method):
-        def decorate(self, *args, **kwargs):
+        def decorate(self, level=None, drop=False, inplace=False, col_level=0, col_fill='', sys_flag=False):
             saved_index = self.index
-            ret = wrapped_method(self, *args, **kwargs)
-            if reset_user_flag:
-                id2index[id(ret)] = saved_index
+            ret = wrapped_method(self, level, drop, inplace, col_level, col_fill)
+            if not sys_flag:
+                if inplace:
+                    id2index[id(self)] = saved_index
+                else:
+                    id2index[id(ret)] = saved_index
             return ret
         return decorate
 

@@ -301,7 +301,12 @@
             ]
           },
           "resample",
-          "reset_index",
+          {
+            "name": "reset_index",
+            "updates": [
+              0
+            ]
+          },
           "rfloordiv",
           "rmod",
           "rmul",
