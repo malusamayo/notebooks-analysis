@@ -537,6 +537,7 @@ class PatternSynthesizer(object):
             self.synthesis_append("reset_index", [], [])
             col_left.remove("index")
 
+        src2des = collections.defaultdict(list)
         for col in col_left:
             src = self.get_src(col)
             all_src += src
@@ -555,11 +556,17 @@ class PatternSynthesizer(object):
                 best_match = min(patterns.keys(), key = lambda x: Pattern.compute_cost(list(x)))
                 # for p_ls, src in patterns.items():
                 src_used = patterns[best_match]
-                for p in list(best_match):
-                    self.synthesis_append(p, src_used, [col])
+                src2des[(best_match, tuple(src_used))].append(col)
+                # for p in list(best_match):
+                #     src2des[(p, src_used)].append(col)
+                #     self.synthesis_append(p, src_used, [col])
             else:
                 # no src col
                 self.synthesis_append(Pattern.COMPUTE, [self.df1_name], [col])
+
+        for key, des in src2des.items():
+            for p in list(key[0]):
+                self.synthesis_append(p, list(key[1]), des)
 
         if self.colsnew:
             self.srccols = [col for col in self.srccols if col in all_src]
@@ -789,8 +796,9 @@ if __name__ == "__main__":
             with open(os.path.join(data_path, file), "rb") as f:
                 try:
                     vars = pickle.load(f)
-                except:    
+                except Exception as e:
                     print_error("error when pickle from " + file)
+                    print_error(e) 
                     continue
                 for i in range(len(vars)):
                     try:
