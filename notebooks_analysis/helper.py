@@ -48,7 +48,10 @@ def my_store_info(info, var):
         id2name[id(var.index)] = info[2]
     elif type(var) in [pd.DataFrame] and info[1] == 1:
         if id(var) in id2index:
-            var = var.set_index(id2index[id(var)])
+            try:
+                var = var.set_index(id2index[id(var)])
+            except ValueError:
+                pass
     store_vars[info[0]].append((wrap_copy(var), info))
 
 
@@ -160,6 +163,7 @@ class LibDecorator(object):
         pd.Series.__setitem__ = self.set_decorator(pd.Series.__setitem__)
         pd.core.indexing._LocationIndexer.__setitem__ = self.index_set_decorator(pd.core.indexing._LocationIndexer.__setitem__)
         pd.core.indexing._ScalarAccessIndexer.__setitem__ = self.index_set_decorator(pd.core.indexing._ScalarAccessIndexer.__setitem__)
+        pd.get_dummies = self.get_dummies_decorator(pd.get_dummies)
         pd.Series.replace = self.replace_decorator(pd.Series.replace)
         pd.Series.fillna = self.fillna_decorator(pd.Series.fillna)
         pd.DataFrame.fillna = self.fillna_decorator(pd.DataFrame.fillna)
@@ -293,6 +297,23 @@ class LibDecorator(object):
                     id2index[id(ret)] = saved_index
             return ret
         return decorate
+    
+    def get_dummies_decorator(self, wrapped_method):
+        def append(key, ls):
+            if pd.core.dtypes.common.is_hashable(key) and key not in ls:
+                ls.append(key)
+        def decorate_acc(data, prefix=None, prefix_sep='_', dummy_na=False, columns=None, sparse=False, drop_first=False, dtype=None):
+            if type(data) == pd.DataFrame:
+                if columns:
+                    for item in columns:
+                        append(item, get__keys[cur_cell])
+                        update_access(item, False)
+                else:
+                    for item in data.select_dtypes(include=['object', 'category']).columns:
+                        append(item, get__keys[cur_cell])
+                        update_access(item, False)
+            return wrapped_method(data, prefix, prefix_sep, dummy_na, columns, sparse, drop_first, dtype)
+        return decorate_acc
 
     def get_decorator(self, method):     
         def append(key, ls):
