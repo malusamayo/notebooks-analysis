@@ -50,6 +50,7 @@ class Pattern(object):
     SUBSTR = "substr"
     NTRAN = "num_transform"
     CONV = "type_convert"
+    BOOL = "bool"
     FLOAT = "float"
     STR = "str"
     TIME = "datetime64"
@@ -58,7 +59,7 @@ class Pattern(object):
     ENCODE = "encode"
     ONEHOT = "one_hot_encoding"
     COSTS = {COMPUTE:15, FILLNA:2, MERGE:2, STRAN:3, SUBSTR: 2,
-        NTRAN:3, CONV:3, FLOAT:2, STR:2, TIME: 2,
+        NTRAN:3, CONV:3, FLOAT:2, STR:2, TIME: 2, BOOL: 2,
         CAT:2, INT:2, ENCODE:2, ONEHOT:2}
     DSL = list(COSTS.keys())
 
@@ -140,7 +141,10 @@ class PatternSynthesizer(object):
     
     def check_str(self, df, col):
         return pd.api.types.is_string_dtype(df[col])
-    
+
+    def check_bool(self, df, col):
+        return pd.api.types.is_bool_dtype(df[col])
+
     def check_int(self, df, col):
         return pd.api.types.is_integer_dtype(df[col])
 
@@ -183,6 +187,8 @@ class PatternSynthesizer(object):
                 res.append(Pattern.STR)
             elif self.check_datetime(df2, to_col):
                 res.append(Pattern.TIME)
+            elif self.check_bool(df2, to_col):
+                res.append(Pattern.BOOL)
             else:
                 res.append(Pattern.CONV)
         else:
@@ -206,7 +212,7 @@ class PatternSynthesizer(object):
 
     def validate(self, df1, df2, from_col, to_col, patterns, hint):
         
-        CONVERT = {Pattern.CONV, Pattern.FLOAT, Pattern.STR, Pattern.CAT, Pattern.INT, Pattern.ENCODE, Pattern.ONEHOT, Pattern.TIME}
+        CONVERT = {Pattern.CONV, Pattern.FLOAT, Pattern.STR, Pattern.CAT, Pattern.INT, Pattern.ENCODE, Pattern.ONEHOT, Pattern.TIME, Pattern.BOOL}
         SYM = "SYMBOLIC"
         ANY =  "any"
 
@@ -259,7 +265,7 @@ class PatternSynthesizer(object):
             if p == Pattern.FILLNA:
                 tmp[tmp == 'nan'] = SYM
                 constraints["na_filled"] = True
-            if p in [Pattern.INT, Pattern.FLOAT, Pattern.STR, Pattern.CAT, Pattern.TIME]:            
+            if p in [Pattern.INT, Pattern.FLOAT, Pattern.STR, Pattern.CAT, Pattern.TIME, Pattern.BOOL]:            
                 cmp_idx = ~tmp.str.startswith(SYM)
                 flag, res = convertable(p, tmp[cmp_idx])
                 if flag:
@@ -316,7 +322,7 @@ class PatternSynthesizer(object):
                     return -1
                 for v in l:
                     if tmp[df2[to_col] == v].nunique() > 1:
-                        return -1
+                        return 0
             if "one-hot" in constraints:
                 if len(l) > 2:
                     return -1
@@ -506,7 +512,7 @@ class PatternSynthesizer(object):
     def search(self, df1, df2):
         # early detection of one-hot encoding:
         # one_hots = [col for col in self.colsnew if set(df2[col].unique()).issubset({0,1})]
-        # col_left = [col for col in self.colsnew]
+        col_left = [col for col in self.colsnew]
         
         all_src = []
         
@@ -539,7 +545,7 @@ class PatternSynthesizer(object):
             col_left.remove(old_index_name)
 
         src2des = collections.defaultdict(list)
-        for col in self.colsnew:
+        for col in col_left:
             src = self.get_src(col)
             all_src += src
                             
