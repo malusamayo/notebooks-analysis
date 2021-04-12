@@ -5,6 +5,7 @@ import copy as lib_copy
 import collections, functools
 import matplotlib, pickle, json
 from inspect import getframeinfo, stack
+import types
 
 script_path = os.path.realpath(__file__)
 my_dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -174,6 +175,9 @@ class LibDecorator(object):
         pd.Series.str.extract = self.str_extract_decorator(pd.Series.str.extract)
         pd.DataFrame.reset_index = self.reset_index_decorator(pd.DataFrame.reset_index)
 
+        pd.Series.dropna = self.dropna_decorator(pd.Series.dropna)
+        pd.DataFrame.dropna = self.dropna_decorator(pd.DataFrame.dropna)
+
         # reset index when appending rows
         # pd.concat = self.concat_decorator(pd.concat) (disabled due to bugs)
         # pd.DataFrame.merge = self.merge_decorator(pd.DataFrame.merge)
@@ -212,7 +216,7 @@ class LibDecorator(object):
                     pathTracker.update(int(x != key), "replace")
         def decorate(self, to_replace=None, value=None, inplace=False, limit=None, regex=False, method="pad"):
             if to_replace != None and type(to_replace) != dict:
-                self.map(lambda x: f(x, to_replace, value, regex))
+                self.map(lambda x: f(x, to_replace, value, regex), sys_flag=True)
             return wrapped_method(self, to_replace, value, inplace, limit, regex, method)
         return decorate
 
@@ -224,10 +228,27 @@ class LibDecorator(object):
         def decorate(self, *args, **kwargs):
             # cmp before and after?
             if type(self) == pd.Series:
-                self.isnull().map(f)
+                self.isnull().map(f, sys_flag=True)
             elif type(self) == pd.DataFrame:
-                self.isnull().sum(axis=1).map(f)
+                self.isnull().sum(axis=1).map(f, sys_flag=True)
             return wrapped_method(self, *args, **kwargs)
+        return decorate
+    
+    def dropna_decorator(self, wrapped_method):
+        def f(x):
+            pathTracker.next_iter()
+            pathTracker.update(int(x), "dropna")
+
+        def decorate(self, *args, **kwargs):
+            # cmp before and after?
+            if type(self) == pd.Series:
+                self.isnull().map(f, sys_flag=True)
+            elif type(self) == pd.DataFrame:
+                self.isnull().any(axis=1).map(f, sys_flag=True)
+            ret = wrapped_method(self, *args, **kwargs)
+            if id(self.index) in id2name:
+                id2name[id(ret.index)] = id2name[id(self.index)]
+            return ret
         return decorate
 
     def str_split_decorator(self, wrapped_method):
@@ -239,7 +260,7 @@ class LibDecorator(object):
             except AttributeError:
                 pathTracker.update(-2, "split") # x not str
         def decorate(self, pat=None, n=-1, expand=False):
-            self._parent.map(lambda x: f(x, pat, n))
+            self._parent.map(lambda x: f(x, pat, n), sys_flag=True)
             return wrapped_method(self, pat, n, expand)
         return decorate
 
@@ -251,9 +272,9 @@ class LibDecorator(object):
         def decorate(self, *args, **kwargs):
             ret = wrapped_method(self, *args, **kwargs)
             if type(ret) == pd.Series:
-                ret.notnull().map(f)
+                ret.notnull().map(f, sys_flag=True)
             elif type(ret) == pd.DataFrame:
-                ret.notnull().sum(axis=1).map(f)
+                ret.notnull().sum(axis=1).map(f, sys_flag=True)
             return ret
         return decorate
 
@@ -261,11 +282,13 @@ class LibDecorator(object):
         def f(x, d):
             pathTracker.next_iter()
             pathTracker.update(list(d).index(x) if x in d else -1, "map_dict")
-        def decorate(self, arg, na_action=None):
+        def decorate(self, arg, na_action=None, sys_flag=False):
             # should do init work here
             pathTracker.reset(self.index)
             if type(arg) == dict:
-                self.map(lambda x: f(x, arg))
+                self.map(lambda x: f(x, arg), sys_flag=True)
+            # if not sys_flag and isinstance(arg, types.FunctionType):
+            #     arg = func_info_saver(291)(arg)
             return wrapped_method(self, arg, na_action)
         return decorate
 
