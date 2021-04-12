@@ -141,17 +141,17 @@ function static_analyzer(tree) {
                 if_expr_handler(code);
             }
 
-            let info_saver = {
-                type: 'call',
-                func: {
-                    type: 'name',
-                    id: `func_info_saver(${src.args[0].actual.location.first_line})`,
-                    location: src.args[0].actual.location
-                },
-                args: [{ type: 'arg', location: src.args[0].actual.location, actual: src.args[0].actual }],
-                location: { location: src.args[0].actual.location }
-            }
-            src.args[0].actual = info_saver;
+            // let info_saver = {
+            //     type: 'call',
+            //     func: {
+            //         type: 'name',
+            //         id: `func_info_saver(${src.args[0].actual.location.first_line})`,
+            //         location: src.args[0].actual.location
+            //     },
+            //     args: [{ type: 'arg', location: src.args[0].actual.location, actual: src.args[0].actual }],
+            //     location: { location: src.args[0].actual.location }
+            // }
+            // src.args[0].actual = info_saver;
 
             replace_strs.push([stmt.location.first_line, stmt.location.last_line, [printNode(stmt)]]);
         } else if (src.args[0].actual.type == 'name') {
@@ -395,7 +395,7 @@ function insert_print_stmt(code) {
         // deal with functions
         let space = " ".repeat((lines[i].length - lines[i].trimLeft().length))
         if (lines[i].trim().startsWith("def ")) {
-            lines[i] = space + "@func_info_saver(" + (i + 1) + ")\n" + lines[i]
+            // lines[i] = space + "@func_info_saver(" + (i + 1) + ")\n" + lines[i]
         }
         // add lineno update
         // let target = stmt_ends_line.indexOf(i + 1)

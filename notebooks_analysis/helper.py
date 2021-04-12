@@ -71,8 +71,8 @@ def func_info_saver(line):
     def inner_decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            if func.__name__ not in TRACE_INTO and func.__name__ != '<lambda>':
-                return func(*args, **kwargs)
+            # if func.__name__ not in TRACE_INTO and func.__name__ != '<lambda>':
+            #     return func(*args, **kwargs)
 
             try:
                 pathTracker.next_iter()
@@ -148,6 +148,11 @@ class MyStr(str):
     def upper(self):
         ret = super().upper()
         pathTracker.update(int(self != ret), "upper")
+        return MyStr(ret)
+    
+    # could not handle str constants (need to wrap them!)
+    def join(self):
+        ret = super().upper()
         return MyStr(ret)
 
 def if_expr_wrapper(expr):
@@ -287,26 +292,30 @@ class LibDecorator(object):
             pathTracker.reset(self.index)
             if type(arg) == dict:
                 self.map(lambda x: f(x, arg), sys_flag=True)
-            # if not sys_flag and isinstance(arg, types.FunctionType):
-            #     arg = func_info_saver(291)(arg)
+            if not sys_flag and isinstance(arg, types.FunctionType):
+                arg = func_info_saver(296)(arg)
             return wrapped_method(self, arg, na_action)
         return decorate
 
     def apply_decorator(self, wrapped_method):
-        def decorate(self, *args, **kwargs):
+        def decorate(self, func, *args, **kwargs):
             pathTracker.reset(self.index)
-            return wrapped_method(self, *args, **kwargs)
+            if isinstance(func, types.FunctionType):
+                func = func_info_saver(304)(func)
+            return wrapped_method(self, func, *args, **kwargs)
         return decorate
 
 
     def df_apply_decorator(self, wrapped_method):
-        def decorate(self, *args, **kwargs):
+        def decorate(self, func, *args, **kwargs):
             if "axis" in kwargs:
                 if kwargs["axis"] == 1 or kwargs["axis"] == 'columns':
                     pathTracker.reset(self.index)
                 else:
                     pathTracker.clean()
-            return wrapped_method(self, *args, **kwargs)
+            if isinstance(func, types.FunctionType):
+                func = func_info_saver(317)(func)
+            return wrapped_method(self, func, *args, **kwargs)
         return decorate
 
     def reset_index_decorator(self, wrapped_method):
