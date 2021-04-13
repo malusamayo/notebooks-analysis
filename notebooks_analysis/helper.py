@@ -185,7 +185,15 @@ class LibDecorator(object):
 
         # reset index when appending rows
         # pd.concat = self.concat_decorator(pd.concat) (disabled due to bugs)
-        # pd.DataFrame.merge = self.merge_decorator(pd.DataFrame.merge)
+        pd.DataFrame.merge = self.merge_decorator(pd.DataFrame.merge)
+        pd.merge = self.merge_decorator(pd.merge)
+        
+    def merge_decorator(self, wrapped_method):
+        def decorate(self, *args, **kwargs):
+            res = wrapped_method(self, *args, **kwargs)
+            res.index.name = "ignore"
+            return res
+        return decorate
     
     def replace_decorator(self, wrapped_method):
         def f(x, key, value, regex):
