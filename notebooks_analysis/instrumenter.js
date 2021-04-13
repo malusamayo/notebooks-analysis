@@ -40,6 +40,7 @@ for idx, vars in store_vars.items():
 def convert(o):
     if isinstance(o, np.int64): return int(o)  
     if isinstance(o, set): return sorted(list(o))  
+    return str(o)
     raise TypeError
 with open(os.path.join(tmp_dir_path, "info.json"), "w") as f:
     f.write(json.dumps({"get": get__keys, "set": set__keys, "graph": access_path, "par": pathTracker.partitions}, default=convert))
