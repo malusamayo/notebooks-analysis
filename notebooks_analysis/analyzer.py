@@ -113,6 +113,7 @@ class PatternSynthesizer(object):
         self.df2.rename(str, axis = 1, inplace = True)
         self.srccols = [col for col in info.get if col in self.cols1]
         self.other_src = {x.name: x.var for x in in_vars if type(x.var) in [pd.Series, pd.DataFrame] and x != DF1}
+        self.other_srccols = [col for col in info.get]
         self.descols = [col for col in info.set if col in self.cols1] 
         self.partition = collections.defaultdict(list)
         if self.df1_name in info.par:
@@ -220,6 +221,9 @@ class PatternSynthesizer(object):
         if Pattern.COMPUTE in patterns:
             return 1
 
+        if len(patterns) == 0:
+            return df1[from_col].equals(df2[to_col])
+
         if hint["convert"] and not (CONVERT & set(patterns)):
             return -1
 
@@ -228,7 +232,7 @@ class PatternSynthesizer(object):
         
         if hint[Pattern.FILLNA] and Pattern.FILLNA not in patterns:
             return 0
-        
+
         # helper functions
         def typeof(df, col):
             if self.check_float(df, col):
@@ -241,6 +245,8 @@ class PatternSynthesizer(object):
                 return Pattern.STR
             elif self.check_datetime(df, col):
                 return Pattern.TIME
+            elif self.check_bool(df, col):
+                return Pattern.BOOL
             else:
                 return ANY
         
@@ -259,7 +265,17 @@ class PatternSynthesizer(object):
         tmp = df1[from_col].copy().astype(str)
         target  = df2[to_col]
         type_before = typeof(df1, from_col)
-        constraints = {"type": type_before, "substr": False}
+        constraints = {"type": type_before, "substr": False, "cont-int": False, 
+            "one-hot": False, "na_filled": False, "unique_reduced": False}
+
+        def update_constraints(new_type = "", onehot_flag=None, encode_flag=None):
+            if new_type != "":
+                constraints["type"] = new_type
+            if encode_flag != None:
+                constraints["cont-int"] = encode_flag
+            if onehot_flag != None:
+                constraints["cont-int"] = onehot_flag
+
 
         for p in patterns[::-1]:
             if p == Pattern.FILLNA:
@@ -279,8 +295,10 @@ class PatternSynthesizer(object):
                 tmp2idx[SYM] = SYM
                 tmp = tmp.map(tmp2idx)
                 if p == Pattern.ENCODE:
+                    # update_constraints(encode_flag=True)
                     constraints["cont-int"] = True
                 elif p == Pattern.ONEHOT:
+                    # update_constraints(onehot_flag=True)
                     constraints["one-hot"] = True
                 # constraints["substr"] = False
             elif p == Pattern.CONV:
@@ -289,7 +307,7 @@ class PatternSynthesizer(object):
                 # constraints["substr"] = False
             elif p == Pattern.MERGE:
                 tmp.loc[:] = SYM
-                constraints["unique_before"] = len(df1[from_col].unique())
+                constraints["unique_reduced"] = True
                 # constraints["substr"] = False
             elif p in [Pattern.STRAN, Pattern.SUBSTR] and constraints["type"] == Pattern.STR:
                 tmp.loc[:] = SYM
@@ -306,24 +324,24 @@ class PatternSynthesizer(object):
             return 0
         
         # validate constraints
-        if "na_filled" in constraints:
+        if constraints["na_filled"]:
             if target.isnull().any():
                 return -1
         
-        if "unique_before" in constraints:
-            if constraints["unique_before"] <= len(df2[to_col].unique()): 
+        if constraints["unique_reduced"]:
+            if len(df1[from_col].unique()) <= len(df2[to_col].unique()): 
                 return -1
 
-        if "cont-int" in constraints or "one-hot" in constraints:
+        if constraints["cont-int"] or constraints["one-hot"]:
             l = sorted(df2[to_col].unique())
             tmp = tmp[tmp[sym_idx] != SYM]
-            if "cont-int" in constraints:
+            if constraints["cont-int"]:
                 if len(l) != max(l) + 1 - min(l):
                     return -1
                 for v in l:
                     if tmp[df2[to_col] == v].nunique() > 1:
                         return 0
-            if "one-hot" in constraints:
+            if constraints["one-hot"]:
                 if len(l) > 2:
                     return -1
                 for v in l:
@@ -340,10 +358,11 @@ class PatternSynthesizer(object):
     # per column searching
     def check_column(self, df1, df2, from_col, to_col):
         worklist = queue.PriorityQueue()
+        worklist.put(Pattern())
         cur_DSL, hint = self.prune_DSL(df1, df2, from_col, to_col)
-        for pattern in cur_DSL:
-            p = Pattern(pattern)
-            worklist.put(p)
+        # for pattern in cur_DSL:
+        #     p = Pattern(pattern)
+        #     worklist.put(p)
         
         top = Pattern(Pattern.COMPUTE)
 
@@ -554,10 +573,15 @@ class PatternSynthesizer(object):
                 top = self.check_column(df1, df2, src_col, col)
                 patterns[tuple(top.patterns)].append(src_col)
             
-            for src_col, src_series in self.other_src.items():
+            for var_name, src_series in self.other_src.items():
                 if type(src_series) == pd.Series and src_series.index.equals(df2.index):
-                    top = self.check_column(pd.DataFrame({src_col: src_series}), df2, src_col, col)
-                    patterns[tuple(top.patterns)].append(src_col)
+                    top = self.check_column(pd.DataFrame({var_name: src_series}), df2, var_name, col)
+                    patterns[tuple(top.patterns)].append(var_name)
+                if type(src_series) == pd.DataFrame and src_series.index.equals(df2.index):
+                    for src_col in src_series.columns:
+                        if src_col in self.other_srccols:
+                            top = self.check_column(pd.DataFrame({src_col: src_series[src_col]}), df2, src_col, col)
+                            patterns[tuple(top.patterns)].append(var_name + "[" + src_col +"]")
 
             if patterns:
                 best_match = min(patterns.keys(), key = lambda x: Pattern.compute_cost(list(x)))
@@ -572,6 +596,8 @@ class PatternSynthesizer(object):
                 self.synthesis_append(Pattern.COMPUTE, [self.df1_name], [col])
 
         for key, des in src2des.items():
+            if len(key[0]) == 0:
+                self.synthesis_append("copy", list(key[1]), des)
             for p in list(key[0]):
                 self.synthesis_append(p, list(key[1]), des)
 
@@ -579,7 +605,7 @@ class PatternSynthesizer(object):
             self.srccols = [col for col in self.srccols if col in all_src]
 
         for col in self.colschange:
-            top = self.check_column(df1, df2, col, col)    
+            top = self.check_column(df1, df2, col, col)
             for p in top.patterns:
                 self.synthesis_append(p, [col], [col])
         
@@ -719,7 +745,7 @@ class Info(object):
             self.par = info["par"][str(cellnum)]
 
 def score(df1, df2):
-    diff_len = len(set(df1.columns) - set(df2.columns))
+    diff_len = len(set(df1.columns).symmetric_difference(set(df2.columns)))
     return abs(df1.shape[0] - df2.shape[0] + 1) * (diff_len + 1) ** 2
 
 def handlecell(myvars, st, ed, info):
@@ -743,6 +769,8 @@ def handlecell(myvars, st, ed, info):
     '''
     for out_var in outs:
         if type(out_var.var) == pd.DataFrame:
+            if out_var.var.index.name == "ignore":
+                continue
             s_map = {x: score(x.var, out_var.var) for x in ins if type(x.var)==pd.DataFrame}
             if s_map:
                 (in_var, _) = min(s_map.items(), key=lambda x: x[1])
