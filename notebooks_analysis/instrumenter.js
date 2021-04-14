@@ -130,13 +130,16 @@ function static_analyzer(tree) {
         }
     }
 
-    function map_handler(stmt, src, des) {
+    function map_handler(stmt, src) {
         // let value_type = ["index", "dot"];
 
         if (src.args[0].actual.type == 'lambda') {
             // console.log(printNode(src.args[0].actual));
             // let args = src.args[0].actual.args.map(x => x.name);
             let code = src.args[0].actual.code;
+            if (code.type == "call" && code.func.type == "name") {
+                def_list.push(code.func.id);
+            }
             // let def_code = "";
             if (code.type == "ifexpr") {
                 if_expr_handler(code);
@@ -187,92 +190,142 @@ function static_analyzer(tree) {
         }
     }
 
-    for (let [_, stmt] of tree.code.entries()) {
-        // console.log(printNode(stmt));
-        // if (!['import', 'def', 'while'].includes(stmt.type))
-        //     stmt_ends_line.add(stmt.location.last_line);
-        infer_types(stmt);
-        // build_flow_graph(stmt)
-        let cols = collect_cols(stmt, pyTypeof);
-        cols.forEach(value => cell_cols.add(String(value).replace(/['"]+/g, '')));
-
-        // console.log(printNode(stmt));
-
-        let key = lineToCell.get(stmt.location.first_line);
-        if (key != old_key) {
-            if (old_key != -1 && cell_cols.size > 0) {
-                add(static_comments, old_key,
-                    "[used]," + Array.from(cell_cols).join(","))
-                cell_cols.clear()
-            }
-            old_key = key;
+    function find_map(stmt, src) {
+        if (src.type == "call" && ["apply", "map"].includes(src.func.name)) {
+            map_handler(stmt, src);
         }
-        if (stmt.type == "assign" && stmt.targets.length == stmt.sources.length) {
-            // external input: x = pd.read_csv()
-            for (let [i, src] of stmt.sources.entries()) {
-                // x[y] = x1[y1].map(...) || x.y = x1.y1.map(...)
-                if (src.type == "call" && src.func.name == "map") {
-                    let res = map_handler(stmt, src, stmt.targets[i]);
-                    if (res)
-                        add(static_comments, key, res);
-                }
-                if (src.type == "call" && src.func.name == "apply") {
-                    let res = map_handler(stmt, src, stmt.targets[i]);
-                    if (res)
-                        add(static_comments, key, res);
-                    else {
-                        let value_type = ["index", "dot"];
-                        if (value_type.includes(stmt.targets[i].type)) {
-                            let des_col = value_type_handler(stmt.targets[i].type, stmt.targets[i]);
-                            add(static_comments, key,
-                                "[apply],create column " + des_col + " from whole row");
-                        }
-                    }
-                }
-                // x = pd.get_dymmies()
-                if (src.type == "call" && src.func.name == "get_dummies") {
-                    add(static_comments, key,
-                        "[get_dummies],encoding in dummy variables");
-                }
-                // x1, x2, y1, y2 = train_test_split()
-                if (src.type == "call" && src.func.name == "train_test_split") {
-                    add(static_comments, key,
-                        "[train_test_split],spliting data to train set and test set");
-                }
-                // x = df.select_dtypes().columns
-                if (src.type == "dot" && src.name == "columns") {
-                    if (src.value.type == "call" && src.value.func.name == "select_dtypes")
-                        add(static_comments, key,
-                            "[select_dtypes],select columns of specific data types");
-                }
-                // x.at[] = ... || x.loc[] = ...
-                if (stmt.targets[i].type == "index" && stmt.targets[i].value.type == "dot"
-                    && ["at", "loc"].includes(stmt.targets[i].value.name)) {
-                    add(static_comments, key,
-                        "[at/loc],re-write the column");
-                }
-            }
-        } else if (stmt.type == "call") {
-            // x.fillna()
-            if (stmt.func.name == "fillna") {
-                add(static_comments, key,
-                    "[fillna],fill missing values");
-            }
-        } else if (stmt.type == "def") {
-            stmt.code.forEach(x => {
-                if (x.type == "return") {
-                    if (x.values.some(code => code.type == "ifexpr")) {
-                        x.values.forEach(code => {
-                            if (code.type == "ifexpr") {
-                                if_expr_handler(code);
-                            }
-                        })
-                        replace_strs.push([x.location.first_line, x.location.last_line, [printNode(x)]]);
-                    }
-                }
-            })
-        }
+        if (src.func && src.func.value)
+            find_map(stmt, src.func.value);
     }
+
+    function traverse_block(block) {
+        block.forEach(stmt => {
+            if (stmt.type == "assign" && stmt.targets.length == stmt.sources.length) {
+                for (let [i, src] of stmt.sources.entries()) {
+                    if (src.type == "call") {
+                        find_map(stmt, src);
+                    }
+                }
+            } else if (stmt.type == "return") {
+                if (stmt.values.some(code => code.type == "ifexpr")) {
+                    stmt.values.forEach(code => {
+                        if (code.type == "ifexpr") {
+                            if_expr_handler(code);
+                        }
+                    })
+                    console.log(printNode(stmt))
+                    replace_strs.push([stmt.location.first_line, stmt.location.last_line, [printNode(stmt)]]);
+                }
+            } else if (["def", "for", "while", "with"].includes(stmt.type)) {
+                traverse_block(stmt.code);
+            }
+        })
+    }
+
+    traverse_block(tree.code);
+
+    // for (let [_, stmt] of tree.code.entries()) {
+    //     // console.log(printNode(stmt));
+    //     // if (!['import', 'def', 'while'].includes(stmt.type))
+    //     //     stmt_ends_line.add(stmt.location.last_line);
+    //     infer_types(stmt);
+    //     // build_flow_graph(stmt)
+    //     let cols = collect_cols(stmt, pyTypeof);
+    //     cols.forEach(value => cell_cols.add(String(value).replace(/['"]+/g, '')));
+
+    //     // console.log(printNode(stmt));
+
+    //     let key = lineToCell.get(stmt.location.first_line);
+    //     if (key != old_key) {
+    //         if (old_key != -1 && cell_cols.size > 0) {
+    //             add(static_comments, old_key,
+    //                 "[used]," + Array.from(cell_cols).join(","))
+    //             cell_cols.clear()
+    //         }
+    //         old_key = key;
+    //     }
+    //     if (stmt.type == "assign" && stmt.targets.length == stmt.sources.length) {
+    //         // external input: x = pd.read_csv()
+    //         for (let [i, src] of stmt.sources.entries()) {
+    //             // x[y] = x1[y1].map(...) || x.y = x1.y1.map(...)
+    //             if (src.type == "call") {
+    //                 find_map(stmt, src);
+    //             }
+    //             //         if (src.type == "call" && src.func.name == "map") {
+    //             //             let res = map_handler(stmt, src, stmt.targets[i]);
+    //             //             if (res)
+    //             //                 add(static_comments, key, res);
+    //             //         }
+    //             //         if (src.type == "call" && src.func.name == "apply") {
+    //             //             let res = map_handler(stmt, src, stmt.targets[i]);
+    //             //             if (res)
+    //             //                 add(static_comments, key, res);
+    //             //             else {
+    //             //                 let value_type = ["index", "dot"];
+    //             //                 if (value_type.includes(stmt.targets[i].type)) {
+    //             //                     let des_col = value_type_handler(stmt.targets[i].type, stmt.targets[i]);
+    //             //                     add(static_comments, key,
+    //             //                         "[apply],create column " + des_col + " from whole row");
+    //             //                 }
+    //             //             }
+    //             //         }
+    //             //         // x = pd.get_dymmies()
+    //             //         if (src.type == "call" && src.func.name == "get_dummies") {
+    //             //             add(static_comments, key,
+    //             //                 "[get_dummies],encoding in dummy variables");
+    //             //         }
+    //             //         // x1, x2, y1, y2 = train_test_split()
+    //             //         if (src.type == "call" && src.func.name == "train_test_split") {
+    //             //             add(static_comments, key,
+    //             //                 "[train_test_split],spliting data to train set and test set");
+    //             //         }
+    //             //         // x = df.select_dtypes().columns
+    //             //         if (src.type == "dot" && src.name == "columns") {
+    //             //             if (src.value.type == "call" && src.value.func.name == "select_dtypes")
+    //             //                 add(static_comments, key,
+    //             //                     "[select_dtypes],select columns of specific data types");
+    //             //         }
+    //             //         // x.at[] = ... || x.loc[] = ...
+    //             //         if (stmt.targets[i].type == "index" && stmt.targets[i].value.type == "dot"
+    //             //             && ["at", "loc"].includes(stmt.targets[i].value.name)) {
+    //             //             add(static_comments, key,
+    //             //                 "[at/loc],re-write the column");
+    //             //         }
+    //             //     }
+    //             // } else if (stmt.type == "call") {
+    //             //     // x.fillna()
+    //             //     if (stmt.func.name == "fillna") {
+    //             //         add(static_comments, key,
+    //             //             "[fillna],fill missing values");
+    //             //     }
+    //         }
+    //     } else if (stmt.type == "def") {
+    //         stmt.code.forEach(x => {
+    //             if (x.type == "return") {
+    //                 if (x.values.some(code => code.type == "ifexpr")) {
+    //                     x.values.forEach(code => {
+    //                         if (code.type == "ifexpr") {
+    //                             if_expr_handler(code);
+    //                         }
+    //                     })
+    //                     replace_strs.push([x.location.first_line, x.location.last_line, [printNode(x)]]);
+    //                 }
+    //             }
+    //         })
+    //     } else if (stmt.type == "for") {
+    //         stmt.code.forEach(innerstmt => {
+    //             if (innerstmt.type == "assign" && innerstmt.targets.length == innerstmt.sources.length) {
+    //                 // external input: x = pd.read_csv()
+    //                 for (let [i, src] of innerstmt.sources.entries()) {
+    //                     // x[y] = x1[y1].map(...) || x.y = x1.y1.map(...)
+    //                     if (src.type == "call") {
+    //                         find_map(innerstmt, src);
+    //                     }
+    //                 }
+    //             }
+    //         })
+    //     }
+    // }
     return static_comments;
 }
 

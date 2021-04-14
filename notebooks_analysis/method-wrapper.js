@@ -79,12 +79,9 @@ function find_col(node) {
             }
             break;
         }
-        // case 'ifexpr':
-        //     return (printNode(node.then) +
-        //         ' if ' +
-        //         printNode(node.test) +
-        //         ' else ' +
-        //         printNode(node.else));
+        // case 'ifexpr': {
+        //     break;
+        // }
         case 'index': {
             find_col(node.value);
             node.args.forEach(x => find_col(x));
@@ -95,11 +92,10 @@ function find_col(node) {
                 find_col.cols.add(node.args[0].value)
             break;
         }
-        // case 'lambda':
-        //     return ('lambda ' +
-        //         node.args.map(printParam).join(comma) +
-        //         ': ' +
-        //         printNode(node.code));
+        case 'lambda': {
+            find_col(node.code);
+            break;
+        }
         // case 'list':
         //     return '[' + node.items.map(function (item) { return printNode(item); }).join(comma) + ']';
         // case 'module':
@@ -108,8 +104,10 @@ function find_col(node) {
         //     return node.id;
         // case 'nonlocal':
         //     return tabs + 'nonlocal ' + node.names.join(comma);
-        // case 'return':
-        //     return tabs + 'return ' + (node.values ? commaSep(node.values) : '');
+        case 'return': {
+            node.values.forEach(v => find_col(v));
+            break;
+        }
         // case 'set':
         //     return '{' + commaSep(node.entries) + '}';
         // case 'slice':
@@ -144,17 +142,11 @@ function find_col(node) {
             find_col(node.operand);
             break;
         }
-        case 'while': {
-            // find_col(node.cond);
+        case 'while':
+        case 'with': {
             node.code.forEach(x => find_col(x));
             break;
         }
-        // case 'with':
-        //     return (tabs +
-        //         'with ' +
-        //         node.items.map(function (w) { return w.with + (w.as ? ' as ' + w.as : ''); }).join(comma) +
-        //         ':' +
-        //         lines(node.code, tabLevel + 1));
         // case 'yield':
         //     return (tabs +
         //         'yield ' +
