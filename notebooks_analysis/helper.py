@@ -38,15 +38,23 @@ def update_access(col, is_set):
     if tup not in access_path:
         access_path.append(tup)
 
+def set_index_map(var, name):
+    if str(type(var.index)) in reset_index_types:
+        saved_name = var.index.name
+        var.reset_index(inplace=True, drop=True, sys_flag=True)
+        var.index.rename(saved_name, inplace=True)
+    id2name[id(var.index)] = name
+
 def my_store_info(info, var):
     if str(type(var)) in ignore_types:
         return
-    if type(var) in [pd.DataFrame] and info[1] == 0:
-        if str(type(var.index)) in reset_index_types:
-            saved_name = var.index.name
-            var.reset_index(inplace=True, drop=True, sys_flag=True)
-            var.index.rename(saved_name, inplace=True)
-        id2name[id(var.index)] = info[2]
+    if info[1] == 0:
+        if type(var) in [pd.DataFrame, pd.Series]: 
+            set_index_map(var, info[2])
+        elif type(var) == list:
+            for i, v in enumerate(var):
+                if type(v) in [pd.DataFrame, pd.Series]:
+                    set_index_map(v, info[2] + f"[{i}]")
     elif type(var) in [pd.DataFrame] and info[1] == 1:
         if id(var) in id2index:
             try:
@@ -109,6 +117,8 @@ def func_info_saver(line):
             # convert back to str
             if type(rets) == MyStr:
                 rets = str(rets)
+            elif type(rets) == list:
+                rets = tuple([str(i) if type(i) == MyStr else i for i in rets])
             
             if cur_exe:
                 pathTracker.update(lib_copy.copy(cur_exe), func.__name__)
@@ -156,9 +166,10 @@ class MyStr(str):
         return MyStr(ret)
 
 def if_expr_wrapper(expr):
-    if pathTracker.cur_idx >= 0:
+    if if_expr_wrapper.track_flag and pathTracker.cur_idx >= 0:
         pathTracker.update(int(expr), "if_expr")
     return expr
+if_expr_wrapper.track_flag = False
 
 class LibDecorator(object):
     def __init__(self):
@@ -178,21 +189,46 @@ class LibDecorator(object):
         pd.DataFrame.apply  = self.df_apply_decorator(pd.DataFrame.apply)
         pd.Series.str.split = self.str_split_decorator(pd.Series.str.split)
         pd.Series.str.extract = self.str_extract_decorator(pd.Series.str.extract)
+        pd.Series.str.replace = self.str_replace_decorator(pd.Series.str.replace)
+        
         pd.DataFrame.reset_index = self.reset_index_decorator(pd.DataFrame.reset_index)
+        pd.Series.reset_index = self.reset_index_decorator(pd.Series.reset_index)
 
         pd.Series.dropna = self.dropna_decorator(pd.Series.dropna)
         pd.DataFrame.dropna = self.dropna_decorator(pd.DataFrame.dropna)
 
-        # reset index when appending rows
-        # pd.concat = self.concat_decorator(pd.concat) (disabled due to bugs)
+        
+        # pd.Series.__iter__ = self.iter_decorator(pd.Series.__iter__)
+        # pd.Series.__next__ = self.next_decorator()
+
+        # ignore merge for now
         pd.DataFrame.merge = self.merge_decorator(pd.DataFrame.merge)
         pd.merge = self.merge_decorator(pd.merge)
         
     def merge_decorator(self, wrapped_method):
-        def decorate(self, *args, **kwargs):
-            res = wrapped_method(self, *args, **kwargs)
+        def decorate(*args, **kwargs):
+            res = wrapped_method(*args, **kwargs)
             res.index.name = "ignore"
             return res
+        return decorate
+
+    def iter_decorator(self, wrapped_method):
+        def decorate(self, *args, **kwargs):
+            pathTracker.reset(self.index)
+            res = wrapped_method(self, *args, **kwargs)
+            self.my_iter = res
+            return self
+        return decorate
+
+    def next_decorator(self):
+        def decorate(self):
+            pathTracker.next_iter()
+            x = next(self.my_iter)
+            if type(x) == str:
+                return MyStr(x)
+            else:
+                return x
+            return x
         return decorate
     
     def replace_decorator(self, wrapped_method):
@@ -277,6 +313,18 @@ class LibDecorator(object):
             return wrapped_method(self, pat, n, expand)
         return decorate
 
+    def str_replace_decorator(self, wrapped_method):
+        def f(x):
+            pathTracker.next_iter()
+            pathTracker.update(int(x), "replace")
+        def decorate(self, *args, **kwargs):
+            ret = wrapped_method(self, *args, **kwargs)
+            cmp_res = (ret != self._parent)
+            if type(cmp_res) == pd.Series:
+                cmp_res.map(f, sys_flag=True)
+            return ret
+        return decorate
+
     def str_extract_decorator(self, wrapped_method):
         def f(x):
             pathTracker.next_iter()
@@ -302,7 +350,11 @@ class LibDecorator(object):
                 self.map(lambda x: f(x, arg), sys_flag=True)
             if not sys_flag and isinstance(arg, types.FunctionType):
                 arg = func_info_saver(296)(arg)
-            return wrapped_method(self, arg, na_action)
+
+            if_expr_wrapper.track_flag = True
+            ret = wrapped_method(self, arg, na_action)
+            if_expr_wrapper.track_flag = False
+            return ret
         return decorate
 
     def apply_decorator(self, wrapped_method):
@@ -310,7 +362,11 @@ class LibDecorator(object):
             pathTracker.reset(self.index)
             if isinstance(func, types.FunctionType):
                 func = func_info_saver(304)(func)
-            return wrapped_method(self, func, *args, **kwargs)
+
+            if_expr_wrapper.track_flag = True
+            ret = wrapped_method(self, func, *args, **kwargs)
+            if_expr_wrapper.track_flag = False
+            return ret
         return decorate
 
 
@@ -323,15 +379,19 @@ class LibDecorator(object):
                     pathTracker.clean()
             if isinstance(func, types.FunctionType):
                 func = func_info_saver(317)(func)
-            return wrapped_method(self, func, *args, **kwargs)
+                
+            if_expr_wrapper.track_flag = True
+            ret = wrapped_method(self, func, *args, **kwargs)
+            if_expr_wrapper.track_flag = False
+            return ret
         return decorate
 
     def reset_index_decorator(self, wrapped_method):
-        def decorate(self, level=None, drop=False, inplace=False, col_level=0, col_fill='', sys_flag=False):
+        def decorate(self, *args, sys_flag=False,**kwargs):
             saved_index = self.index
-            ret = wrapped_method(self, level, drop, inplace, col_level, col_fill)
+            ret = wrapped_method(self, *args, **kwargs)
             if not sys_flag:
-                if inplace:
+                if "inplace" in kwargs and kwargs["inplace"]:
                     id2index[id(self)] = saved_index
                 else:
                     id2index[id(ret)] = saved_index
