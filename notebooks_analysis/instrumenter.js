@@ -435,7 +435,7 @@ function insert_print_stmt(code) {
                 // lines[i] += "update_maxrow([" + ins.get(cur_cell).join(", ") + "])\n";
             }
             // update cur_cell before execution
-            lines[i] += "cur_cell = " + cur_cell + "\n";
+            lines[i] += "\ncur_cell = " + cur_cell + "\n";
         }
         if (lines[i].startsWith("#"))
             continue;
@@ -447,10 +447,10 @@ function insert_print_stmt(code) {
             lines[i] = "";
         }
         // deal with functions
-        let space = " ".repeat((lines[i].length - lines[i].trimLeft().length))
-        if (lines[i].trim().startsWith("def ")) {
-            // lines[i] = space + "@func_info_saver(" + (i + 1) + ")\n" + lines[i]
-        }
+        // let space = " ".repeat((lines[i].length - lines[i].trimLeft().length))
+        // if (lines[i].trim().startsWith("def ")) {
+        //     // lines[i] = space + "@func_info_saver(" + (i + 1) + ")\n" + lines[i]
+        // }
         // add lineno update
         // let target = stmt_ends_line.indexOf(i + 1)
         // if (target != -1 && target != stmt_ends_line.length - 1) {

@@ -43,6 +43,8 @@ def set_index_map(var, name):
         saved_name = var.index.name
         var.reset_index(inplace=True, drop=True, sys_flag=True)
         var.index.rename(saved_name, inplace=True)
+    if var.index.name == "ignore":
+        var.index.rename(None, inplace=True)
     id2name[id(var.index)] = name
 
 def my_store_info(info, var):
@@ -66,6 +68,13 @@ def my_store_info(info, var):
 
 def wrap_copy(var):
     try:
+        # if type(var) == pd.DataFrame:
+        #     for col in var.columns:
+        #         if type(var[col].iloc[0]) == MyStr:
+        #             var[col] = var[col].astype(str)
+        # elif type(var) == pd.DataFrame:
+        #     if type(var.iloc[0]) == MyStr:
+        #         var = var.astype(str)
         return lib_copy.deepcopy(var)
     except NotImplementedError:
         return "NOT COPIED"
@@ -399,6 +408,9 @@ class LibDecorator(object):
         return decorate
     
     def get_dummies_decorator(self, wrapped_method):
+        def f(x, ls):
+            pathTracker.next_iter()
+            pathTracker.update(ls.index(x) if x in ls else -1, "get_dummies")
         def append(key, ls):
             if pd.core.dtypes.common.is_hashable(key) and key not in ls:
                 ls.append(key)
@@ -408,10 +420,14 @@ class LibDecorator(object):
                     for item in columns:
                         append(item, get__keys[cur_cell])
                         update_access(item, False)
+                        data[item].map(lambda x: f(x, list(data[item].unique())), sys_flag=True)
                 else:
                     for item in data.select_dtypes(include=['object', 'category']).columns:
                         append(item, get__keys[cur_cell])
                         update_access(item, False)
+                        data[item].map(lambda x: f(x, list(data[item].unique())), sys_flag=True)
+            elif type(data) == pd.Series:
+                data.map(lambda x: f(x, list(data.unique())), sys_flag=True)
             return wrapped_method(data, prefix, prefix_sep, dummy_na, columns, sparse, drop_first, dtype)
         return decorate_acc
 
@@ -435,6 +451,13 @@ class LibDecorator(object):
         def append(key, ls):
             if pd.core.dtypes.common.is_hashable(key) and key not in ls:
                 ls.append(key)
+        def index_model(key, index):
+            if len(key) != len(index):
+                return
+            pathTracker.reset(index)
+            for i, v in enumerate(key):
+                pathTracker.next_iter()
+                pathTracker.update(int(v), "set")
         def decorate_acc(self, key, value):
             # caller = getframeinfo(stack()[1][0])
             # lineno = caller.lineno if script_path.endswith(caller.filename) else 0  
@@ -445,6 +468,8 @@ class LibDecorator(object):
             elif type(key) == str:
                 append(key, set__keys[cur_cell])
                 update_access(key, True)
+            elif type(key) == pd.Series and key.dtype == bool:
+                index_model(key, self.index)
             return method(self, key, value)
         return decorate_acc
     def index_set_decorator(self, method):
