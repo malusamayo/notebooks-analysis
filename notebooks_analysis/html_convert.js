@@ -531,7 +531,8 @@ class VariableInspectorPanel {
         bounds.push(markers[path] + 3);
       }
       bounds.push(maxlen);
-      for (let i = 0; i < paths.length; i++) {
+      let maxrow = Math.min(100, paths.length);
+      for (let i = 0; i < maxrow; i++) {
         row = df_table.tFoot.insertRow();
         // add button
         cell = row.insertCell(0);
