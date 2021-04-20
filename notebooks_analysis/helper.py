@@ -75,7 +75,10 @@ def wrap_copy(var):
         # elif type(var) == pd.DataFrame:
         #     if type(var.iloc[0]) == MyStr:
         #         var = var.astype(str)
-        return lib_copy.deepcopy(var)
+        if hasattr(var, "__setstate__") or type(var) in [str, int, float, bool, list, tuple, dict]:
+            return lib_copy.deepcopy(var)
+        else:
+            return "NOT COPIED"
     except NotImplementedError:
         return "NOT COPIED"
     except TypeError:
@@ -400,6 +403,10 @@ class LibDecorator(object):
             saved_index = self.index
             ret = wrapped_method(self, *args, **kwargs)
             if not sys_flag:
+                # if "inplace" in kwargs and kwargs["inplace"]:
+                #     self.set_index(saved_index, inplace=True)
+                # else:
+                #     ret.set_index(saved_index, inplace=True)
                 if "inplace" in kwargs and kwargs["inplace"]:
                     id2index[id(self)] = saved_index
                 else:

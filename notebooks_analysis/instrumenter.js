@@ -462,10 +462,9 @@ function insert_print_stmt(code) {
 }
 
 
-// let code = "train_test_data = [train, test]\nfor dataset in train_test_data:\n" +
-//     "    train_test_data = dataset['Name'].str.extract(' ([A-Za-z]+)\\.', expand=False)\n" +
-//     "sex_mapping = {\"male\": 0, \"female\": 1}\nfor dataset in train_test_data:\n" +
-//     "    dataset['Sex'] = dataset['Sex'].map(sex_mapping)\n"
+// let code = `some_clubs = ('CD Leganés', 'Southampton', 'RC Celta', 'Empoli', 'Fortuna Düsseldorf', 'Manchester City',
+// 'Tottenham Hotspur', 'FC Barcelona', 'Valencia CF', 'Chelsea', 'Real Madrid')
+// plt.show()`
 // let tree = py.parse(code);
 // let cfg = new py.ControlFlowGraph(tree);
 // // console.log(cfg.blocks);

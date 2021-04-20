@@ -37,6 +37,7 @@ json_out_path = os.path.join(data_path, "result.json")
 blanks = "\t- "
 postfix = "[auto]"
 access_path = []
+log_no_transform = set()
 
 def print_error(msg):
     print("\033[91m", msg, "\033[0m")
@@ -391,28 +392,28 @@ class PatternSynthesizer(object):
         return False
 
     def check_concat(self, df1, df2):
-        if len(df1) == len(df2) and df1.shape[1] < df2.shape[1] and set(df1.columns).issubset(set(df2.columns)) and self.other_src:
-            candidates = []
-            cols = set(df1.columns)
-            cols2 = set(df2.columns)
-            for name, var in self.other_src.items():
-                if len(var) != len(df2):
-                    continue
-                if type(var) == pd.DataFrame:
-                    if set(var.columns).issubset(cols2):
-                        candidates.append(name)
-                        cols.update(var.columns)
-                elif type(var) == pd.Series:
-                    # what happen if series have no name? default column name: 0, 1, ...
-                    if var.name in cols2: 
-                        candidates.append(name)
-                        cols.add(var.name)
-            if cols == cols2:
-                df_test = pd.concat([df1] + [self.other_src[var_name] for var_name in candidates], axis=1)[df2.columns]
-                if df_test.equals(df2):
-                    self.synthesis_append("concat_col", [self.df1_name] + candidates, [])
-                    return True
-        elif len(df1) < len(df2) and df1.shape[1] == df2.shape[1] and set(df1.index).issubset(set(df2.index)) and self.other_src:
+        # if len(df1) == len(df2) and df1.shape[1] < df2.shape[1] and set(df1.columns).issubset(set(df2.columns)) and self.other_src:
+        #     candidates = []
+        #     cols = set(df1.columns)
+        #     cols2 = set(df2.columns)
+        #     for name, var in self.other_src.items():
+        #         if len(var) != len(df2):
+        #             continue
+        #         if type(var) == pd.DataFrame:
+        #             if set(var.columns).issubset(cols2):
+        #                 candidates.append(name)
+        #                 cols.update(var.columns)
+        #         elif type(var) == pd.Series:
+        #             # what happen if series have no name? default column name: 0, 1, ...
+        #             if var.name in cols2: 
+        #                 candidates.append(name)
+        #                 cols.add(var.name)
+        #     if cols == cols2:
+        #         df_test = pd.concat([df1] + [self.other_src[var_name] for var_name in candidates], axis=1)[df2.columns]
+        #         if df_test.equals(df2):
+        #             self.synthesis_append("concat_col", [self.df1_name] + candidates, [])
+        #             return True
+        if len(df1) < len(df2) and df1.shape[1] == df2.shape[1] and set(df1.index).issubset(set(df2.index)) and self.other_src:
             candidates = [self.df1_name]
             idxes = set(df1.index)
             idxes2 = set(df2.index)
@@ -563,7 +564,7 @@ class PatternSynthesizer(object):
             self.synthesis_append("reset_index", [], [])
             col_left.remove(old_index_name)
 
-        src2des = collections.defaultdict(list)
+        src2des = collections.defaultdict(lambda: collections.defaultdict(list))
         for col in col_left:
             src = self.get_src(col)
             all_src += src
@@ -578,16 +579,20 @@ class PatternSynthesizer(object):
                     top = self.check_column(pd.DataFrame({var_name: src_series}), df2, var_name, col)
                     patterns[tuple(top.patterns)].append(var_name)
                 if type(src_series) == pd.DataFrame and src_series.index.equals(df2.index):
-                    for src_col in src_series.columns:
-                        if src_col in self.other_srccols:
-                            top = self.check_column(pd.DataFrame({src_col: src_series[src_col]}), df2, src_col, col)
-                            patterns[tuple(top.patterns)].append(var_name + "[" + src_col +"]")
+                    if col in src_series.columns:
+                        top = self.check_column(pd.DataFrame({col: src_series[col]}), df2, col, col)
+                        patterns[tuple(top.patterns)].append(var_name + "[" + col +"]")
+                    else:
+                        for src_col in src_series.columns:
+                            if src_col in self.other_srccols:
+                                top = self.check_column(pd.DataFrame({src_col: src_series[src_col]}), df2, src_col, col)
+                                patterns[tuple(top.patterns)].append(var_name + "[" + src_col +"]")
 
             if patterns:
                 best_match = min(patterns.keys(), key = lambda x: Pattern.compute_cost(list(x)))
                 # for p_ls, src in patterns.items():
                 src_used = patterns[best_match]
-                src2des[(best_match, tuple(src_used))].append(col)
+                src2des[best_match][tuple(src_used)].append(col)
                 # for p in list(best_match):
                 #     src2des[(p, src_used)].append(col)
                 #     self.synthesis_append(p, src_used, [col])
@@ -595,11 +600,12 @@ class PatternSynthesizer(object):
                 # no src col
                 self.synthesis_append(Pattern.COMPUTE, [self.df1_name], [col])
 
-        for key, des in src2des.items():
-            if len(key[0]) == 0:
-                self.synthesis_append("copy", list(key[1]), des)
-            for p in list(key[0]):
-                self.synthesis_append(p, list(key[1]), des)
+        for key, s_map in src2des.items():
+            for src, des in s_map.items():
+                if len(key) == 0:
+                    self.synthesis_append("copy", list(src), des)
+                for p in list(key):
+                    self.synthesis_append(p, list(src), des)
 
         if self.colsnew:
             self.srccols = [col for col in self.srccols if col in all_src]
@@ -744,9 +750,11 @@ class Info(object):
         if str(cellnum) in info["par"]:
             self.par = info["par"][str(cellnum)]
 
-def score(df1, df2):
+def score(DF1, DF2):
+    df1, df2 = DF1.var, DF2.var 
+    diff_name = (int(DF1.name != DF2.name) + 1)
     diff_len = len(set(df1.columns).symmetric_difference(set(df2.columns)))
-    return abs(df1.shape[0] - df2.shape[0] + 1) * (diff_len + 1) ** 2
+    return abs(df1.shape[0] - df2.shape[0] + 1) * ((diff_len + 1) ** 2) * diff_name
 
 def handlecell(myvars, st, ed, info):
     # comments = ["\'\'\'"]
@@ -771,20 +779,23 @@ def handlecell(myvars, st, ed, info):
         if type(out_var.var) == pd.DataFrame:
             if out_var.var.index.name == "ignore":
                 continue
-            s_map = {x: score(x.var, out_var.var) for x in ins if type(x.var)==pd.DataFrame}
-            if s_map:
-                (in_var, _) = min(s_map.items(), key=lambda x: x[1])
-                checker = PatternSynthesizer(in_var, out_var, info, ins)
-                result = checker.check(in_var.var, out_var.var)
-                if result:
-                    flow = ' '.join([in_var.name, "->", out_var.name])
-                    json_map["summary"][flow] = dict(checker.summary)
-                    if checker.table:
-                        json_map["partition"][flow] = checker.markers
-                        json_map["table"][flow] = checker.table
-                    print(cell_num, ":", flow, "\033[96m", 
-                        dict(checker.summary), len(checker.markers), "\033[0m")           
-
+            s_map = {x: score(x, out_var) for x in ins if type(x.var)==pd.DataFrame}
+            candidates = [item[0] for item in sorted(s_map.items(), key=lambda x: x[1])]
+            if candidates:
+                for in_var in candidates:
+                    checker = PatternSynthesizer(in_var, out_var, info, ins)
+                    result = checker.check(in_var.var, out_var.var)
+                    if result:
+                        flow = ' '.join([in_var.name, "->", out_var.name])
+                        json_map["summary"][flow] = dict(checker.summary)
+                        if checker.table:
+                            json_map["partition"][flow] = checker.markers
+                            json_map["table"][flow] = checker.table
+                        print(cell_num, ":", flow, "\033[96m", 
+                            dict(checker.summary), len(checker.markers), "\033[0m")
+                        break
+                else:
+                    print_error(f"{cell_num}: no docs are generated for {out_var.name}")
     return "\n".join(comments), json_map
 
 if __name__ == "__main__":
