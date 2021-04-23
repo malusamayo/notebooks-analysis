@@ -1,7 +1,7 @@
 "use strict";
 
 const { dir } = require('console');
-const { writeFileSync, readdirSync, readFileSync, existsSync } = require('fs');
+const { writeFileSync, readdirSync, readFileSync, existsSync, read } = require('fs');
 const path = require('path');
 const JSON5 = require('json5')
 const execSync = require('child_process').execSync;
@@ -83,6 +83,68 @@ let cell_info = {};
 let tracked_cells = [];
 let sample_num = 20;
 
+let counts = {
+	"modified": [],
+	"new": [],
+	"removecol": [],
+	"rearrange": [],
+	"removerow": [],
+	"removerow_null": [],
+	"removerow_dup": [],
+	"rearrange_row": []
+};
+let func_counts = {
+	"replace": [],
+	"strip": [],
+	"upper": [],
+	"lower": [],
+	"if_expr": [],
+	"loc/at": [],
+	"empty": [],
+	"removed": [],
+	"replace_ls": [],
+	"split": [],
+	"fillna": [],
+	"extract": [],
+	"map_dict": [],
+	"get_dummies": [],
+	"set": [],
+	"dropna": [],
+	"others": []
+}
+let pat2cols = {}
+let nb2pat = {}
+
+function add_count(pattern, filepath) {
+	if (pattern in counts && !counts[pattern].includes(filepath)) {
+		counts[pattern].push(filepath);
+	}
+}
+
+function add_func_counts(func, filepath) {
+	if (func in func_counts) {
+		func_counts[func].push(filepath);
+	} else if (!func.startsWith("default_")) {
+		func_counts["others"].push(filepath);
+	}
+}
+
+function add_col(pattern, col) {
+	if (!(pattern in pat2cols)) {
+		pat2cols[pattern] = []
+	}
+	pat2cols[pattern].push(col);
+}
+
+function update_np2pat(pattern, notebook) {
+	if (!(notebook in nb2pat)) {
+		nb2pat[notebook] = []
+	}
+	if (!nb2pat[notebook].includes(pattern)) {
+		nb2pat[notebook].push(pattern);
+	}
+}
+
 function add_pattern(pattern, filepath) {
 	if (!(pattern in summary)) {
 		summary[pattern] = []
@@ -115,6 +177,7 @@ function generateSummary(flow, patterns, filepath) {
 					add_pattern(k, filepath);
 					update_statistics(k);
 				}
+				add_count(k, filepath);
 			})
 		});
 	}
@@ -122,10 +185,16 @@ function generateSummary(flow, patterns, filepath) {
 		let cols = col_str.split('|');
 		if (cols.length <= 1)
 			return false;
+		if (cols[0] == cols[1])
+			add_count("modified", filepath);
+		else
+			add_count("new", filepath);
 		let pattern = patterns[col_str].join('(') + "(" + ")".repeat(patterns[col_str].length);
+		cols[1].split(',').forEach(x => add_col(pattern, x))
 		add_pattern(pattern, filepath);
 		for (const p of patterns[col_str]) {
-			update_statistics(p);
+			update_statistics(p, filepath);
+			update_np2pat(p, filepath.substring(0, filepath.indexOf(".html")))
 		}
 	});
 }
@@ -168,114 +237,117 @@ function read_data(testFolder) {
 			let cell_output = {};
 			let tracked = {}
 
-
-
 			readdirSync(dir).filter(file => file.startsWith("result")).sort().forEach(file => {
 				let data = JSON.parse(readFileSync(path.join(dir, file)));
 				let cell_num = file.match(/\d+/)[0].padStart(3, "0");
-				let filepath = nb_html + "#" + cell_num;
 
 				cell_input[cell_num] = Object.keys(data.input).filter(k => data.input[k].type.startsWith("DataFrame"));
 				cell_output[cell_num] = Object.keys(data.output);
 				tracked[cell_num] = Object.keys(data.summary).map(x => x.split(" -> ")[1]);
 
-				if (!(filepath in cell_info)) {
-					cell_info[filepath] = {
-						"SA-ignored": false,
-						"incomplete-doc": false,
-						"no-doc": false,
-						"tracked": false,
-						"changed": false
-					};
-				}
-
-				if (tracked[cell_num].length > 0) {
-					cell_info[filepath]["tracked"] = true;
-				}
-
-				Object.keys(data.partition).forEach(k => {
-					let arr = Object.keys(data.partition[k]);
-					let res = JSON5.parse(arr[0])[0].slice(-1)[0];
-					let l = res.startsWith("default") ? 1 : arr.length;
-					update_clusters(l, filepath);
-				})
+				// Object.keys(data.partition).forEach(k => {
+				// 	let arr = Object.keys(data.partition[k]);
+				// 	let res = JSON5.parse(arr[0])[0].slice(-1)[0];
+				// 	let l = res.startsWith("default") ? 1 : arr.length;
+				// 	update_clusters(l, filepath);
+				// })
 				Object.keys(data.summary).forEach(k => {
+					let var_name = "[" + k.split(" -> ")[1] + "]";
+					let filepath = nb_html + "#" + cell_num + var_name;
+
+					if (!(filepath in cell_info)) {
+						cell_info[filepath] = {
+							"SA-ignored": false,
+							"incomplete-doc": false,
+							"no-doc": false,
+							"tracked": false,
+							"changed": false
+						};
+					}
+
+					cell_info[filepath]["tracked"] = true;
+
 					generateSummary(k, data.summary[k], filepath);
+
+					// cluster
+					if (k in data.partition) {
+						let arr = Object.keys(data.partition[k]);
+						let res = JSON5.parse(arr[0]);
+						let l = res[0].slice(-1)[0].startsWith("default") ? 1 : arr.length;
+						update_clusters(l, filepath);
+						res.forEach(x => add_func_counts(x[1], filepath));
+
+					}
 				})
-
 			});
-			let changes = JSON.parse(readFileSync(log_path));
 
+			let changes = JSON.parse(readFileSync(log_path));
 			Object.keys(changes).forEach(cell_num => {
 				let cell_num_padded = String(cell_num).padStart(3, "0");
-				let filepath = nb_html + "#" + cell_num_padded;
-				if (!(filepath in cell_info)) {
-					cell_info[filepath] = {
-						"SA-ignored": false,
-						"incomplete-doc": false,
-						"no-doc": false,
-						"tracked": false
-					};
-				}
-
-				cell_info[filepath]["changed"] = true
-
-				if (!(cell_num_padded in tracked)) {
-					console.log(nb_html, cell_num_padded);
-					cell_info[filepath]["SA-ignored"] = true;
-					cell_info[filepath]["incomplete-doc"] = true;
-					cell_info[filepath]["no-doc"] = true;
-				} else {
-					if (changes[cell_num].filter(x => !tracked[cell_num_padded].includes(x)).length > 0) {
-						cell_info[filepath]["incomplete-doc"] = true;
+				changes[cell_num].forEach(var_name => {
+					let filepath = nb_html + "#" + cell_num_padded + "[" + var_name + "]";
+					if (!(filepath in cell_info)) {
+						cell_info[filepath] = {
+							"SA-ignored": false,
+							"incomplete-doc": false,
+							"no-doc": false,
+							"tracked": false
+						};
 					}
-					if (tracked[cell_num_padded].length == 0) {
-						cell_info[filepath]["no-doc"] = true;
-					}
-					if (cell_input[cell_num_padded].length == 0
-						|| changes[cell_num].filter(x => !cell_output[cell_num_padded].includes(x)).length > 0) {
+					cell_info[filepath]["changed"] = true;
+					if (!(cell_num_padded in cell_input) || cell_input[cell_num_padded].length == 0
+						|| !cell_output[cell_num_padded].includes(var_name)) {
 						cell_info[filepath]["SA-ignored"] = true;
 					}
-				}
+				})
 			})
 		}
 	});
 }
 
-function gen_plots(summary, statistics, clusters, cell_info) {
+function append_item(file_name) {
+	return '<FONT CLASS="FrameItemFont"><A HREF="' + file_name.substring(0, file_name.indexOf("[")) + '" TARGET="SourceFrame">' + file_name + '</A></FONT><BR>\n';
+}
+
+let avg = []
+
+function gen_plots(summary, statistics, clusters, cell_info, testFolder = "") {
 	let output_html = "";
 
 	// not tracked list
 	let changed = new Set(Object.keys(cell_info).filter(x => cell_info[x]["changed"] == true));
+	// console.log(changed.size, new Set(Array.from(changed).map(file_name => file_name.substring(0, file_name.indexOf("[")))))
+	// let tracked = Object.keys(cell_info).filter(x => cell_info[x]["tracked"] == true).map(x => x.substring(0, x.lastIndexOf("#")));
+	// const map = tracked.reduce((acc, e) => acc.set(e, (acc.get(e) || 0) + 1), new Map());
+	// let times = readFileSync(testFolder.split(path.sep).concat(["log.txt"]).join(path.sep), "utf8").split("\n").filter(x => x != "");
+	// // console.log(map)
+	// for (const line of times) {
+	// 	let items = line.split("\t");
+	// 	console.log(items[0], items[4] / map.get(items[0].replace(".ipynb", ".html")))
+	// 	avg.push(items[4] / map.get(items[0].replace(".ipynb", ".html")))
+	// }
+	// let average = (array) => array.reduce((a, b) => a + b) / array.length;
+	// console.log(average(avg), avg.length)
+	let not_tracked = new Set(Object.keys(cell_info).filter(x => cell_info[x]["tracked"] == false))
 	let no_SA = new Set(Object.keys(cell_info).filter(x => cell_info[x]["SA-ignored"] == true));
-	let incomp = new Set(Object.keys(cell_info).filter(x => cell_info[x]["incomplete-doc"] == true && cell_info[x]["no-doc"] == false));
-	let nodoc = new Set(Object.keys(cell_info).filter(x => cell_info[x]["no-doc"] == true));
+
+	// let incomp = new Set(Object.keys(cell_info).filter(x => cell_info[x]["incomplete-doc"] == true && cell_info[x]["no-doc"] == false));
+	// let nodoc = new Set(Object.keys(cell_info).filter(x => cell_info[x]["no-doc"] == true));
 
 	// console.log(Array.from(changed).filter(x => cell_info[x]["no-doc"] == false && cell_info[x]["tracked"] == false));
 
 
-	output_html += `<br><button class="collapsible">No-doc Cells: ${nodoc.size}/${changed.size} | Missing-doc Cells: ${incomp.size}/${changed.size}</button>` + `<div class="content"><ul>`;
+	output_html += `<br><button class="collapsible">No-doc Vars: ${not_tracked.size}/${changed.size}</button>` + `<div class="content"><ul>`;
 	// nodoc
-	let SA_not_tracked = new Set([...nodoc].filter(x => no_SA.has(x)));
-	let other_not_tracked = new Set([...nodoc].filter(x => !no_SA.has(x)));
-	output_html += `<h2>Cells without doc due to static analysis: ${SA_not_tracked.size}/${nodoc.size}</h2>`
+	let SA_not_tracked = new Set([...not_tracked].filter(x => no_SA.has(x)));
+	let other_not_tracked = new Set([...not_tracked].filter(x => !no_SA.has(x)));
+	output_html += `<h2>Vars without doc due to static analysis: ${SA_not_tracked.size}/${not_tracked.size}</h2>`
 	SA_not_tracked.forEach(file_name => {
-		output_html += '<FONT CLASS="FrameItemFont"><A HREF="' + file_name + '" TARGET="SourceFrame">' + file_name + '</A></FONT><BR>\n';
+		output_html += append_item(file_name);
 	})
-	output_html += `<h2>Cells without doc due to other reasons: ${other_not_tracked.size}/${nodoc.size}</h2>`
+	output_html += `<h2>Vars without doc due to other reasons: ${other_not_tracked.size}/${not_tracked.size}</h2>`
 	other_not_tracked.forEach(file_name => {
-		output_html += '<FONT CLASS="FrameItemFont"><A HREF="' + file_name + '" TARGET="SourceFrame">' + file_name + '</A></FONT><BR>\n';
-	})
-	// missing
-	SA_not_tracked = new Set([...incomp].filter(x => no_SA.has(x)));
-	other_not_tracked = new Set([...incomp].filter(x => !no_SA.has(x)));
-	output_html += `<h2>Cells missing doc due to static analysis: ${SA_not_tracked.size}/${incomp.size}</h2>`
-	SA_not_tracked.forEach(file_name => {
-		output_html += '<FONT CLASS="FrameItemFont"><A HREF="' + file_name + '" TARGET="SourceFrame">' + file_name + '</A></FONT><BR>\n';
-	})
-	output_html += `<h2>Cells missing doc due to other reasons: ${other_not_tracked.size}/${incomp.size}</h2>`
-	other_not_tracked.forEach(file_name => {
-		output_html += '<FONT CLASS="FrameItemFont"><A HREF="' + file_name + '" TARGET="SourceFrame">' + file_name + '</A></FONT><BR>\n';
+		output_html += append_item(file_name);
 	})
 	output_html += "</ul></div>";
 
@@ -343,7 +415,7 @@ function gen_plots(summary, statistics, clusters, cell_info) {
 	Object.keys(summary).forEach(pattern => {
 		output_html += `<br><br><a id=${pattern}><h3>` + pattern + "</h3></a>";
 		summary[pattern].forEach(file_name => {
-			output_html += '<FONT CLASS="FrameItemFont"><A HREF="' + file_name + '" TARGET="SourceFrame">' + file_name + '</A></FONT><BR>\n'
+			output_html += append_item(file_name);
 		})
 	})
 	// output_html += "</div>";
@@ -354,7 +426,7 @@ function gen_plots(summary, statistics, clusters, cell_info) {
 	Object.keys(clusters).forEach(num => {
 		output_html += `<br><h3><a id=branch_${num}>` + num + "</h3></a>";
 		clusters[num].forEach(file_name => {
-			output_html += '<FONT CLASS="FrameItemFont"><A HREF="' + file_name + '" TARGET="SourceFrame">' + file_name + '</A></FONT><BR>\n'
+			append_item(file_name);
 		})
 	})
 	// output_html += "</div>";
@@ -368,7 +440,7 @@ function gen_html_page(testFolder) {
 	read_data(testFolder);
 
 	let output_html = STARTS;
-	tracked_cells = Object.keys(cell_info).filter(x => cell_info[x]["tracked"] == true && cell_info[x]["changed"] == true);
+	tracked_cells = Object.keys(cell_info).filter(x => cell_info[x]["changed"] == true);
 	sample_num = Math.min(sample_num, tracked_cells.length)
 
 	// sampling code
@@ -397,7 +469,7 @@ Resample
 	let sampled_cells = sample(tracked_cells, sample_num);
 	output_html += `<div id="sampled_cells">`;
 	sampled_cells.sort().forEach(file_name => {
-		output_html += '<FONT CLASS="FrameItemFont"><A HREF="' + file_name + '" TARGET="SourceFrame">' + file_name + '</A></FONT><BR>\n';
+		output_html += append_item(file_name);
 	});
 	output_html += '</div>';
 
@@ -414,7 +486,7 @@ Resample
 	</script>`
 
 	// add statistics
-	output_html += gen_plots(summary, statistics, clusters, cell_info);
+	output_html += gen_plots(summary, statistics, clusters, cell_info, testFolder);
 
 	output_html += ENDS;
 
@@ -445,13 +517,13 @@ function gen_index_page() {
   </center>
 `
 
-	let all_tracked_cells = Object.keys(all_cell_info).filter(x => all_cell_info[x]["tracked"] == true && all_cell_info[x]["changed"] == true);
+	let all_tracked_cells = Object.keys(all_cell_info).filter(x => all_cell_info[x]["changed"] == true);
 	let sampled_cells = sample(all_tracked_cells, 100);
 	output_html += `<h1>Sampled 100 Cells:</h1>
 	<h2>Inter Rated 20 Cells</h2>
 	<div id="sampled_cells">`;
 	sampled_cells.forEach((file_name, idx) => {
-		output_html += '<FONT CLASS="FrameItemFont"><A HREF="' + file_name + '" TARGET="SourceFrame">' + file_name + '</A></FONT><BR>\n';
+		output_html += append_item(file_name);
 		if (idx == 19) {
 			output_html += "<hr>\n";
 			output_html += `<br><button class="collapsible">Other 80 Cells</button>` + `<div class="content">`;
@@ -539,4 +611,37 @@ for (const testFolder of [titanic_folder, fifa_folder, google_folder, airbnb_fol
 	cell_info = {};
 }
 
+// for (const pattern in counts) {
+// 	console.log(pattern, counts[pattern].length);
+// }
+// for (const pattern in pat2cols) {
+// 	console.log(pattern, pat2cols[pattern].length);
+// }
+// let arr = Object.keys(nb2pat).map(x => Number(nb2pat[x].length)).sort()
+// console.log(nb2pat)
+// for (let i in arr) {
+// 	console.log(i, arr[i]);
+// }
+// for (const func in func_counts) {
+// 	console.log(func, func_counts[func].length);
+// }
+// let inverse = {};
+// let len_per = {}
+// for (const pattern in all_summary) {
+// 	for (const cell in all_summary[pattern]) {
+// 		if (!(cell in inverse)) {
+// 			inverse[cell] = [];
+// 		}
+// 		inverse[cell].push(pattern)
+// 	}
+// }
+// for (const cell in inverse) {
+// 	if (!(inverse[cell].length in len_per)) {
+// 		len_per[inverse[cell].length] = []
+// 	}
+// 	len_per[inverse[cell].length].push(cell)
+// }
+// for (const l in len_per) {
+// 	console.log(l, len_per[l].length);
+// }
 gen_index_page();
