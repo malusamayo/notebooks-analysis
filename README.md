@@ -10,6 +10,7 @@ A tool for generating documentation information for jupyter notebooks via progra
 1. npm install bugs: please refer to https://stackoverflow.com/a/64043900/13881716
 
 ## Project Structure
+```
 .
 │
 ├── src: static analysis tool code
@@ -37,3 +38,4 @@ A tool for generating documentation information for jupyter notebooks via progra
 ├── batch-run.py: run script for notebooks in a folder
 │
 └── run.py: run script
+```
