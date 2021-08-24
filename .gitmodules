@@ -1,0 +1,3 @@
+[submodule "server-extension"]
+	path = server-extension
+	url = https://github.com/malusamayo/server-extension
