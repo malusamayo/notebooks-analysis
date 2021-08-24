@@ -2,9 +2,7 @@
 
 A tool for generating documentation for jupyter notebooks via program analysis & synthesis. 
 
-For the jupyterlab extension that renders generated documentation, go to https://github.com/malusamayo/server-extension.
-
-For supplementary materials, go to https://www.dropbox.com/sh/40u948uf750ar1n/AAAzhrZXdI5YXyivPQuM1c77a?dl=0.
+For supplementary materials, please go to https://www.dropbox.com/sh/40u948uf750ar1n/AAAzhrZXdI5YXyivPQuM1c77a?dl=0.
 
 ## How to use the tool
 1. Run `npm install` and `npm run build`
