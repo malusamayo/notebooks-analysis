@@ -1,6 +1,6 @@
 # notebooks-analysis
 
-A tool for generating documentation information for jupyter notebooks via program analysis & synthesis. 
+A tool for generating documentation for jupyter notebooks via program analysis & synthesis. 
 
 ## How to use the tool
 1. Run `npm install` and `npm run build`
