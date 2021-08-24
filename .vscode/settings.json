@@ -12,5 +12,6 @@
   "python.pythonPath": "C:\\Users\\77338\\Anaconda3\\python.exe",
   "python.analysis.extraPaths": [
     "notebooks_analysis"
-  ]
+  ],
+  "jupyter.jupyterServerType": "local"
 }
