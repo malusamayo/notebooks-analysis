@@ -1,3 +1,6 @@
 [submodule "server-extension"]
 	path = server-extension
 	url = https://github.com/malusamayo/server-extension
+[submodule "ASE21_supplementary_materials"]
+	path = ASE21_supplementary_materials
+	url = https://github.com/malusamayo/ASE21_supplementary_materials
